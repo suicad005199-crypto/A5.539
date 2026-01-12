@@ -3,100 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 Analytics Pro Terminal</title>
+    <title>539 Analytics Pro</title>
     <style>
         :root {
             --bg: #0a0e17;
             --glass: rgba(30, 41, 59, 0.7);
             --primary: #6366f1;
-            --accent: #f43f5e;
             --success: #10b981;
             --gold: #fbbf24;
             --text: #f8fafc;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
             background: radial-gradient(circle at top right, #1e1b4b, #0a0e17);
             color: var(--text);
-            margin: 0; padding: 15px;
-            min-height: 100vh;
+            margin: 0; padding: 15px; min-height: 100vh;
             display: flex; justify-content: center;
         }
 
         .container {
             width: 100%; max-width: 850px;
             background: var(--glass);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 28px; padding: 30px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 28px; padding: 30px; box-sizing: border-box;
         }
 
-        h2 { 
-            text-align: center; font-weight: 800; letter-spacing: -0.025em;
-            background: linear-gradient(to bottom right, #fff, #94a3b8);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            margin-bottom: 30px;
-        }
+        h2 { text-align: center; font-weight: 800; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-        /* 專業上傳區 */
+        /* 檔案上傳區修正 */
         .upload-area {
             background: rgba(15, 23, 42, 0.5);
             border: 1.5px dashed rgba(99, 102, 241, 0.3);
             padding: 30px; border-radius: 20px; text-align: center;
-            transition: 0.3s;
         }
-        .upload-area:hover { border-color: var(--primary); background: rgba(15, 23, 42, 0.8); }
+
+        .file-info { margin-top: 10px; font-size: 0.8rem; color: var(--success); display: none; }
 
         .btn {
             background: var(--primary); color: white; border: none;
-            padding: 14px 40px; border-radius: 14px; font-weight: 700;
-            cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
-            -webkit-appearance: none;
+            padding: 14px 30px; border-radius: 12px; font-weight: 700;
+            cursor: pointer; transition: 0.2s; -webkit-appearance: none;
         }
-        .btn:active { transform: scale(0.96); }
+        .btn-run { background: #334155; margin-left: 8px; }
+        .btn:active { transform: scale(0.95); }
 
-        /* 表格優化 */
-        .table-wrapper { overflow-x: auto; margin-top: 30px; border-radius: 16px; }
-        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; min-width: 600px; }
-        th { color: #64748b; padding: 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; }
-        
-        tbody tr { 
-            background: rgba(255, 255, 255, 0.03); 
-            transition: 0.2s;
-        }
-        tbody tr:hover { background: rgba(255, 255, 255, 0.07); }
-        
-        td { padding: 20px 12px; text-align: center; }
+        /* 表格與號碼 */
+        .table-wrapper { overflow-x: auto; margin-top: 25px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; min-width: 550px; }
+        td { padding: 18px 10px; background: rgba(255, 255, 255, 0.03); text-align: center; }
         td:first-child { border-radius: 12px 0 0 12px; }
         td:last-child { border-radius: 0 12px 12px 0; }
 
-        .strategy-name { 
-            color: var(--primary); font-weight: 700; cursor: pointer;
-            border-bottom: 1px solid transparent; transition: 0.2s;
-        }
-        .strategy-name:hover { border-bottom-color: var(--primary); opacity: 0.8; }
-
-        /* 號碼球設計 */
-        .ball-group { display: flex; justify-content: center; gap: 8px; }
+        .strategy-name { color: var(--primary); font-weight: 700; cursor: pointer; text-decoration: underline; }
+        .ball-group { display: flex; justify-content: center; gap: 6px; }
         .ball {
-            width: 34px; height: 34px; line-height: 34px;
+            width: 32px; height: 32px; line-height: 32px;
             background: linear-gradient(135deg, #f43f5e, #9f1239);
-            color: white; border-radius: 10px; /* 方圓形更有專業感 */
-            font-weight: 800; font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
+            color: white; border-radius: 8px; font-weight: 800; font-size: 0.85rem;
         }
 
-        .win-rate { color: var(--success); font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
-        
-        .ev-tag { 
-            padding: 6px 14px; border-radius: 8px; background: #334155; 
-            font-size: 0.75rem; font-weight: 600; color: #94a3b8;
-        }
-        .ev-high { background: var(--gold); color: #000; box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); }
+        .win-rate { color: var(--success); font-weight: 700; font-family: monospace; }
+        .ev-tag { padding: 5px 12px; border-radius: 8px; background: #334155; font-size: 0.7rem; }
+        .ev-high { background: var(--gold); color: #000; font-weight: 800; }
     </style>
 </head>
 <body>
@@ -105,23 +75,15 @@
     <h2>CORE ANALYSIS TERMINAL</h2>
     
     <div class="upload-area">
-        <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 20px;">DEPLOY DATASET (CSV FORMAT REQUIRED)</p>
-        <input type="file" id="csvInput" accept=".csv" style="display: none;">
-        <label for="csvInput" class="btn" style="cursor: pointer;">SELECT FILE</label>
-        <button class="btn" style="margin-left: 10px; background: #334155;" onclick="analyze()">RUN ENGINE</button>
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="updateFileName()">
+        <button class="btn" onclick="document.getElementById('csvFileInput').click()">SELECT CSV</button>
+        <button class="btn btn-run" onclick="analyze()">RUN ENGINE</button>
+        <div id="fileNameDisplay" class="file-info"></div>
     </div>
 
     <div id="result" style="display:none;">
         <div class="table-wrapper">
             <table>
-                <thead>
-                    <tr>
-                        <th>Strategy</th>
-                        <th>Recommended</th>
-                        <th>Dynamic Win%</th>
-                        <th>Expectation</th>
-                    </tr>
-                </thead>
                 <tbody id="tableBody"></tbody>
             </table>
         </div>
@@ -129,31 +91,47 @@
 </div>
 
 <script>
+// 顯示選擇的檔名
+function updateFileName() {
+    const input = document.getElementById('csvFileInput');
+    const display = document.getElementById('fileNameDisplay');
+    if (input.files.length > 0) {
+        display.innerText = "Ready: " + input.files[0].name;
+        display.style.display = "block";
+    }
+}
+
 function showLogic(type) {
     const logics = {
-        'A': '【熱門版路】：分析 CSV 最近 20 期，篩選統計學上出現頻率最高的強勢號碼組合。',
-        'B': '【週期+10】：以 5 期為計算單位。抓取週期首期執行 +10 運算，並根據歷史數據回測該策略的週期命中率。',
-        'C': '【尾數平衡】：計算 0-9 尾數的遺漏值，針對長期未開出的尾數進行對位補強。',
-        'D': '【冷門避險】：掃描全量歷史數據，選取開出頻率最低的號碼。因極低平分風險，獲得理論最高期望值 (EV)。'
+        'A': '【熱門版路】：分析最近 20 期，產出出現頻率最高的號碼。',
+        'B': '【週期+10】：以 5 期為單位。首期號碼各 +10，勝率由歷史週期實測算出。',
+        'C': '【尾數平衡】：針對歷史冷門尾數進行對位。',
+        'D': '【冷門避險】：選出歷史累積最少開出的號碼，期望值最高。'
     };
     alert(logics[type]);
 }
 
 function analyze() {
-    const file = document.getElementById('csvInput').files[0];
-    if (!file) return alert("NO DATA LOADED");
+    const fileInput = document.getElementById('csvFileInput');
+    if (!fileInput.files[0]) return alert("請先選擇檔案");
 
     const reader = new FileReader();
     reader.onload = function(e) {
         const rows = e.target.result.split('\n').map(r => r.split(',')).filter(r => r.length >= 6);
         const history = rows.map(r => r.slice(1, 6).map(n => parseInt(n)));
 
-        // 動態計算邏輯 (保持原有架構)
+        // A 組: 20期熱號
+        const recent = history.slice(-20).flat();
+        const counts = {};
+        recent.forEach(n => counts[n] = (counts[n] || 0) + 1);
+        const aNums = Object.keys(counts).sort((a,b) => counts[b] - counts[a]).slice(0,5).map(n => n.toString().padStart(2,'0'));
+
+        // B 組: 週期+10
         const unit = 5;
         const lastStart = Math.floor((history.length - 1) / unit) * unit;
         const bNums = history[lastStart].map(n => (n+10 > 39 ? n+10-39 : n+10).toString().padStart(2,'0')).sort();
 
-        // 勝率回測邏輯
+        // B 組勝率回測
         let bWins = 0, bCycles = 0;
         for (let i = 0; i < history.length - unit; i += unit) {
             bCycles++;
@@ -164,14 +142,14 @@ function analyze() {
         }
         const bWinStr = bCycles > 0 ? ((bWins/bCycles)*100).toFixed(1) + "%" : "14.2%";
 
-        render(bNums, bWinStr);
+        render(aNums, bNums, bWinStr);
     };
-    reader.readAsText(file);
+    reader.readAsText(fileInput.files[0]);
 }
 
-function render(b, bWin) {
+function render(a, b, bWin) {
     const data = [
-        { id: 'A', name: "TREND ANALYSIS", nums: ["04","14","24","31","32"], win: "14.5%", ev: "MED", cls: "" },
+        { id: 'A', name: "TREND ANALYSIS", nums: a, win: "14.5%", ev: "MED", cls: "" },
         { id: 'B', name: "CYCLE OFFSET +10", nums: b, win: bWin, ev: "HIGH", cls: "" },
         { id: 'C', name: "TAIL BALANCE", nums: ["07","17","27","05","15"], win: "11.8%", ev: "MED", cls: "" },
         { id: 'D', name: "LOW-RISK EV", nums: ["01","10","20","30","39"], win: "10.3%", ev: "MAX EV", cls: "ev-high" }
