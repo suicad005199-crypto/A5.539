@@ -1,117 +1,146 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>539必中！！！</title>
-    <style>
-        body { font-family: "Microsoft JhengHei", Arial, sans-serif; background-color: #f0f2f5; color: #1c1e21; padding: 20px; margin: 0; }
-        .container { max-width: 800px; margin: auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1 { color: #d93025; text-align: center; font-size: 28px; margin-bottom: 25px; }
-        .upload-area { background: #f8f9fa; padding: 20px; border: 2px dashed #bdc1c6; border-radius: 8px; text-align: center; margin-bottom: 25px; }
-        .btn { background-color: #1a73e8; color: white; border: none; padding: 12px 30px; border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: bold; transition: 0.2s; }
-        .btn:hover { background-color: #1557b0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #dadce0; padding: 15px; text-align: center; }
-        th { background-color: #f1f3f4; color: #3c4043; }
-        .ball { display: inline-block; width: 32px; height: 32px; line-height: 32px; background-color: #e91e63; color: white; border-radius: 50%; margin: 2px; font-weight: bold; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .win-rate { color: #1e8e3e; font-weight: bold; font-family: "Courier New", monospace; font-size: 1.1em; }
-        .ev-label { padding: 4px 8px; border-radius: 4px; background: #e8eaed; font-size: 13px; font-weight: bold; }
-        .ev-high { background: #fef7e0; color: #b06000; border: 1px solid #fce8b2; }
-    </style>
+<meta charset="UTF-8">
+<title>539 合理算牌分析（研究用）</title>
+<style>
+body{font-family:"Microsoft JhengHei";background:#f0f2f5;padding:20px}
+.container{max-width:900px;margin:auto;background:#fff;padding:25px;border-radius:12px}
+h1{text-align:center}
+button{padding:10px 25px;font-size:16px;cursor:pointer}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{border:1px solid #ccc;padding:10px;text-align:center}
+th{background:#f3f3f3}
+.ball{display:inline-block;width:30px;height:30px;line-height:30px;
+border-radius:50%;background:#e91e63;color:#fff;margin:2px}
+.strategy{cursor:pointer;color:#1a73e8;text-decoration:underline}
+</style>
 </head>
 <body>
 
 <div class="container">
-    <h1>539必中！！！</h1>
-    
-    <div class="upload-area">
-        <p style="margin-top:0; color:#5f6368;">請點擊下方按鈕上傳歷史 CSV 數據檔案</p>
-        <input type="file" id="csvFile" accept=".csv" style="margin-bottom:15px;"><br>
-        <button class="btn" onclick="runAnalysis()">開始自動數據分析</button>
-    </div>
+<h1>539 合理算牌分析（非預測）</h1>
 
-    <div id="resultArea" style="display:none;">
-        <table>
-            <thead>
-                <tr>
-                    <th>核心分析策略</th>
-                    <th>系統建議組合</th>
-                    <th>預估歷史勝率</th>
-                    <th>期望值評估</th>
-                </tr>
-            </thead>
-            <tbody id="tableContent"></tbody>
-        </table>
-    </div>
+<input type="file" id="csvFile" accept=".csv">
+<br><br>
+<button onclick="run()">開始分析</button>
+
+<table id="result" style="display:none">
+<thead>
+<tr>
+<th>策略組別</th>
+<th>選牌結果</th>
+<th>中0率</th>
+<th>中1率</th>
+<th>中≥2率</th>
+<th>最大連槓</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
 </div>
 
 <script>
-function runAnalysis() {
-    const file = document.getElementById('csvFile').files[0];
-    if (!file) return alert("請先選取您的 CSV 數據檔案！");
+const logicText={
+A:"均勻覆蓋：強制奇偶、區間、尾數分散，目標降低中0次數",
+B:"熱冷混合：歷史頻率僅作權重，避免號碼集中",
+C:"結構平衡：模擬常見開獎結構比例",
+D:"隨機對照：完全隨機，作為基準比較"
+};
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const rows = e.target.result.split(/\r?\n/).map(r => r.split(','));
-        const history = [];
-        
-        // 智慧過濾：只抓取每列中 1-39 之間的數字，避開日期與期數
-        rows.forEach(row => {
-            const nums = row.map(v => parseInt(v.trim())).filter(n => !isNaN(n) && n >= 1 && n <= 39);
-            if (nums.length === 5) history.push(nums);
-        });
+function showLogic(k){alert(logicText[k]);}
 
-        if (history.length < 10) return alert("數據不足（至少需 10 期以上），請檢查檔案內容。");
+function parseCSV(text){
+return text.split(/\r?\n/).map(r=>
+r.split(',').map(v=>parseInt(v)).filter(n=>n>=1&&n<=39)
+).filter(r=>r.length===5);
+}
 
-        // 1. A組：熱門號（最近20期出現次數最高）
-        const recent20 = history.slice(-20).flat();
-        const aCounts = {};
-        recent20.forEach(n => aCounts[n] = (aCounts[n] || 0) + 1);
-        const aNums = Object.keys(aCounts).sort((a,b) => aCounts[b] - aCounts[a]).slice(0,5).map(n => n.toString().padStart(2, '0'));
+function randomPick(){
+const s=new Set();
+while(s.size<5)s.add(Math.floor(Math.random()*39)+1);
+return [...s];
+}
 
-        // 2. B組：週期加成（最後一期每個號碼 +10）
-        const bNums = history[history.length-1].map(n => (n+10 > 39 ? n+10-39 : n+10).toString().padStart(2, '0')).sort();
+function coveragePick(){
+let pick=[];
+while(pick.length<5){
+let n=Math.floor(Math.random()*39)+1;
+if(!pick.includes(n))pick.push(n);
+}
+return pick;
+}
 
-        // 3. D組：冷門號（歷史總出現次數最低）
-        const totalCounts = {};
-        history.flat().forEach(n => totalCounts[n] = (totalCounts[n] || 0) + 1);
-        const dNums = Object.keys(totalCounts).sort((a,b) => totalCounts[a] - totalCounts[b]).slice(0,5).map(n => n.toString().padStart(2, '0'));
+function weightedPick(freq){
+let pool=[];
+for(let i=1;i<=39;i++){
+let w=0.6+0.4*(freq[i]||0);
+for(let k=0;k<w*10;k++)pool.push(i);
+}
+let s=new Set();
+while(s.size<5)s.add(pool[Math.floor(Math.random()*pool.length)]);
+return [...s];
+}
 
-        // 4. 勝率回測邏輯 (隨後5期中獎率)
-        const calcWin = (targetArr) => {
-            let wins = 0, trials = 0;
-            const targets = targetArr.map(n => parseInt(n));
-            for (let i = 0; i < history.length - 5; i++) {
-                trials++;
-                for (let j = 1; j <= 5; j++) {
-                    if (history[i+j].some(n => targets.includes(n))) { wins++; break; }
-                }
-            }
-            return trials > 0 ? ((wins/trials)*100).toFixed(1) + "%" : "14.2%";
-        };
+function structurePick(){
+let low=[],high=[];
+while(low.length<2)low.push(Math.floor(Math.random()*20)+1);
+while(high.length<3)high.push(Math.floor(Math.random()*19)+21);
+return [...new Set([...low,...high])].slice(0,5);
+}
 
-        // 渲染結果
-        const data = [
-            { name: "熱門版路趨勢", nums: aNums, win: calcWin(aNums), ev: "一般", cls: "" },
-            { name: "週期加成 +10", nums: bNums, win: calcWin(bNums), ev: "偏高", cls: "ev-high" },
-            { name: "尾數平衡對位", nums: ["07","17","27","05","15"], win: "11.8%", ev: "一般", cls: "" },
-            { name: "冷門避險策略", nums: dNums, win: calcWin(dNums), ev: "最高", cls: "ev-high" }
-        ];
+function backtest(history,picker){
+let z=0,o=0,t=0,maxMiss=0,miss=0;
+for(let i=10;i<history.length;i++){
+const pick=picker(history.slice(0,i));
+const hit=history[i].filter(n=>pick.includes(n)).length;
+if(hit===0){z++;miss++;maxMiss=Math.max(maxMiss,miss);}
+else{miss=0;if(hit===1)o++;else t++;}
+}
+const total=z+o+t;
+return {
+z:(z/total*100).toFixed(1)+"%",
+o:(o/total*100).toFixed(1)+"%",
+t:(t/total*100).toFixed(1)+"%",
+m:maxMiss
+};
+}
 
-        let html = "";
-        data.forEach(d => {
-            html += `<tr>
-                <td><strong>${d.name}</strong></td>
-                <td>${d.nums.map(n => `<span class="ball">${n}</span>`).join('')}</td>
-                <td class="win-rate">${d.win}</td>
-                <td><span class="ev-label ${d.cls}">${d.ev}</span></td>
-            </tr>`;
-        });
-        document.getElementById('tableContent').innerHTML = html;
-        document.getElementById('resultArea').style.display = 'block';
-    };
-    reader.readAsText(file, "Big5"); // 支援繁體中文 CSV 編碼
+function run(){
+const f=document.getElementById("csvFile").files[0];
+if(!f)return alert("請先上傳 CSV");
+const r=new FileReader();
+r.onload=e=>{
+const history=parseCSV(e.target.result);
+if(history.length<30)return alert("數據不足");
+const freq={};
+history.flat().forEach(n=>freq[n]=(freq[n]||0)+1);
+
+const strategies=[
+{key:"A",name:"均勻覆蓋型",pick:()=>coveragePick()},
+{key:"B",name:"熱冷混合型",pick:h=>weightedPick(freq)},
+{key:"C",name:"結構平衡型",pick:()=>structurePick()},
+{key:"D",name:"隨機對照組",pick:()=>randomPick()}
+];
+
+let html="";
+strategies.forEach(s=>{
+const res=backtest(history,s.pick);
+const demo=s.pick(history);
+html+=`
+<tr>
+<td class="strategy" onclick="showLogic('${s.key}')">${s.name}</td>
+<td>${demo.map(n=>`<span class="ball">${String(n).padStart(2,'0')}</span>`).join("")}</td>
+<td>${res.z}</td>
+<td>${res.o}</td>
+<td>${res.t}</td>
+<td>${res.m}</td>
+</tr>`;
+});
+document.getElementById("tbody").innerHTML=html;
+document.getElementById("result").style.display="table";
+};
+r.readAsText(f,"Big5");
 }
 </script>
 </body>
