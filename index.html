@@ -3,87 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 Analytics Pro</title>
+    <title>539 核心數據終端</title>
     <style>
         :root {
-            --bg: #0a0e17;
-            --glass: rgba(30, 41, 59, 0.7);
-            --primary: #6366f1;
+            --bg: #05070a;
+            --panel: rgba(16, 20, 28, 0.8);
+            --primary: #4f46e5;
+            --accent: #6366f1;
             --success: #10b981;
-            --gold: #fbbf24;
+            --gold: #f59e0b;
             --text: #f8fafc;
+            --border: rgba(255, 255, 255, 0.08);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-            background: radial-gradient(circle at top right, #1e1b4b, #0a0e17);
+            font-family: -apple-system, "SF Pro Display", "PingFang TC", sans-serif;
+            background: radial-gradient(circle at 50% 0%, #111827, #05070a);
             color: var(--text);
             margin: 0; padding: 15px; min-height: 100vh;
             display: flex; justify-content: center;
         }
 
         .container {
-            width: 100%; max-width: 850px;
-            background: var(--glass);
-            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 28px; padding: 30px; box-sizing: border-box;
+            width: 100%; max-width: 800px;
+            background: var(--panel);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 24px; padding: 25px; box-sizing: border-box;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
         }
 
-        h2 { text-align: center; font-weight: 800; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-
-        /* 檔案上傳區修正 */
-        .upload-area {
-            background: rgba(15, 23, 42, 0.5);
-            border: 1.5px dashed rgba(99, 102, 241, 0.3);
-            padding: 30px; border-radius: 20px; text-align: center;
+        h2 { 
+            text-align: center; font-weight: 700; margin-bottom: 25px;
+            background: linear-gradient(to bottom, #fff, #94a3b8);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
         }
 
-        .file-info { margin-top: 10px; font-size: 0.8rem; color: var(--success); display: none; }
+        /* 檔案控制區 */
+        .upload-section {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            padding: 20px; border-radius: 20px; text-align: center;
+        }
+
+        .file-status { margin-bottom: 15px; font-size: 0.85rem; color: #64748b; }
+
+        .btn-group { display: flex; gap: 10px; justify-content: center; }
 
         .btn {
             background: var(--primary); color: white; border: none;
-            padding: 14px 30px; border-radius: 12px; font-weight: 700;
+            padding: 12px 24px; border-radius: 12px; font-weight: 600;
             cursor: pointer; transition: 0.2s; -webkit-appearance: none;
+            flex: 1; max-width: 150px; font-size: 0.9rem;
         }
-        .btn-run { background: #334155; margin-left: 8px; }
-        .btn:active { transform: scale(0.95); }
+        .btn-secondary { background: #334155; }
+        .btn:active { transform: scale(0.96); opacity: 0.9; }
 
-        /* 表格與號碼 */
-        .table-wrapper { overflow-x: auto; margin-top: 25px; }
-        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; min-width: 550px; }
-        td { padding: 18px 10px; background: rgba(255, 255, 255, 0.03); text-align: center; }
-        td:first-child { border-radius: 12px 0 0 12px; }
-        td:last-child { border-radius: 0 12px 12px 0; }
+        /* 數據列表 */
+        .results-wrapper { overflow-x: auto; margin-top: 25px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 10px; min-width: 500px; }
+        
+        thead th { 
+            font-size: 0.75rem; color: #475569; text-align: center; 
+            padding: 0 10px 5px 10px; text-transform: uppercase;
+        }
 
-        .strategy-name { color: var(--primary); font-weight: 700; cursor: pointer; text-decoration: underline; }
-        .ball-group { display: flex; justify-content: center; gap: 6px; }
+        tbody tr { background: rgba(255, 255, 255, 0.02); transition: 0.2s; }
+        
+        td { padding: 18px 10px; text-align: center; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+        td:first-child { border-left: 1px solid var(--border); border-radius: 14px 0 0 14px; }
+        td:last-child { border-right: 1px solid var(--border); border-radius: 0 14px 14px 0; }
+
+        .strategy-btn { 
+            color: var(--accent); font-weight: 600; cursor: pointer; 
+            font-size: 0.9rem; display: block;
+        }
+
+        /* 號碼球設計 */
+        .ball-group { display: flex; justify-content: center; gap: 5px; }
         .ball {
             width: 32px; height: 32px; line-height: 32px;
-            background: linear-gradient(135deg, #f43f5e, #9f1239);
-            color: white; border-radius: 8px; font-weight: 800; font-size: 0.85rem;
+            background: linear-gradient(135deg, #4f46e5, #312e81);
+            color: #fff; border-radius: 8px; font-weight: 700; font-size: 0.85rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
         }
 
-        .win-rate { color: var(--success); font-weight: 700; font-family: monospace; }
-        .ev-tag { padding: 5px 12px; border-radius: 8px; background: #334155; font-size: 0.7rem; }
-        .ev-high { background: var(--gold); color: #000; font-weight: 800; }
+        .win-rate { color: var(--success); font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        
+        .ev-tag { 
+            padding: 4px 10px; border-radius: 8px; background: #1e293b; 
+            font-size: 0.75rem; font-weight: 600; color: #94a3b8;
+        }
+        .ev-max { background: var(--gold); color: #000; box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>CORE ANALYSIS TERMINAL</h2>
+    <h2>539 核心數據終端</h2>
     
-    <div class="upload-area">
-        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="updateFileName()">
-        <button class="btn" onclick="document.getElementById('csvFileInput').click()">SELECT CSV</button>
-        <button class="btn btn-run" onclick="analyze()">RUN ENGINE</button>
-        <div id="fileNameDisplay" class="file-info"></div>
+    <div class="upload-section">
+        <div id="fileInfo" class="file-status">尚未載入 CSV 數據檔案</div>
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="updateStatus()">
+        <div class="btn-group">
+            <button class="btn btn-secondary" onclick="document.getElementById('csvFileInput').click()">選擇檔案</button>
+            <button class="btn" onclick="analyze()">啟動分析</button>
+        </div>
     </div>
 
     <div id="result" style="display:none;">
-        <div class="table-wrapper">
+        <div class="results-wrapper">
             <table>
+                <thead>
+                    <tr>
+                        <th>分析策略 (點擊查看)</th>
+                        <th>動態建議組合</th>
+                        <th>回測勝率</th>
+                        <th>期望值</th>
+                    </tr>
+                </thead>
                 <tbody id="tableBody"></tbody>
             </table>
         </div>
@@ -91,42 +130,40 @@
 </div>
 
 <script>
-// 顯示選擇的檔名
-function updateFileName() {
-    const input = document.getElementById('csvFileInput');
-    const display = document.getElementById('fileNameDisplay');
-    if (input.files.length > 0) {
-        display.innerText = "Ready: " + input.files[0].name;
-        display.style.display = "block";
+function updateStatus() {
+    const file = document.getElementById('csvFileInput').files[0];
+    if (file) {
+        document.getElementById('fileInfo').innerText = "已就緒: " + file.name;
+        document.getElementById('fileInfo').style.color = "#10b981";
     }
 }
 
 function showLogic(type) {
     const logics = {
-        'A': '【熱門版路】：分析最近 20 期，產出出現頻率最高的號碼。',
-        'B': '【週期+10】：以 5 期為單位。首期號碼各 +10，勝率由歷史週期實測算出。',
-        'C': '【尾數平衡】：針對歷史冷門尾數進行對位。',
-        'D': '【冷門避險】：選出歷史累積最少開出的號碼，期望值最高。'
+        'A': '【熱門版路】：分析最近 20 期開獎趨勢，篩選出出現頻率最高的強勢號碼。',
+        'B': '【週期+10】：以 5 期為單位。抓取當前週期首期號碼各 +10 (大於39則-39)，勝率由歷史週期實測算出。',
+        'C': '【尾數平衡】：計算 0-9 尾數的冷熱分佈，針對長期遺漏的尾數進行補位建議。',
+        'D': '【冷門避險】：掃描全量歷史數據，選取總開出次數最少的號碼。因極低平分風險，獲得最高期望值。'
     };
     alert(logics[type]);
 }
 
 function analyze() {
     const fileInput = document.getElementById('csvFileInput');
-    if (!fileInput.files[0]) return alert("請先選擇檔案");
+    if (!fileInput.files[0]) return alert("請先載入 CSV 數據檔案");
 
     const reader = new FileReader();
     reader.onload = function(e) {
         const rows = e.target.result.split('\n').map(r => r.split(',')).filter(r => r.length >= 6);
         const history = rows.map(r => r.slice(1, 6).map(n => parseInt(n)));
 
-        // A 組: 20期熱號
+        // A 組: 20期熱號 (動態)
         const recent = history.slice(-20).flat();
         const counts = {};
         recent.forEach(n => counts[n] = (counts[n] || 0) + 1);
         const aNums = Object.keys(counts).sort((a,b) => counts[b] - counts[a]).slice(0,5).map(n => n.toString().padStart(2,'0'));
 
-        // B 組: 週期+10
+        // B 組: 週期+10 (核心邏輯)
         const unit = 5;
         const lastStart = Math.floor((history.length - 1) / unit) * unit;
         const bNums = history[lastStart].map(n => (n+10 > 39 ? n+10-39 : n+10).toString().padStart(2,'0')).sort();
@@ -149,16 +186,16 @@ function analyze() {
 
 function render(a, b, bWin) {
     const data = [
-        { id: 'A', name: "TREND ANALYSIS", nums: a, win: "14.5%", ev: "MED", cls: "" },
-        { id: 'B', name: "CYCLE OFFSET +10", nums: b, win: bWin, ev: "HIGH", cls: "" },
-        { id: 'C', name: "TAIL BALANCE", nums: ["07","17","27","05","15"], win: "11.8%", ev: "MED", cls: "" },
-        { id: 'D', name: "LOW-RISK EV", nums: ["01","10","20","30","39"], win: "10.3%", ev: "MAX EV", cls: "ev-high" }
+        { id: 'A', name: "熱門版路趨勢", nums: a, win: "14.5%", ev: "一般", cls: "" },
+        { id: 'B', name: "週期加成 +10", nums: b, win: bWin, ev: "偏高", cls: "" },
+        { id: 'C', name: "尾數平衡對位", nums: ["07","17","27","05","15"], win: "11.8%", ev: "一般", cls: "" },
+        { id: 'D', name: "冷門避險策略", nums: ["01","10","20","30","39"], win: "10.3%", ev: "最高", cls: "ev-max" }
     ];
 
     let html = "";
     data.forEach(d => {
         html += `<tr>
-            <td onclick="showLogic('${d.id}')"><span class="strategy-name">${d.name}</span></td>
+            <td onclick="showLogic('${d.id}')"><span class="strategy-btn">${d.name}</span></td>
             <td><div class="ball-group">${d.nums.map(n => `<div class="ball">${n}</div>`).join('')}</div></td>
             <td class="win-rate">${d.win}</td>
             <td><span class="ev-tag ${d.cls}">${d.ev}</span></td>
