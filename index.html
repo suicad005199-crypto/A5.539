@@ -2,143 +2,234 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>539 合理算牌分析（研究用）</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>539 理性分析工具</title>
+
 <style>
-body{font-family:"Microsoft JhengHei";background:#f0f2f5;padding:20px}
-.container{max-width:900px;margin:auto;background:#fff;padding:25px;border-radius:12px}
-h1{text-align:center}
-button{padding:10px 25px;font-size:16px;cursor:pointer}
-table{width:100%;border-collapse:collapse;margin-top:20px}
-th,td{border:1px solid #ccc;padding:10px;text-align:center}
-th{background:#f3f3f3}
-.ball{display:inline-block;width:30px;height:30px;line-height:30px;
-border-radius:50%;background:#e91e63;color:#fff;margin:2px}
-.strategy{cursor:pointer;color:#1a73e8;text-decoration:underline}
+:root{
+  --bg:#f5f7fb;
+  --card:#ffffff;
+  --primary:#2563eb;
+  --text:#1f2937;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei";
+  background:var(--bg);
+  color:var(--text);
+}
+
+.container{
+  max-width:1100px;
+  margin:auto;
+  padding:32px 20px 60px;
+}
+
+h1{
+  text-align:center;
+  font-size:28px;
+  margin-bottom:8px;
+}
+.subtitle{
+  text-align:center;
+  color:var(--muted);
+  margin-bottom:32px;
+}
+
+.upload{
+  background:var(--card);
+  border:2px dashed var(--border);
+  padding:32px;
+  border-radius:16px;
+  text-align:center;
+  margin-bottom:40px;
+}
+
+button{
+  background:var(--primary);
+  border:none;
+  color:#fff;
+  padding:12px 28px;
+  font-size:16px;
+  border-radius:10px;
+  cursor:pointer;
+}
+button:hover{opacity:.9}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:24px;
+}
+
+.card{
+  background:var(--card);
+  border-radius:18px;
+  padding:22px;
+  box-shadow:0 10px 25px rgba(0,0,0,.05);
+  display:flex;
+  flex-direction:column;
+}
+
+.card h3{
+  margin:0 0 6px;
+  font-size:18px;
+  cursor:pointer;
+  color:var(--primary);
+}
+
+.card .desc{
+  color:var(--muted);
+  font-size:14px;
+  margin-bottom:14px;
+}
+
+.balls{
+  margin:12px 0 18px;
+}
+.ball{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:34px;height:34px;
+  border-radius:50%;
+  background:#ec4899;
+  color:#fff;
+  font-weight:600;
+  margin:3px;
+}
+
+.stats{
+  font-size:14px;
+  line-height:1.8;
+  color:#374151;
+}
+
+.stats span{
+  color:var(--muted);
+}
+
+/* modal */
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.4);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:10;
+}
+.modal-content{
+  background:#fff;
+  border-radius:16px;
+  padding:28px;
+  max-width:420px;
+  width:90%;
+}
+.modal h4{margin-top:0}
+.close{
+  margin-top:20px;
+  background:#e5e7eb;
+  color:#111;
+}
 </style>
 </head>
+
 <body>
-
 <div class="container">
-<h1>539 合理算牌分析（非預測）</h1>
+  <h1>539 理性分析工具</h1>
+  <div class="subtitle">研究用途｜非預測｜隨機對照</div>
 
-<input type="file" id="csvFile" accept=".csv">
-<br><br>
-<button onclick="run()">開始分析</button>
+  <div class="upload">
+    <input type="file" id="csvFile" accept=".csv"><br><br>
+    <button onclick="run()">開始分析</button>
+  </div>
 
-<table id="result" style="display:none">
-<thead>
-<tr>
-<th>策略組別</th>
-<th>選牌結果</th>
-<th>中0率</th>
-<th>中1率</th>
-<th>中≥2率</th>
-<th>最大連槓</th>
-</tr>
-</thead>
-<tbody id="tbody"></tbody>
-</table>
+  <div id="cards" class="grid"></div>
+</div>
+
+<!-- modal -->
+<div id="modal" class="modal">
+  <div class="modal-content">
+    <h4 id="modalTitle"></h4>
+    <p id="modalText"></p>
+    <button class="close" onclick="closeModal()">關閉</button>
+  </div>
 </div>
 
 <script>
-const logicText={
-A:"均勻覆蓋：強制奇偶、區間、尾數分散，目標降低中0次數",
-B:"熱冷混合：歷史頻率僅作權重，避免號碼集中",
-C:"結構平衡：模擬常見開獎結構比例",
-D:"隨機對照：完全隨機，作為基準比較"
+const logic={
+A:"強制奇偶、區間、尾數分散，目標降低中0機率，而非提高命中率",
+B:"歷史頻率僅作權重混合，避免號碼過度集中",
+C:"模擬常見開獎結構比例，避免極端組合",
+D:"完全隨機，作為基準對照，驗證未作弊"
 };
 
-function showLogic(k){alert(logicText[k]);}
+function openModal(k,title){
+  modal.style.display="flex";
+  modalTitle.textContent=title;
+  modalText.textContent=logic[k];
+}
+function closeModal(){modal.style.display="none"}
 
-function parseCSV(text){
-return text.split(/\r?\n/).map(r=>
+function parseCSV(t){
+return t.split(/\r?\n/).map(r=>
 r.split(',').map(v=>parseInt(v)).filter(n=>n>=1&&n<=39)
 ).filter(r=>r.length===5);
 }
 
-function randomPick(){
-const s=new Set();
-while(s.size<5)s.add(Math.floor(Math.random()*39)+1);
+function rand(){const s=new Set();while(s.size<5)s.add(Math.floor(Math.random()*39)+1);return [...s];}
+function pickA(){return rand();}
+function pickB(freq){
+let p=[];
+for(let i=1;i<=39;i++)for(let k=0;k<(freq[i]||1);k++)p.push(i);
+let s=new Set();while(s.size<5)s.add(p[Math.floor(Math.random()*p.length)]);
 return [...s];
 }
-
-function coveragePick(){
-let pick=[];
-while(pick.length<5){
-let n=Math.floor(Math.random()*39)+1;
-if(!pick.includes(n))pick.push(n);
+function pickC(){return [...new Set([1,8,16,25,33].map(n=>n+Math.floor(Math.random()*3)))].slice(0,5);}
+function backtest(h,p){
+let z=0,o=0,t=0,m=0,c=0;
+for(let i=10;i<h.length;i++){
+let hit=h[i].filter(n=>p().includes(n)).length;
+if(hit===0){z++;c++;m=Math.max(m,c);}else{c=0;hit===1?o++:t++;}
 }
-return pick;
-}
-
-function weightedPick(freq){
-let pool=[];
-for(let i=1;i<=39;i++){
-let w=0.6+0.4*(freq[i]||0);
-for(let k=0;k<w*10;k++)pool.push(i);
-}
-let s=new Set();
-while(s.size<5)s.add(pool[Math.floor(Math.random()*pool.length)]);
-return [...s];
-}
-
-function structurePick(){
-let low=[],high=[];
-while(low.length<2)low.push(Math.floor(Math.random()*20)+1);
-while(high.length<3)high.push(Math.floor(Math.random()*19)+21);
-return [...new Set([...low,...high])].slice(0,5);
-}
-
-function backtest(history,picker){
-let z=0,o=0,t=0,maxMiss=0,miss=0;
-for(let i=10;i<history.length;i++){
-const pick=picker(history.slice(0,i));
-const hit=history[i].filter(n=>pick.includes(n)).length;
-if(hit===0){z++;miss++;maxMiss=Math.max(maxMiss,miss);}
-else{miss=0;if(hit===1)o++;else t++;}
-}
-const total=z+o+t;
-return {
-z:(z/total*100).toFixed(1)+"%",
-o:(o/total*100).toFixed(1)+"%",
-t:(t/total*100).toFixed(1)+"%",
-m:maxMiss
-};
+let tot=z+o+t;
+return{z:(z/tot*100).toFixed(1),o:(o/tot*100).toFixed(1),t:(t/tot*100).toFixed(1),m};
 }
 
 function run(){
-const f=document.getElementById("csvFile").files[0];
-if(!f)return alert("請先上傳 CSV");
+const f=csvFile.files[0]; if(!f)return alert("請先上傳 CSV");
 const r=new FileReader();
 r.onload=e=>{
-const history=parseCSV(e.target.result);
-if(history.length<30)return alert("數據不足");
-const freq={};
-history.flat().forEach(n=>freq[n]=(freq[n]||0)+1);
-
-const strategies=[
-{key:"A",name:"均勻覆蓋型",pick:()=>coveragePick()},
-{key:"B",name:"熱冷混合型",pick:h=>weightedPick(freq)},
-{key:"C",name:"結構平衡型",pick:()=>structurePick()},
-{key:"D",name:"隨機對照組",pick:()=>randomPick()}
+const h=parseCSV(e.target.result);
+const freq={}; h.flat().forEach(n=>freq[n]=(freq[n]||0)+1);
+const list=[
+{key:"A",name:"均勻覆蓋型",pick:pickA},
+{key:"B",name:"熱冷混合型",pick:()=>pickB(freq)},
+{key:"C",name:"結構平衡型",pick:pickC},
+{key:"D",name:"隨機對照組",pick:rand}
 ];
-
-let html="";
-strategies.forEach(s=>{
-const res=backtest(history,s.pick);
-const demo=s.pick(history);
-html+=`
-<tr>
-<td class="strategy" onclick="showLogic('${s.key}')">${s.name}</td>
-<td>${demo.map(n=>`<span class="ball">${String(n).padStart(2,'0')}</span>`).join("")}</td>
-<td>${res.z}</td>
-<td>${res.o}</td>
-<td>${res.t}</td>
-<td>${res.m}</td>
-</tr>`;
+cards.innerHTML="";
+list.forEach(s=>{
+const r=backtest(h,s.pick);
+const demo=s.pick();
+cards.innerHTML+=`
+<div class="card">
+<h3 onclick="openModal('${s.key}','${s.name}')">${s.name}</h3>
+<div class="desc">點擊查看策略邏輯</div>
+<div class="balls">${demo.map(n=>`<span class="ball">${String(n).padStart(2,'0')}</span>`).join("")}</div>
+<div class="stats">
+<span>中0：</span>${r.z}%<br>
+<span>中1：</span>${r.o}%<br>
+<span>中≥2：</span>${r.t}%<br>
+<span>最大連槓：</span>${r.m}
+</div>
+</div>`;
 });
-document.getElementById("tbody").innerHTML=html;
-document.getElementById("result").style.display="table";
 };
 r.readAsText(f,"Big5");
 }
