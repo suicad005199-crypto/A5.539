@@ -18,7 +18,7 @@
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
-            font-family: 'Inter', 'SF Pro Text', 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
+            font-family: 'Inter', 'SF Pro Text', 'PingFang TC', sans-serif; 
             background-color: var(--primary); 
             color: var(--text-main);
             padding: 40px 20px;
@@ -27,6 +27,7 @@
 
         .container { max-width: 1300px; margin: 0 auto; }
 
+        /* Header Optimization */
         header {
             text-align: left;
             margin-bottom: 40px;
@@ -36,6 +37,7 @@
         header h1 { font-size: 2.5rem; letter-spacing: -1px; margin-bottom: 5px; }
         header p { color: var(--text-dim); font-size: 1.1rem; }
 
+        /* Professional Control Panel */
         .control-panel {
             background: var(--secondary);
             padding: 30px;
@@ -65,6 +67,7 @@
         }
         button:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 0 20px rgba(56, 189, 248, 0.4); }
 
+        /* Dashboard Layout */
         .dashboard {
             display: grid;
             grid-template-columns: 350px 1fr;
@@ -82,12 +85,14 @@
 
         .card h3 { font-size: 1.2rem; margin-bottom: 20px; color: var(--accent); display: flex; align-items: center; gap: 10px; }
 
+        /* Table Optimization */
         table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
         th { text-align: left; color: var(--text-dim); padding: 12px; font-weight: 500; font-size: 0.9rem; }
         td { padding: 12px; background: rgba(255,255,255,0.03); }
         td:first-child { border-radius: 8px 0 0 8px; }
         td:last-child { border-radius: 0 8px 8px 0; }
 
+        /* Ball Styling - Professional Look */
         .ball {
             display: inline-flex;
             align-items: center;
@@ -181,6 +186,7 @@
 </div>
 
 <script>
+// (保持您原有的邏輯部分，但在 render 函數中更新 HTML 結構)
 const RULES = [
   { name: "Alpha 保守型", pool: "last1+5", desc:"專注於熱點號碼的慣性位移，適合穩健型策略。" },
   { name: "Beta 均衡型", pool: "last5+5+10", desc:"跨期大樣本分析，在冷熱號碼間尋求統計平衡。" },
@@ -234,6 +240,7 @@ async function runAll() {
     });
 }
 
+// 數據處理 logic 部分 (與您提供的功能完全一致，確保系統穩定)
 function parseCSV(text){
     const lines = text.trim().split("\n");
     lines.shift();
