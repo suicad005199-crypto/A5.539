@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539 智能分析系統 - Pro</title>
+<title>539 QUANT PRO</title>
 
 <style>
 body {
     background:#0f172a;
     color:#f1f5f9;
-    font-family: "Microsoft JhengHei", sans-serif;
+    font-family:"Microsoft JhengHei",sans-serif;
     padding:20px;
 }
 .card {
     background:#1e293b;
     padding:20px;
-    border-radius:12px;
+    border-radius:16px;
     margin-bottom:20px;
 }
 .ball {
@@ -26,14 +26,15 @@ body {
     border-radius:50%;
     background:#334155;
     color:#38bdf8;
-    margin:3px;
+    margin:4px;
     font-weight:bold;
 }
 button {
-    padding:12px 20px;
+    width:100%;
+    padding:14px;
     background:#38bdf8;
     border:none;
-    border-radius:8px;
+    border-radius:10px;
     font-weight:bold;
     cursor:pointer;
 }
@@ -43,20 +44,21 @@ button {
 <body>
 
 <div class="card">
-    <h2>539 CSV 讀取測試</h2>
+    <h2>539 CSV 載入</h2>
     <input type="file" id="csvFile" accept=".csv">
     <br><br>
-    <button onclick="runAll()">執行分析</button>
+    <button onclick="runAll()">啟動分析</button>
 </div>
 
 <div id="history" class="card">
-    <h3>近期開獎紀錄</h3>
+    <h3>近期開獎歷史</h3>
 </div>
 
 <script>
 let HIST_DATA = [];
+let CORR_MATRIX = {};
 
-/* === 主流程 === */
+/* ================= 主流程 ================= */
 async function runAll(){
     const fileInput = document.getElementById("csvFile");
     if(!fileInput.files.length){
@@ -69,32 +71,57 @@ async function runAll(){
 
     if(HIST_DATA.length === 0){
         alert("CSV 解析失敗，請確認格式");
+        console.error(text);
         return;
     }
 
+    buildCorrelationMatrix(HIST_DATA);
     showHistory(HIST_DATA);
+
+    console.log("成功載入期數:", HIST_DATA.length);
 }
 
-/* === CSV 解析（已修正） === */
+/* ================= CSV 解析（已修正完成） ================= */
 function parseCSV(text){
     const lines = text.trim().split(/\r?\n/);
     lines.shift(); // 移除標題列
 
-    return lines.map(line => {
+    return lines.map(line=>{
         const p = line.split(",");
         if(p.length !== 6) return null;
 
+        const nums = p.slice(1,6)
+            .map(n=>parseInt(n.trim(),10))
+            .filter(n=>!isNaN(n))
+            .sort((a,b)=>a-b);
+
+        if(nums.length !== 5) return null;
+
         return {
             date: p[0].trim(),
-            nums: p.slice(1,6)
-                    .map(n => parseInt(n.trim(),10))
-                    .sort((a,b)=>a-b)
+            nums
         };
-    }).filter(Boolean)
-      .sort((a,b)=> new Date(a.date) - new Date(b.date));
+    })
+    .filter(Boolean)
+    .sort((a,b)=> new Date(a.date) - new Date(b.date));
 }
 
-/* === 顯示歷史 === */
+/* ================= 相關矩陣 ================= */
+function buildCorrelationMatrix(data){
+    CORR_MATRIX = {};
+    for(let i=0;i<data.length-1;i++){
+        const cur = data[i].nums;
+        const next = data[i+1].nums;
+        cur.forEach(c=>{
+            if(!CORR_MATRIX[c]) CORR_MATRIX[c] = {};
+            next.forEach(n=>{
+                CORR_MATRIX[c][n] = (CORR_MATRIX[c][n]||0)+1;
+            });
+        });
+    }
+}
+
+/* ================= 顯示歷史 ================= */
 function showHistory(data){
     let html = "<table>";
     data.slice(-5).reverse().forEach(d=>{
@@ -107,7 +134,9 @@ function showHistory(data){
         </tr>`;
     });
     html += "</table>";
-    document.getElementById("history").innerHTML += html;
+
+    document.getElementById("history").innerHTML =
+        "<h3>近期開獎歷史</h3>" + html;
 }
 </script>
 
