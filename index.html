@@ -3,223 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>539 Advanced Dashboard</title>
+    <title>539 Strategy Analyzer Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0f172a; --panel: #1e293b; --accent: #38bdf8; --hot: #f43f5e; --cold: #22d3ee; --gold: #f59e0b; }
-        body { margin: 0; background: var(--bg); color: #f8fafc; font-family: system-ui, sans-serif; padding: 10px; }
-        .dashboard { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.5fr; gap: 15px; }
-        .glass { background: var(--panel); border-radius: 16px; padding: 15px; border: 1px solid #334155; }
-        .full-width { grid-column: 1 / -1; }
+        :root { --bg: #020617; --card: #1e293b; --accent: #0ea5e9; --hot: #ef4444; --cold: #3b82f6; --gold: #fbbf24; }
+        body { margin: 0; background: var(--bg); color: #e2e8f0; font-family: sans-serif; padding: 12px; }
+        .layout { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 15px; }
+        .glass { background: var(--card); border-radius: 12px; padding: 16px; border: 1px solid #334155; }
+        .full { grid-column: 1 / -1; }
         
-        /* 號碼球盤 - 熱度漸層 */
-        .ball-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+        /* 混合圖表區 */
+        .chart-container { position: relative; height: 260px; width: 100%; }
+
+        /* 球盤強化 */
+        .ball-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 8px; }
         .ball { 
-            aspect-ratio: 1; border-radius: 10px; display: flex; flex-direction: column; align-items: center; 
-            justify-content: center; cursor: pointer; transition: 0.2s; position: relative; font-size: 14px;
+            aspect-ratio: 1; border-radius: 12px; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;
+            border: 1px solid rgba(255,255,255,0.05); position: relative;
         }
-        .ball.active { outline: 3px solid var(--gold); outline-offset: 2px; z-index: 2; }
-        .ball small { font-size: 8px; opacity: 0.7; }
+        .ball span { font-size: 16px; font-weight: bold; }
+        .ball .count { font-size: 9px; margin-top: 2px; }
+        .ball .gap { position: absolute; top: 4px; right: 4px; font-size: 8px; color: #94a3b8; }
+        .ball.selected { outline: 3px solid var(--gold); transform: scale(0.95); }
 
-        /* 統計標籤 */
-        .stat-badge { background: #0f172a; padding: 4px 8px; border-radius: 6px; font-size: 12px; border: 1px solid #334155; }
+        /* 策略面板 */
+        .strategy-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 14px; }
+        select, input { background: #0f172a; color: white; border: 1px solid #475569; padding: 5px; border-radius: 6px; }
+        .warning { color: #f87171; font-size: 12px; display: none; margin-top: 5px; }
 
-        /* 策略控制 */
-        .strategy-box { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
-        .row { display: flex; justify-content: space-between; align-items: center; }
-        select, input { background: #0f172a; color: white; border: 1px solid #334155; padding: 4px; border-radius: 4px; }
-
-        .btn-gen { background: var(--accent); color: #0f172a; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        #export { margin-top: 10px; background: #000; padding: 10px; border-radius: 8px; font-family: monospace; color: #10b981; white-space: pre-wrap; display: none; }
-
-        @media (max-width: 768px) { .dashboard { grid-template-columns: 1fr; } }
+        .btn-action { width: 100%; padding: 14px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: var(--accent); color: white; }
+        #log { margin-top: 15px; background: #000; padding: 12px; border-radius: 8px; font-family: monospace; color: #34d399; font-size: 13px; display: none; }
+        
+        @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
 
-<div class="dashboard">
-    <div class="glass full-width">
-        <div class="row">
-            <h3 style="margin:0">539 數據視覺化走勢</h3>
-            <input type="file" id="csv-file" accept=".csv" onchange="handleFile(this)">
+<div class="layout">
+    <div class="glass full">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px">
+            <h3 style="margin:0">趨勢版路 (和值+奇偶+大小)</h3>
+            <input type="file" id="csv" onchange="process(this)">
         </div>
-        <canvas id="mainChart" height="100"></canvas>
+        <div class="chart-container">
+            <canvas id="compChart"></canvas>
+        </div>
     </div>
 
     <div class="glass">
-        <div class="row" style="margin-bottom:10px;">
-            <span>號碼球盤 (開獎/遺漏)</span>
-            <div id="sel-stat" class="stat-badge">選 0 個 | 均值: 0</div>
+        <div class="strategy-row">
+            <b>號碼盤 (熱度/開出/漏期)</b>
+            <span id="stat" style="font-size:12px; color:var(--gold)">未選號碼</span>
         </div>
         <div id="grid" class="ball-grid"></div>
     </div>
 
-    <div class="glass strategy-box">
-        <h3>智慧選號策略</h3>
-        <div class="row">
-            <span>奇偶比 (奇:偶)</span>
-            <select id="p-oe"><option value="any">隨機</option><option value="2:3">2:3</option><option value="3:2">3:2</option></select>
-        </div>
-        <div class="row">
-            <span>大小比 (≥20)</span>
-            <select id="p-bs"><option value="any">隨機</option><option value="2:3">2:3</option><option value="3:2">3:2</option></select>
-        </div>
-        <div class="row">
-            <span>和值區間限制</span>
-            <div>
-                <input type="number" id="p-sum-min" value="70" style="width:45px"> - 
-                <input type="number" id="p-sum-max" value="130" style="width:45px">
-            </div>
-        </div>
-        <div class="row">
-            <span>號碼偏好</span>
-            <select id="p-pref"><option value="mix">冷熱交替</option><option value="hot">追熱門號</option><option value="cold">埋伏冷號</option></select>
-        </div>
-        <div class="row">
-            <span>連號限制</span>
-            <select id="p-con"><option value="any">不限</option><option value="no">避開連號</option><option value="yes">必須連號</option></select>
-        </div>
-        <div class="row">
-            <span>生成組數</span>
-            <input type="number" id="p-count" value="1" min="1" max="5" style="width:45px">
-        </div>
-        <button class="btn-gen" onclick="generateSmart()">執行策略選號</button>
-        <div id="export"></div>
+    <div class="glass">
+        <h3>智慧過濾選號</h3>
+        <div class="strategy-row"><span>奇偶要求 (奇:偶)</span><select id="s-oe"><option value="any">隨機</option><option value="3:2">3:2</option><option value="2:3">2:3</option></select></div>
+        <div class="strategy-row"><span>大小要求 (大:小)</span><select id="s-bs"><option value="any">隨機</option><option value="3:2">3:2</option><option value="2:3">2:3</option></select></div>
+        <div class="strategy-row"><span>連號限制</span><select id="s-con"><option value="any">不限</option><option value="none">排除連號</option><option value="must">必須連號</option></select></div>
+        <div class="strategy-row"><span>和值區間</span><span><input type="number" id="s-min" value="80" style="width:50px">-<input type="number" id="s-max" value="120" style="width:50px"></span></div>
+        <div class="strategy-row"><span>熱度權重</span><select id="s-w"><option value="mid">平衡</option><option value="hot">極熱追號</option><option value="cold">冷號埋伏</option></select></div>
+        <div class="strategy-row"><span>生成組數</span><input type="number" id="s-cnt" value="1" min="1" max="10" style="width:50px"></div>
+        
+        <button class="btn-action" onclick="generate()">執行戰略選號</button>
+        <div id="warn" class="warning">⚠️ 限制過嚴：嘗試 2000 次仍無符合組合，請放寬區間。</div>
+        <div id="log"></div>
     </div>
 </div>
 
 <script>
-    let raw = [];
-    let freqMap = {};
-    let gapMap = {};
-    let selected = new Set();
-    let chart;
+    let raw = [], freq = {}, gap = {}, selected = new Set(), chart;
 
-    function handleFile(input) {
+    function process(input) {
         const reader = new FileReader();
         reader.onload = (e) => {
             const lines = e.target.result.split('\n').filter(l => l.trim() !== "").slice(1);
-            parse(lines);
+            freq = {}; for(let i=1; i<=39; i++) gap[i] = lines.length;
+            raw = lines.map((l, idx) => {
+                const c = l.split(',');
+                const nums = c.slice(1,6).map(Number).filter(n => n > 0);
+                nums.forEach(n => {
+                    freq[n] = (freq[n] || 0) + 1;
+                    if(gap[n] > idx) gap[n] = idx;
+                });
+                return { 
+                    date: c[0].slice(5), 
+                    nums, 
+                    sum: nums.reduce((a,b)=>a+b, 0),
+                    odd: nums.filter(n=>n%2!==0).length,
+                    big: nums.filter(n=>n>=20).length
+                };
+            }).filter(d => d.nums.length === 5).reverse();
+            renderChart();
+            renderGrid();
         };
         reader.readAsText(input.files[0]);
     }
 
-    function parse(lines) {
-        raw = []; freqMap = {};
-        for(let i=1; i<=39; i++) gapMap[i] = lines.length;
-        
-        lines.forEach((l, idx) => {
-            const c = l.split(',');
-            const nums = c.slice(1,6).map(Number).filter(n => n > 0);
-            if(nums.length === 5) {
-                raw.push({ date: c[0], nums, sum: nums.reduce((a,b)=>a+b, 0) });
-                nums.forEach(n => {
-                    freqMap[n] = (freqMap[n] || 0) + 1;
-                    if(gapMap[n] > idx) gapMap[n] = idx;
-                });
-            }
-        });
-        updateChart();
-        renderGrid();
-    }
-
-    function updateChart() {
-        const ctx = document.getElementById('mainChart').getContext('2d');
+    function renderChart() {
         if(chart) chart.destroy();
-        const latest = raw.slice(0, 20).reverse();
-        chart = new Chart(ctx, {
-            type: 'line',
+        const data = raw.slice(-20);
+        chart = new Chart(document.getElementById('compChart'), {
             data: {
-                labels: latest.map(r => r.date.slice(5)),
-                datasets: [{
-                    label: '和值趨勢',
-                    data: latest.map(r => r.sum),
-                    borderColor: '#38bdf8',
-                    tension: 0.4,
-                    fill: true,
-                    backgroundColor: 'rgba(56, 189, 248, 0.1)'
-                }]
+                labels: data.map(d => d.date),
+                datasets: [
+                    { type: 'line', label: '和值', data: data.map(d => d.sum), borderColor: '#fbbf24', yAxisID: 'y' },
+                    { type: 'bar', label: '奇數數', data: data.map(d => d.odd), backgroundColor: 'rgba(239, 68, 68, 0.5)', yAxisID: 'y1' },
+                    { type: 'bar', label: '大號數', data: data.map(d => d.big), backgroundColor: 'rgba(14, 165, 233, 0.5)', yAxisID: 'y1' }
+                ]
             },
-            options: { plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#334155' } } } }
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { 
+                    y: { position: 'left', min: 40, max: 160, grid: { display: false } },
+                    y1: { position: 'right', min: 0, max: 5, grid: { color: '#334155' } }
+                },
+                plugins: { legend: { labels: { color: '#fff', boxWidth: 12 } } }
+            }
         });
     }
 
     function renderGrid() {
-        const grid = document.getElementById('grid');
-        grid.innerHTML = '';
-        const maxFreq = Math.max(...Object.values(freqMap), 1);
-        
+        const grid = document.getElementById('grid'); grid.innerHTML = '';
+        const maxF = Math.max(...Object.values(freq), 1);
         for(let i=1; i<=39; i++) {
-            const f = freqMap[i] || 0;
-            const gap = gapMap[i] || 0;
+            const f = freq[i]||0, g = gap[i]||0;
             const b = document.createElement('div');
-            b.className = `ball ${selected.has(i) ? 'active' : ''}`;
-            
-            // 色溫計算 (HSL: 200為冷藍, 0為熱紅)
-            const hue = 200 - (f / maxFreq * 200);
-            b.style.background = `hsl(${hue}, 70%, 40%)`;
-            
-            b.innerHTML = `<span>${i.toString().padStart(2,'0')}</span><small>${gap}期</small>`;
+            b.className = `ball ${selected.has(i) ? 'selected' : ''}`;
+            const hue = 200 - (f/maxF * 200); // 熱紅冷藍
+            b.style.background = `hsla(${hue}, 70%, 35%, 0.8)`;
+            b.innerHTML = `<span class="gap">${g}期</span><span>${i.toString().padStart(2,'0')}</span><span class="count">${f}次</span>`;
             b.onclick = () => {
-                if(selected.has(i)) selected.delete(i);
-                else if(selected.size < 5) selected.add(i);
-                updateSelectStat();
-                renderGrid();
+                if(selected.has(i)) selected.delete(i); else if(selected.size < 5) selected.add(i);
+                updateStat(); renderGrid();
             };
             grid.appendChild(b);
         }
     }
 
-    function updateSelectStat() {
+    function updateStat() {
         const arr = Array.from(selected);
-        const avg = arr.length ? (arr.reduce((a,b)=>a+b)/arr.length).toFixed(1) : 0;
-        document.getElementById('sel-stat').innerText = `選 ${arr.length} 個 | 均值: ${avg}`;
+        const sum = arr.length ? arr.reduce((a,b)=>a+b) : 0;
+        document.getElementById('stat').innerText = `已選 ${arr.length} | 總和: ${sum} | 均值: ${arr.length?(sum/arr.length).toFixed(1):0}`;
     }
 
-    function generateSmart() {
-        const count = parseInt(document.getElementById('p-count').value);
+    function generate() {
+        const cnt = parseInt(document.getElementById('s-cnt').value);
         const results = [];
-        const pool = [];
-        const pref = document.getElementById('p-pref').value;
-
-        // 構建加權池
+        let pool = [];
         for(let i=1; i<=39; i++) {
-            let weight = 1;
-            if(pref === 'hot') weight += (freqMap[i] || 0);
-            if(pref === 'cold') weight += Math.floor((gapMap[i] || 0)/2);
-            if(pref === 'mix') weight += (freqMap[i] || 0) + Math.floor((gapMap[i] || 0)/3);
-            for(let w=0; w<weight; w++) pool.push(i);
+            let w = 1;
+            const mode = document.getElementById('s-w').value;
+            if(mode === 'hot') w += (freq[i]||0) * 2;
+            if(mode === 'cold') w += Math.floor((gap[i]||0)/2);
+            if(mode === 'mid') w += (freq[i]||0) + Math.floor((gap[i]||0)/4);
+            for(let j=0; j<w; j++) pool.push(i);
         }
 
-        let safety = 0;
-        while(results.length < count && safety < 2000) {
-            safety++;
+        let loop = 0; document.getElementById('warn').style.display = 'none';
+        while(results.length < cnt && loop < 2000) {
+            loop++;
             let temp = new Set();
             while(temp.size < 5) temp.add(pool[Math.floor(Math.random() * pool.length)]);
             let arr = Array.from(temp).sort((a,b)=>a-b);
             
-            // 策略檢查
             const sum = arr.reduce((a,b)=>a+b);
             const odd = arr.filter(n=>n%2!==0).length;
             const big = arr.filter(n=>n>=20).length;
             const hasCon = arr.some((n,i)=> n === arr[i-1]+1);
 
-            const checkOE = document.getElementById('p-oe').value === 'any' || document.getElementById('p-oe').value === `${odd}:${5-odd}`;
-            const checkBS = document.getElementById('p-bs').value === 'any' || document.getElementById('p-bs').value === `${big}:${5-big}`;
-            const checkSum = sum >= document.getElementById('p-sum-min').value && sum <= document.getElementById('p-sum-max').value;
-            const checkCon = document.getElementById('p-con').value === 'any' || (document.getElementById('p-con').value === 'yes' ? hasCon : !hasCon);
-
-            if(checkOE && checkBS && checkSum && checkCon) {
+            if( (document.getElementById('s-oe').value === 'any' || document.getElementById('s-oe').value === `${odd}:${5-odd}`) &&
+                (document.getElementById('s-bs').value === 'any' || document.getElementById('s-bs').value === `${big}:${5-big}`) &&
+                (sum >= parseInt(document.getElementById('s-min').value) && sum <= parseInt(document.getElementById('s-max').value)) &&
+                (document.getElementById('s-con').value === 'any' || (document.getElementById('s-con').value === 'must' ? hasCon : !hasCon)) ) {
                 results.push(arr.map(n=>n.toString().padStart(2,'0')).join(' '));
             }
         }
 
-        const exp = document.getElementById('export');
-        exp.style.display = 'block';
-        exp.innerText = results.length ? `[策略選號結果]\n` + results.join('\n') : "找不到符合條件的組合，請放寬限制";
+        if(results.length < cnt) document.getElementById('warn').style.display = 'block';
+        const log = document.getElementById('log'); log.style.display = 'block';
+        log.innerText = `[策略選號結果]\n` + results.map((r,i)=>`#${i+1}: ${r}`).join('\n');
     }
 
-    // 初始化空球盤
     renderGrid();
 </script>
 </body>
