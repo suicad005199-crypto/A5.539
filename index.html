@@ -2,128 +2,138 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>539必中選牌器</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>539 Pro 數據分析</title>
     <style>
-        :root { --hot: #ff4757; --cold: #2f3542; --primary: #1e90ff; }
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
-        .stats { display: flex; justify-content: space-around; background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; font-weight: bold; }
-        .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-        .ball { height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; 
-                border-radius: 50%; border: 1px solid #ddd; cursor: pointer; position: relative; font-size: 14px; }
-        .ball.selected { background: var(--hot); color: white; border-color: var(--hot); }
-        .freq-tag { font-size: 9px; color: #777; margin-top: -2px; }
-        .selected .freq-tag { color: white; }
-        .actions { display: flex; gap: 8px; margin-top: 20px; }
-        button { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-main { background: var(--primary); color: white; }
-        .btn-sec { background: #e0e0e0; }
-        .result { text-align: center; font-size: 28px; margin-top: 20px; color: var(--hot); letter-spacing: 2px; }
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #38bdf8;
+            --ball-bg: #334155;
+            --selected: #fbbf24;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: var(--bg); color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; }
+        
+        .app-container { width: 100%; max-width: 500px; padding: 20px; min-height: 100vh; }
+        h2 { text-align: center; color: var(--accent); margin-bottom: 25px; font-weight: 300; letter-spacing: 2px; }
+        
+        /* 檔案上傳樣式 */
+        .file-upload { background: var(--card); border: 1px dashed #475569; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 20px; font-size: 14px; }
+        input[type="file"] { display: none; }
+        .file-label { cursor: pointer; color: var(--accent); }
+
+        /* 數據面版 */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: var(--card); padding: 12px; border-radius: 12px; text-align: center; }
+        .stat-label { font-size: 12px; color: #94a3b8; display: block; }
+        .stat-val { font-size: 18px; font-weight: bold; color: white; }
+
+        /* 選號球區 */
+        .ball-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 25px; }
+        .ball { aspect-ratio: 1/1; background: var(--ball-bg); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-weight: bold; border: 1px solid transparent; }
+        .ball.active { background: var(--selected); color: #000; transform: scale(1.1); box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); }
+        .freq-text { font-size: 8px; opacity: 0.7; font-weight: normal; }
+
+        /* 操作按鈕 */
+        .btn-group { display: flex; gap: 10px; position: sticky; bottom: 20px; }
+        button { flex: 1; padding: 15px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: var(--accent); color: var(--bg); }
+        .btn-secondary { background: #475569; color: white; }
+        
+        /* 顯示結果 */
+        .result-bar { background: #000; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px; font-size: 24px; font-family: monospace; color: var(--selected); }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2 style="text-align:center; margin-top:0;">539 數據選牌助手</h2>
-    
-    <div style="border: 2px dashed #ccc; padding: 10px; text-align: center;">
-        <small>請上傳 history_last30.csv</small><br>
-        <input type="file" id="csvFile" accept=".csv" onchange="process()">
+<div class="app-container">
+    <h2>539 DATA MASTER</h2>
+
+    <div class="file-upload">
+        <label class="file-label" for="csvFile">按此上傳 history_last30.csv</label>
+        <input type="file" id="csvFile" accept=".csv" onchange="loadData()">
     </div>
 
-    <div class="stats">
-        <span>平均值: <span id="avg">0</span></span>
-        <span>最熱門: <span id="top-num">-</span></span>
+    <div class="result-bar" id="res">00 00 00 00 00</div>
+
+    <div class="stats-grid">
+        <div class="stat-card"><span class="stat-label">平均值</span><span class="stat-val" id="avg">0</span></div>
+        <div class="stat-card"><span class="stat-label">最熱門</span><span class="stat-val" id="top">--</span></div>
     </div>
 
-    <div class="grid" id="grid"></div>
+    <div class="ball-grid" id="grid"></div>
 
-    <div class="actions">
-        <button class="btn-main" onclick="smartPick()">智慧隨機 (依權重)</button>
-        <button class="btn-sec" onclick="reset()">重置</button>
+    <div class="btn-group">
+        <button class="btn-secondary" onclick="reset()">重置</button>
+        <button class="btn-primary" onclick="smartPick()">智慧選牌</button>
     </div>
-
-    <div class="result" id="res">00 00 00 00 00</div>
 </div>
 
 <script>
-    let freq = {};
+    let freqMap = {};
     let selected = new Set();
 
-    function process() {
+    function loadData() {
         const file = document.getElementById('csvFile').files[0];
         const reader = new FileReader();
         reader.onload = (e) => {
-            const lines = e.target.result.split('\n');
-            freq = {};
-            // 跳過第一行標題，解析數據
-            for(let i=1; i<lines.length; i++) {
-                const cols = lines[i].split(',');
-                if(cols.length < 6) continue;
-                for(let j=1; j<=5; j++) {
-                    const n = parseInt(cols[j]);
-                    if(n) freq[n] = (freq[n] || 0) + 1;
+            const rows = e.target.result.split('\n').slice(1);
+            freqMap = {};
+            rows.forEach(row => {
+                const cols = row.split(',');
+                for(let i=1; i<=5; i++){
+                    let n = parseInt(cols[i]);
+                    if(n) freqMap[n] = (freqMap[n] || 0) + 1;
                 }
-            }
+            });
             render();
-            updateStats();
+            const topNum = Object.keys(freqMap).reduce((a, b) => freqMap[a] > freqMap[b] ? a : b, "--");
+            document.getElementById('top').innerText = topNum;
         };
         reader.readAsText(file);
     }
 
     function render() {
-        const g = document.getElementById('grid');
-        g.innerHTML = '';
-        for(let i=1; i<=39; i++) {
-            const b = document.createElement('div');
-            b.className = `ball ${selected.has(i) ? 'selected' : ''}`;
-            b.innerHTML = `<div>${i.toString().padStart(2,'0')}</div><div class="freq-tag">${freq[i] || 0}次</div>`;
-            b.onclick = () => {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        for (let i = 1; i <= 39; i++) {
+            const div = document.createElement('div');
+            div.className = `ball ${selected.has(i) ? 'active' : ''}`;
+            div.innerHTML = `<span>${i.toString().padStart(2,'0')}</span><span class="freq-text">${freqMap[i] || 0}</span>`;
+            div.onclick = () => {
                 if(selected.has(i)) selected.delete(i);
                 else if(selected.size < 5) selected.add(i);
-                render();
-                updateStats();
+                updateUI();
             };
-            g.appendChild(b);
+            grid.appendChild(div);
         }
+    }
+
+    function updateUI() {
+        const arr = Array.from(selected).sort((a,b)=>a-b);
+        document.getElementById('res').innerText = arr.length ? arr.map(n=>n.toString().padStart(2,'0')).join(' ') : '00 00 00 00 00';
+        document.getElementById('avg').innerText = arr.length ? (arr.reduce((a,b)=>a+b)/arr.length).toFixed(1) : 0;
+        render();
     }
 
     function smartPick() {
         selected.clear();
         let pool = [];
         for(let i=1; i<=39; i++) {
-            // 基本權重 1 + 歷史出現次數
-            let weight = 1 + (freq[i] || 0);
-            for(let w=0; w<weight; w++) pool.push(i);
+            let w = 1 + (freqMap[i] || 0);
+            for(let j=0; j<w; j++) pool.push(i);
         }
-        while(selected.size < 5) {
-            selected.add(pool[Math.floor(Math.random() * pool.length)]);
-        }
-        render();
-        updateStats();
-    }
-
-    function updateStats() {
-        const arr = Array.from(selected).sort((a,b)=>a-b);
-        document.getElementById('res').innerText = arr.length ? arr.map(n=>n.toString().padStart(2,'0')).join(' ') : '00 00 00 00 00';
-        
-        if(Object.keys(freq).length > 0) {
-            const top = Object.keys(freq).reduce((a, b) => freq[a] > freq[b] ? a : b);
-            document.getElementById('top-num').innerText = top;
-        }
-        
-        const sum = arr.reduce((a,b)=>a+b, 0);
-        document.getElementById('avg').innerText = arr.length ? (sum/arr.length).toFixed(1) : 0;
+        while(selected.size < 5) selected.add(pool[Math.floor(Math.random() * pool.length)]);
+        updateUI();
     }
 
     function reset() {
         selected.clear();
-        render();
-        updateStats();
+        updateUI();
     }
 
     render();
 </script>
 </body>
 </html>
-
