@@ -2,106 +2,119 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>539 CSV 數據預測器</title>
+    <title>539 歷史數據熱門分析器</title>
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; padding: 30px; }
-        .card { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .upload-section { border: 2px dashed #ccc; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
-        .ball-container { display: flex; justify-content: center; gap: 10px; margin: 25px 0; }
-        .ball { width: 50px; height: 50px; line-height: 50px; border-radius: 50%; background: #d32f2f; color: white; font-weight: bold; font-size: 1.3em; text-align: center; }
-        button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1.1em; }
-        button:disabled { background: #ccc; }
-        #status { margin-top: 15px; font-size: 0.9em; color: #666; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+        .container { max-width: 700px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h2 { color: #2c3e50; border-left: 5px solid #d32f2f; padding-left: 15px; }
+        .upload-zone { border: 2px dashed #3498db; padding: 30px; margin: 20px 0; border-radius: 10px; background: #ebf5fb; transition: 0.3s; }
+        .upload-zone:hover { background: #d6eaf8; }
+        .ball-container { display: flex; justify-content: center; gap: 12px; margin: 30px 0; }
+        .ball { width: 55px; height: 55px; line-height: 55px; border-radius: 50%; background: #d32f2f; color: white; font-weight: bold; font-size: 1.4em; text-align: center; box-shadow: 0 4px 8px rgba(211,47,47,0.3); }
+        button { width: 100%; padding: 15px; background: #2c3e50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1em; font-weight: bold; }
+        button:hover { background: #1a252f; }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+        #status { margin-top: 15px; font-weight: bold; color: #27ae60; }
+        table { width: 100%; margin-top: 25px; border-collapse: collapse; font-size: 0.9em; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background: #f8f9fa; }
+        .rank-1 { color: #d32f2f; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="card">
+<div class="container">
     <h2>539 數據分析預測器</h2>
+    <p>上傳歷年 CSV 檔，自動提取出現次數最高之號碼。</p>
     
-    <div class="upload-section">
-        <p>請上傳您的歷史數據 CSV</p>
+    <div class="upload-zone">
         <input type="file" id="csvFile" accept=".csv">
+        <p style="font-size: 0.8em; color: #666;">格式需為：開獎日期,獎號1,獎號2,獎號3,獎號4,獎號5</p>
     </div>
 
     <div class="ball-container" id="result">
-        <div class="ball">-</div><div class="ball">-</div><div class="ball">-</div><div class="ball">-</div><div class="ball">-</div>
+        <div class="ball">?</div><div class="ball">?</div><div class="ball">?</div><div class="ball">?</div><div class="ball">?</div>
     </div>
 
-    <button id="predictBtn" disabled onclick="generatePrediction()">開始大數據預測</button>
-    <div id="status">等待上傳 CSV 檔案...</div>
+    <button id="predictBtn" disabled onclick="analyzeData()">顯示歷史最高機率組合</button>
+    <div id="status">請先上傳 CSV 檔案</div>
+
+    <div id="rankTableContainer"></div>
 </div>
 
 <script>
-    let stats = {}; // 儲存號碼出現次數
+    let stats = {}; 
 
     document.getElementById('csvFile').addEventListener('change', function(e) {
         const file = e.target.files[0];
-        const reader = new FileReader();
+        if (!file) return;
         
+        const reader = new FileReader();
         reader.onload = function(event) {
-            const text = event.target.result;
-            processData(text);
+            processCSV(event.target.result);
         };
         reader.readAsText(file);
     });
 
-    function processData(csvText) {
-        const lines = csvText.split('\n').slice(1); // 跳過標題列
+    function processCSV(text) {
+        const lines = text.trim().split('\n').slice(1);
         stats = {};
-        let count = 0;
+        let entryCount = 0;
 
         lines.forEach(line => {
             const cols = line.split(',');
             if (cols.length >= 6) {
                 for (let i = 1; i <= 5; i++) {
                     let num = parseInt(cols[i].trim());
-                    if (!isNaN(num)) {
+                    if (!isNaN(num) && num >= 1 && num <= 39) {
                         stats[num] = (stats[num] || 0) + 1;
-                        count++;
+                        entryCount++;
                     }
                 }
             }
         });
 
-        if (count > 0) {
-            document.getElementById('status').innerText = `解析成功！已讀取 ${lines.length} 期數據。`;
+        if (entryCount > 0) {
+            document.getElementById('status').innerText = `✅ 解析成功！已統計 ${lines.length} 期數據。`;
             document.getElementById('predictBtn').disabled = false;
+        } else {
+            document.getElementById('status').innerText = `❌ 格式錯誤，請檢查 CSV。`;
         }
     }
 
-    function generatePrediction() {
-        // 建立加權號碼池
-        let pool = [];
+    function analyzeData() {
+        // 1. 轉換為陣列並排序
+        let sorted = [];
         for (let i = 1; i <= 39; i++) {
-            let weight = stats[i] || 1; // 歷史出現次數作為權重，沒出現過的給 1
-            for (let j = 0; j < weight; j++) {
-                pool.push(i);
-            }
+            sorted.push({ num: i, count: stats[i] || 0 });
         }
+        sorted.sort((a, b) => b.count - a.count || a.num - b.num);
 
-        let result = [];
-        while (result.length < 5) {
-            let randomIndex = Math.floor(Math.random() * pool.length);
-            let pick = pool[randomIndex];
-            if (!result.includes(pick)) {
-                result.push(pick);
-            }
-        }
+        // 2. 取出前 5 名
+        let top5 = sorted.slice(0, 5);
+        let prediction = top5.map(item => item.num).sort((a, b) => a - b);
 
-        result.sort((a, b) => a - b);
-        display(result);
-    }
-
-    function display(nums) {
+        // 3. 渲染球體
         const container = document.getElementById('result');
         container.innerHTML = '';
-        nums.forEach(n => {
+        prediction.forEach(n => {
             const ball = document.createElement('div');
             ball.className = 'ball';
             ball.innerText = n.toString().padStart(2, '0');
             container.appendChild(ball);
         });
+
+        // 4. 顯示完整排行榜表格
+        let tableHtml = `<h3>熱門號碼排行榜</h3><table><tr><th>排名</th><th>號碼</th><th>出現次數</th></tr>`;
+        sorted.slice(0, 10).forEach((item, index) => {
+            tableHtml += `<tr class="${index < 5 ? 'rank-1' : ''}">
+                <td>${index + 1}</td>
+                <td>${item.num.toString().padStart(2, '0')}</td>
+                <td>${item.count} 次</td>
+            </tr>`;
+        });
+        tableHtml += `</table>`;
+        document.getElementById('rankTableContainer').innerHTML = tableHtml;
     }
 </script>
 
