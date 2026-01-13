@@ -1,13 +1,122 @@
-<!-- ⚠️ 上半部 HTML / CSS 完全不變，直接沿用你的 -->
-<!-- 以下只貼 <script> 區塊，請整段覆蓋 -->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>539 智能分析系統 - Pro 量化決策版</title>
+<style>
+:root {
+    --primary: #0f172a;
+    --secondary: #1e293b;
+    --accent: #38bdf8;
+    --gold: #fbbf24;
+    --success: #22c55e;
+    --bg: #0f172a;
+    --card-bg: rgba(30, 41, 59, 0.7);
+    --text: #f1f5f9;
+}
+
+body { 
+    font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
+    background-color: var(--bg);
+    background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 100%);
+    margin: 0; padding: 20px 15px; color: var(--text);
+    min-height: 100vh; line-height: 1.6;
+}
+
+.container { max-width: 1000px; margin: 0 auto; }
+header { text-align: center; margin-bottom: 30px; padding: 10px 0; }
+header h1 { font-size: 2.2rem; margin: 0; color: var(--accent); font-weight: 900; text-shadow: 0 0 20px rgba(56,189,248,0.3); letter-spacing: 2px; }
+header p { font-size: 0.85rem; margin: 8px 0 0; opacity: 0.5; letter-spacing: 3px; font-weight: 300; }
+
+.card { 
+    background: var(--card-bg); 
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 24px; border-radius: 24px; 
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    margin-bottom: 25px;
+}
+
+.upload-section { border: 2px dashed rgba(56, 189, 248, 0.2); transition: 0.3s; padding: 40px 20px; }
+.upload-section:hover { border-color: var(--accent); background: rgba(56, 189, 248, 0.05); }
+
+button { 
+    background: linear-gradient(135deg, var(--accent), #0284c7);
+    color: white; border: none; padding: 16px 30px; 
+    border-radius: 14px; font-weight: 800; font-size: 1.1rem;
+    cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+    width: 100%; letter-spacing: 1px;
+}
+button:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(56, 189, 248, 0.5); }
+
+.dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+@media (min-width: 768px) { .dashboard-grid { grid-template-columns: 1fr 1fr; } }
+
+h3 { font-size: 1.2rem; margin-top: 0; margin-bottom: 20px; color: var(--gold); display: flex; align-items: center; font-weight: 700; }
+h3::before { content: ''; display: inline-block; width: 4px; height: 20px; background: var(--gold); margin-right: 12px; border-radius: 2px; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: center; font-size: 0.75rem; opacity: 0.4; padding: 12px; font-weight: normal; }
+td { padding: 15px 5px; border-bottom: 1px solid rgba(255,255,255,0.03); text-align: center; }
+
+.ball { 
+    display: inline-block; width: 38px; height: 38px; line-height: 38px; 
+    text-align: center; border-radius: 50%; 
+    background: radial-gradient(circle at 30% 30%, #475569, #1e293b);
+    margin: 4px; font-weight: 800; 
+    font-size: 16px; color: var(--accent);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.inline-input { 
+    width: 60px; height: 60px; text-align: center; margin: 0 5px; 
+    border: 2px solid rgba(255,255,255,0.1); border-radius: 16px; 
+    font-size: 1.4rem; font-weight: 900; background: #0f172a; color: var(--gold);
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>539 QUANT PRO</h1>
+        <p>ADVANCED ANALYTICS • DATA DRIVEN</p>
+    </header>
+
+    <div class="card upload-section">
+        <h3 style="justify-content: center; color: var(--accent);">數據終端入口</h3>
+        <input type="file" id="csvFile" accept=".csv" style="display: none;">
+        <label for="csvFile" id="fileLabel" style="display: block; padding: 15px; background: var(--secondary); border-radius: 10px; cursor: pointer; margin-bottom: 20px; color: #94a3b8; text-align: center;">
+            點擊選取歷史數據 CSV
+        </label>
+        <select id="strategySelect" style="width:100%; padding:12px; margin-bottom:15px; border-radius:10px; background:var(--secondary); color:#94a3b8;">
+            <option value="hot">熱號 Top N</option>
+            <option value="markov">前一期共現</option>
+            <option value="coldhot">冷熱混合</option>
+            <option value="drop">掉落號策略</option>
+        </select>
+        <button onclick="runAll()">啟動量化決策分析</button>
+    </div>
+
+    <div class="dashboard-grid">
+        <div id="history" class="card"><h3>近期開獎歷史</h3></div>
+        <div id="stats_table" class="card"><h3>策略回測表現</h3></div>
+    </div>
+
+    <div id="results" class="card">
+        <h3>智能推薦組合</h3>
+        <div id="recommendContent" style="text-align: center; padding: 40px; opacity: 0.3;">等待數據執行...</div>
+    </div>
+</div>
 
 <script>
 let HIST_DATA = [];
 let CORR_MATRIX = {};
+const HISTORY_PERIOD = 50; // 最近50期
 
 document.getElementById('csvFile').addEventListener('change', e=>{
-    document.getElementById('fileLabel').innerText =
-        e.target.files[0]?.name || "點擊選取歷史數據 CSV";
+    document.getElementById('fileLabel').innerText = e.target.files[0]?.name || "點擊選取歷史數據 CSV";
 });
 
 async function runAll(){
@@ -25,7 +134,6 @@ async function runAll(){
     showHistory(HIST_DATA);
     renderQuantResult();
     renderBacktest();
-
     alert("量化分析完成");
 }
 
@@ -67,63 +175,124 @@ function showHistory(data){
     document.getElementById("history").innerHTML="<h3>近期開獎歷史</h3>"+html;
 }
 
-/* ---------- 量化推薦 ---------- */
+/* ---------- 生成推薦組合 ---------- */
 function renderQuantResult(){
-    const lastNums = HIST_DATA.at(-1).nums;
-    let score = {};
+    const strategy = document.getElementById("strategySelect").value;
+    let combos=[];
+    for(let g=0; g<3; g++){
+        let pick=[];
+        if(strategy==="hot") pick=pickHot();
+        else if(strategy==="markov") pick=pickMarkov();
+        else if(strategy==="coldhot") pick=pickColdHot();
+        else if(strategy==="drop") pick=pickDrop();
+        combos.push(pick);
+    }
 
-    lastNums.forEach(c=>{
-        const rel = CORR_MATRIX[c] || {};
-        Object.keys(rel).forEach(n=>{
-            if(lastNums.includes(+n)) return;
-            score[n] = (score[n]||0) + rel[n];
-        });
+    let html="<div style='text-align:center;'>";
+    combos.forEach(c=>{
+        const rate=calcHitRate(c);
+        html+=`<div style="margin-bottom:15px;">
+            <div>${c.map(n=>`<span class="ball">${String(n).padStart(2,"0")}</span>`).join("")}</div>
+            <div style="margin-top:5px; font-size:0.9rem; opacity:0.7;">
+                2★:${rate[2]}% | 3★:${rate[3]}% | 4★:${rate[4]}% | 5★:${rate[5]}%
+            </div>
+        </div>`;
     });
-
-    const picks = Object.entries(score)
-        .sort((a,b)=>b[1]-a[1])
-        .slice(0,5)
-        .map(e=>+e[0])
-        .sort((a,b)=>a-b);
-
-    document.getElementById("recommendContent").innerHTML = `
-        <p>基於前一期條件共現模型推薦：</p>
-        <div>${picks.map(n=>`<span class="ball">${String(n).padStart(2,"0")}</span>`).join("")}</div>
-    `;
+    html+="</div>";
+    document.getElementById("recommendContent").innerHTML=html;
     document.getElementById("recommendContent").style.opacity=1;
 }
 
-/* ---------- 策略回測 ---------- */
-function renderBacktest(){
-    let hitSum=0, hit2=0, hit3=0, count=0;
+/* ---------- 熱號 Top N ---------- */
+function pickHot(){
+    const freq={};
+    HIST_DATA.slice(-HISTORY_PERIOD).forEach(d=>d.nums.forEach(n=>freq[n]=(freq[n]||0)+1));
+    return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>+e[0]).sort((a,b)=>a-b);
+}
 
-    for(let i=30;i<HIST_DATA.length-1;i++){
-        const prev = HIST_DATA[i].nums;
+/* ---------- 前一期共現 ---------- */
+function pickMarkov(){
+    const last = HIST_DATA.at(-1).nums;
+    let score={};
+    last.forEach(c=>{
+        const rel=CORR_MATRIX[c]||{};
+        Object.keys(rel).forEach(n=>{
+            if(last.includes(+n)) return;
+            score[n]=(score[n]||0)+rel[n];
+        });
+    });
+    return Object.entries(score).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>+e[0]).sort((a,b)=>a-b);
+}
+
+/* ---------- 冷熱混合 ---------- */
+function pickColdHot(){
+    const freq={};
+    HIST_DATA.slice(-HISTORY_PERIOD).forEach(d=>d.nums.forEach(n=>freq[n]=(freq[n]||0)+1));
+    const hot=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>+e[0]);
+    const cold=Object.entries(freq).sort((a,b)=>a[1]-b[1]).slice(0,2).map(e=>+e[0]);
+    const combo=[...hot,...cold].sort((a,b)=>a-b);
+    return combo;
+}
+
+/* ---------- 掉落號策略 ---------- */
+function pickDrop(){
+    const last=HIST_DATA.at(-1).nums;
+    let dropNums=[];
+    HIST_DATA.slice(-HISTORY_PERIOD).forEach(d=>{
+        last.forEach(n=>{
+            if(!d.nums.includes(n) && !dropNums.includes(n)) dropNums.push(n);
+        });
+    });
+    if(dropNums.length>5) dropNums=dropNums.slice(0,5);
+    return dropNums.sort((a,b)=>a-b);
+}
+
+/* ---------- 勝率計算 ---------- */
+function calcHitRate(pick){
+    let hit={2:0,3:0,4:0,5:0}, count=0;
+    const start=Math.max(0,HIST_DATA.length-HISTORY_PERIOD-1);
+    for(let i=start;i<HIST_DATA.length-1;i++){
         let s={};
-
-        prev.forEach(c=>{
+        HIST_DATA[i].nums.forEach(c=>{
             const rel=CORR_MATRIX[c]||{};
             Object.keys(rel).forEach(n=>{
-                if(prev.includes(+n)) return;
+                if(HIST_DATA[i].nums.includes(+n)) return;
                 s[n]=(s[n]||0)+rel[n];
             });
         });
+        const rec=Object.entries(s).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>+e[0]);
+        const actual=HIST_DATA[i+1].nums;
+        const hitCount=rec.filter(n=>actual.includes(n)).length;
+        for(let k=2;k<=5;k++) if(hitCount>=k) hit[k]++;
+        count++;
+    }
+    const result={};
+    for(let k=2;k<=5;k++) result[k]=((hit[k]/count)*100).toFixed(1);
+    return result;
+}
 
-        const pick = Object.entries(s)
-            .sort((a,b)=>b[1]-a[1])
-            .slice(0,5)
-            .map(e=>+e[0]);
-
-        const actual = HIST_DATA[i+1].nums;
-        const hit = pick.filter(n=>actual.includes(n)).length;
-
+/* ---------- 回測 ---------- */
+function renderBacktest(){
+    let hitSum=0, hit2=0, hit3=0, count=0;
+    const start=Math.max(0,HIST_DATA.length-HISTORY_PERIOD-1);
+    for(let i=start;i<HIST_DATA.length-1;i++){
+        let s={};
+        HIST_DATA[i].nums.forEach(c=>{
+            const rel=CORR_MATRIX[c]||{};
+            Object.keys(rel).forEach(n=>{
+                if(HIST_DATA[i].nums.includes(+n)) return;
+                s[n]=(s[n]||0)+rel[n];
+            });
+        });
+        const rec=Object.entries(s).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>+e[0]);
+        const actual=HIST_DATA[i+1].nums;
+        const hit=rec.filter(n=>actual.includes(n)).length;
         hitSum+=hit;
         if(hit>=2) hit2++;
         if(hit>=3) hit3++;
         count++;
     }
-
-    document.getElementById("stats_table").innerHTML = `
+    document.getElementById("stats_table").innerHTML=`
         <h3>策略回測表現</h3>
         <table>
             <tr><th>樣本期數</th><th>平均命中</th><th>≥2 顆</th><th>≥3 顆</th></tr>
@@ -137,3 +306,5 @@ function renderBacktest(){
     `;
 }
 </script>
+</body>
+</html>
