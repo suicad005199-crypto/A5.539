@@ -1,110 +1,101 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>539 數據分析專業版</title>
-    <style>
-        :root { --ios-bg: #F2F2F7; --ios-blue: #007AFF; }
-        body { font-family: -apple-system; background: var(--ios-bg); margin: 0; padding: 15px; }
-        .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        h2 { font-size: 16px; color: #8E8E93; margin-top: 0; margin-bottom: 12px; }
-        
-        /* 歷史紀錄表格樣式 */
-        .history-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        .history-table th { text-align: left; color: #8E8E93; font-weight: 400; padding: 8px; border-bottom: 1px solid #E5E5EA; }
-        .history-table td { padding: 10px 8px; border-bottom: 1px solid #F2F2F7; }
-        .tag { display: inline-block; background: #E5E5EA; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-family: monospace; }
-        
-        .ball { width: 38px; height: 38px; background: #FF3B30; color: white; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin: 4px; font-weight: bold; }
-        .btn { background: var(--ios-blue); color: white; border: none; padding: 12px; border-radius: 10px; width: 100%; font-size: 16px; font-weight: 600; }
-        .scroll-area { max-height: 250px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>539 歷史號碼分析工具</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #0f172a; color: #f1f5f9; margin: 0; padding: 10px; }
+  h1 { text-align: center; color: #38bdf8; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th, td { border: 1px solid #334155; padding: 6px; text-align: center; }
+  th { background: #1e293b; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .stat-card { background: #1e293b; padding: 10px; border-radius: 8px; width: 80px; text-align: center; }
+  .hot { color: #f87171; font-weight: bold; }
+  .cold { color: #60a5fa; font-weight: bold; }
+  input, button { padding: 6px; margin: 5px; border-radius: 4px; border: none; }
+  button { background: #38bdf8; color: #0f172a; font-weight: bold; cursor: pointer; }
+</style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>1. 檔案上傳</h2>
-        <input type="file" id="csvFile" accept=".csv" style="margin-bottom:12px;">
-        <button class="btn" onclick="runAnalysis()">開始讀取並分析</button>
-    </div>
+<h1>539 歷史號碼分析工具</h1>
 
-    <div id="analysisResult" class="card" style="display:none;">
-        <h2>2. 數據分析結果</h2>
-        <p>真實最強尾數：<span id="statTail" style="color:#FF3B30; font-weight:bold;">--</span></p>
-        <div id="recBalls"></div>
-    </div>
+<input type="file" id="csvFile" accept=".csv">
+<button onclick="loadCSV()">上傳 CSV 並分析</button>
 
-    <div class="card">
-        <h2>3. 歷史開獎紀錄 (CSV 預覽)</h2>
-        <div class="scroll-area">
-            <table class="history-table" id="historyTable">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">期別</th>
-                        <th>開獎號碼</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="2" style="text-align:center; color:#C7C7CC;">等待檔案上傳...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+<h2>歷史開獎號碼</h2>
+<table id="historyTable">
+  <thead>
+    <tr>
+      <th>日期</th>
+      <th>號碼</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>號碼出現次數</h2>
+<div class="stats" id="numberStats"></div>
+
+<h2>奇偶比例</h2>
+<p id="oddEvenRatio"></p>
 
 <script>
-function runAnalysis() {
-    const file = document.getElementById('csvFile').files[0];
-    if (!file) return;
+let historyData = [];
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const rows = e.target.result.split(/\r?\n/).filter(r => r.trim());
-        const tableBody = document.querySelector('#historyTable tbody');
-        tableBody.innerHTML = '';
-        
-        let freq = {};
-        let tails = Array(10).fill(0);
+function loadCSV() {
+  const file = document.getElementById('csvFile').files[0];
+  if (!file) { alert('請選擇 CSV 檔案'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    parseCSV(text);
+    analyze();
+  };
+  reader.readAsText(file);
+}
 
-        rows.forEach((row, index) => {
-            const nums = row.split(',').map(n => n.trim());
-            
-            // 填充歷史表格 (iOS 風格)
-            let tr = document.createElement('tr');
-            tr.innerHTML = `<td>${rows.length - index}</td><td>${nums.map(n => `<span class="tag">${n.padStart(2,'0')}</span>`).join('')}</td>`;
-            tableBody.appendChild(tr);
+function parseCSV(text) {
+  historyData = [];
+  const lines = text.trim().split('\n');
+  for (let i = 1; i < lines.length; i++) { // 跳過標題
+    const parts = lines[i].split(',');
+    if (parts.length < 6) continue; // 確保有5個號碼
+    const date = parts[0];
+    const numbers = parts.slice(1,6).map(n => parseInt(n,10));
+    historyData.push([date, numbers]);
+  }
+}
 
-            // 統計邏輯
-            nums.forEach(val => {
-                let n = parseInt(val);
-                if (!isNaN(n)) {
-                    freq[n] = (freq[n] || 0) + 1;
-                    tails[n % 10]++;
-                }
-            });
-        });
+function analyze() {
+  const tableBody = document.querySelector('#historyTable tbody');
+  tableBody.innerHTML = '';
 
-        // 更新分析區
-        const maxTail = tails.indexOf(Math.max(...tails));
-        document.getElementById('statTail').innerText = maxTail + " 尾";
-        
-        const sortedNums = Object.entries(freq).sort((a,b) => b[1] - a[1]);
-        const container = document.getElementById('recBalls');
-        container.innerHTML = '';
-        
-        // 推薦邏輯：取最強尾數中的熱號 + 全域前二熱號
-        let finalSelection = new Set();
-        [maxTail, maxTail+10, maxTail+20, maxTail+30].filter(n => n > 0 && n <= 39).forEach(n => finalSelection.add(n));
-        sortedNums.slice(0, 2).forEach(x => finalSelection.add(parseInt(x[0])));
+  let counts = Array(39).fill(0);
+  let odd = 0, even = 0;
 
-        Array.from(finalSelection).slice(0, 5).forEach(n => {
-            container.innerHTML += `<div class="ball">${n.toString().padStart(2,'0')}</div>`;
-        });
-        
-        document.getElementById('analysisResult').style.display = 'block';
-    };
-    reader.readAsText(file);
+  historyData.forEach(([date, numbers]) => {
+    tableBody.innerHTML += `<tr><td>${date}</td><td>${numbers.join(', ')}</td></tr>`;
+    numbers.forEach(n => {
+      counts[n-1]++;
+      if (n % 2 === 0) even++; else odd++;
+    });
+  });
+
+  const statsDiv = document.getElementById('numberStats');
+  statsDiv.innerHTML = '';
+  counts.forEach((c, idx) => {
+    let cls = '';
+    if (c === Math.max(...counts)) cls = 'hot';
+    if (c === Math.min(...counts)) cls = 'cold';
+    statsDiv.innerHTML += `<div class="stat-card ${cls}">${idx+1}<br>${c}</div>`;
+  });
+
+  document.getElementById('oddEvenRatio').innerText = `奇數: ${odd} 次，偶數: ${even} 次`;
 }
 </script>
+
 </body>
 </html>
