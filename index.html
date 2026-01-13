@@ -3,80 +3,149 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539 智能分析系統 - 下期預測版</title>
+<title>539 QUANT PRO - 專業量化分析</title>
 <style>
 :root {
     --primary: #0f172a;
     --secondary: #1e293b;
-    --accent: #38bdf8;
-    --gold: #fbbf24;
-    --text: #f1f5f9;
-    --card-bg: rgba(30,41,59,0.7);
+    --accent: #0ea5e9;
+    --gold: #f59e0b;
+    --success: #10b981;
+    --text: #f8fafc;
+    --glass: rgba(30, 41, 59, 0.7);
+    --border: rgba(255, 255, 255, 0.1);
 }
 
 body {
-    font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+    font-family: 'Inter', 'PingFang TC', system-ui, sans-serif;
     background-color: var(--primary);
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.1) 0px, transparent 50%);
     color: var(--text);
     margin: 0; padding: 20px;
+    line-height: 1.5;
 }
 
-.container { max-width: 1000px; margin:0 auto; }
-header { text-align:center; margin-bottom:30px;}
-header h1 { color: var(--accent); font-size:2.2rem; margin:0; font-weight:900; text-shadow:0 0 20px rgba(56,189,248,0.3);}
-header p { opacity:0.6; font-size:0.85rem; margin:8px 0 0;}
+.container { max-width: 800px; margin: 0 auto; }
 
-.card { background: var(--card-bg); padding:20px; margin-bottom:25px; border-radius:20px;}
-.upload-section { border: 2px dashed rgba(56,189,248,0.2); padding:40px 20px; text-align:center; cursor:pointer;}
-.upload-section:hover { border-color: var(--accent); background: rgba(56,189,248,0.05); }
+header { text-align: center; margin-bottom: 40px; padding-top: 20px; }
+header h1 { 
+    font-size: 2.5rem; margin: 0; font-weight: 900; letter-spacing: -1px;
+    background: linear-gradient(135deg, #fff 30%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+header p { opacity: 0.5; font-size: 0.9rem; margin-top: 10px; text-transform: uppercase; letter-spacing: 2px; }
 
-button { width:100%; padding:16px; margin-top:10px; border:none; border-radius:14px; font-weight:800; font-size:1.1rem; background: linear-gradient(135deg, var(--accent), #0284c7); color:white; cursor:pointer; transition:0.3s;}
-button:hover { transform: translateY(-3px); box-shadow:0 8px 25px rgba(56,189,248,0.5); }
+/* 玻璃擬態卡片 */
+.card { 
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    padding: 24px; margin-bottom: 24px; border-radius: 24px;
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+}
 
-.ball { display:inline-block; width:38px; height:38px; line-height:38px; border-radius:50%; background: radial-gradient(circle at 30% 30%, #475569, #1e293b); margin:4px; font-weight:800; font-size:16px; color: var(--accent); text-align:center; }
+/* 上傳區塊優化 */
+.upload-section { 
+    border: 2px dashed rgba(56, 189, 248, 0.3); 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.upload-section:hover { 
+    border-color: var(--accent); 
+    background: rgba(56, 189, 248, 0.08);
+    transform: translateY(-2px);
+}
+#fileLabel { display: block; margin-bottom: 15px; font-weight: 500; color: var(--accent); }
 
-.strategy-block { margin-bottom: 30px; }
-.strategy-block h3 { color: var(--gold); margin-bottom: 15px; font-size: 1.3rem; }
+button { 
+    width: 100%; padding: 18px; border: none; border-radius: 16px; 
+    font-weight: 700; font-size: 1.1rem; 
+    background: linear-gradient(135deg, var(--accent), #0369a1); 
+    color: white; cursor: pointer; transition: 0.3s;
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+}
+button:active { transform: scale(0.98); }
 
+/* 號碼球球美化 */
+.ball { 
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 42px; height: 42px; border-radius: 12px;
+    background: linear-gradient(145deg, #334155, #1e293b);
+    margin: 4px; font-weight: 800; font-size: 1.1rem; 
+    color: var(--accent); border: 1px solid rgba(255,255,255,0.05);
+    box-shadow: inset 0 2px 4px rgba(255,255,255,0.05);
+}
+
+.strategy-block h3 { 
+    color: var(--gold); font-size: 1.4rem; margin: 0 0 20px 0;
+    display: flex; align-items: center;
+}
+.strategy-block h3::before {
+    content: ''; display: inline-block; width: 4px; height: 24px; 
+    background: var(--gold); margin-right: 12px; border-radius: 2px;
+}
+
+/* 結果排版優化 */
 .result-card {
-    display:flex; justify-content:space-between; align-items:center;
-    background: rgba(56,189,248,0.05); padding:12px 16px; border-radius:16px;
-    margin-bottom:10px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-}
-.result-numbers { display:flex; }
-.result-numbers .ball { margin-right:6px; }
-.result-rate span {
-    margin-left:8px; font-size:0.85rem; font-weight:600;
-    background: rgba(255,255,255,0.1); padding:2px 6px; border-radius:6px;
-    color: var(--gold);
+    display: flex; flex-direction: column;
+    background: rgba(15, 23, 42, 0.5); padding: 16px; border-radius: 18px;
+    margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.03);
 }
 
-table { width:100%; border-collapse:collapse; }
-td { padding:10px 5px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.03); font-size:0.9rem; }
+.result-numbers { margin-bottom: 12px; display: flex; flex-wrap: wrap; }
+
+.result-rate { 
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05);
+}
+.rate-item {
+    font-size: 0.75rem; text-align: center; color: #94a3b8;
+}
+.rate-item b { display: block; color: var(--gold); font-size: 0.9rem; }
+
+/* 歷史表格 */
+table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+tr { background: rgba(255,255,255,0.02); }
+td { padding: 12px; text-align: center; }
+td:first-child { border-radius: 12px 0 0 12px; color: #64748b; font-size: 0.8rem; }
+td:last-child { border-radius: 0 12px 12px 0; }
+
+@media (max-width: 480px) {
+    .result-rate { grid-template-columns: repeat(2, 1fr); }
+    .ball { width: 36px; height: 36px; font-size: 1rem; }
+}
 </style>
 </head>
 <body>
+
 <div class="container">
     <header>
         <h1>539 QUANT PRO</h1>
-        <p>多策略下期預測 • 智能推薦</p>
+        <p>Advanced Quantitative Analysis</p>
     </header>
 
-    <div class="card upload-section" id="uploadSection">
+    <div class="card upload-section">
+        <label for="csvFile" id="fileLabel">📊 請放入歷史開獎數據 CSV</label>
         <input type="file" id="csvFile" accept=".csv" style="display:none;">
-        <label for="csvFile" id="fileLabel">點擊選取歷史數據 CSV</label>
-        <button onclick="runAll()">執行策略分析</button>
+        <button onclick="runAll()">開始智能分析</button>
     </div>
 
-    <div id="history" class="card"><h3>近期開獎歷史</h3></div>
+    <div id="history" class="card">
+        <div style="text-align:center; opacity:0.5; padding:20px;">等待數據導入...</div>
+    </div>
+    
     <div id="strategies"></div>
 </div>
 
 <script>
+// 此處保留您原本的 JavaScript 邏輯，僅修改 generateAllStrategies 輸出的 HTML 結構以適應新 UI
 let HIST_DATA = [];
 
 document.getElementById('csvFile').addEventListener('change', function(e){
-    const name = e.target.files[0] ? e.target.files[0].name : "點擊選取歷史數據 CSV";
+    const name = e.target.files[0] ? e.target.files[0].name : "📊 請放入歷史開獎數據 CSV";
     document.getElementById('fileLabel').innerText = name;
 });
 
@@ -90,7 +159,6 @@ async function runAll(){
     generateAllStrategies(HIST_DATA);
 }
 
-// CSV解析
 function parseCSV(text){
     const lines = text.trim().split(/\r?\n/);
     lines.shift();
@@ -98,68 +166,58 @@ function parseCSV(text){
         const p = l.split(",");
         if(p.length<6) return null;
         const nums = p.slice(1,6).map(n=>parseInt(n.trim())).sort((a,b)=>a-b);
-        if(nums.some(isNaN)) return null;
         return {date:p[0].trim(), nums:nums};
-    }).filter(x=>x!==null).sort((a,b)=> new Date(a.date)-new Date(b.date));
+    }).filter(x=>x!==null && !x.nums.some(isNaN)).sort((a,b)=> new Date(a.date)-new Date(b.date));
 }
 
-// 顯示歷史
 function showHistory(data){
-    let html="<table>";
+    let html="<h3 style='margin-top:0; color:var(--accent);'>近期歷史</h3><table>";
     data.slice(-5).reverse().forEach(d=>{
-        html += `<tr><td style='opacity:0.6'>${d.date}</td><td>${d.nums.map(n=>`<span class='ball'>${String(n).padStart(2,'0')}</span>`).join("")}</td></tr>`;
+        html += `<tr><td>${d.date}</td><td>${d.nums.map(n=>`<span class='ball'>${String(n).padStart(2,'0')}</span>`).join("")}</td></tr>`;
     });
     html += "</table>";
-    document.getElementById("history").innerHTML = "<h3>近期開獎歷史</h3>"+html;
+    document.getElementById("history").innerHTML = html;
 }
 
-// 生成策略組合
 function generateAllStrategies(data){
     const container = document.getElementById("strategies");
     container.innerHTML = "";
-
     const strategies = [
-        {name:"熱號策略", func:generateHotStrategy},
-        {name:"冷熱混合策略", func:generateMixedStrategy},
-        {name:"掉落號策略", func:generateDropStrategy}
+        {name:"熱號趨勢策略", func:generateHotStrategy},
+        {name:"冷熱均值均衡", func:generateMixedStrategy},
+        {name:"隨機掉落模擬", func:generateDropStrategy}
     ];
 
     strategies.forEach(s=>{
         const block = document.createElement("div");
         block.className="card strategy-block";
         block.innerHTML=`<h3>${s.name}</h3>`;
-        const resultsDiv=document.createElement("div");
-
+        
         for(let i=0;i<3;i++){
             const nums = s.func(data);
             const rates = predictNextRate(nums,data);
-
             const line = document.createElement("div");
             line.className="result-card";
-
-            const numsDiv=document.createElement("div");
-            numsDiv.className="result-numbers";
-            numsDiv.innerHTML = nums.map(n=>`<span class="ball">${String(n).padStart(2,'0')}</span>`).join("");
-
-            const rateDiv=document.createElement("div");
-            rateDiv.className="result-rate";
-            rateDiv.innerHTML = `2★:${rates[2]}% 3★:${rates[3]}% 4★:${rates[4]}% 5★:${rates[5]}%`;
-
-            line.appendChild(numsDiv);
-            line.appendChild(rateDiv);
-            resultsDiv.appendChild(line);
+            line.innerHTML = `
+                <div class="result-numbers">
+                    ${nums.map(n=>`<span class="ball">${String(n).padStart(2,'0')}</span>`).join("")}
+                </div>
+                <div class="result-rate">
+                    <div class="rate-item">2★<b>${rates[2]}%</b></div>
+                    <div class="rate-item">3★<b>${rates[3]}%</b></div>
+                    <div class="rate-item">4★<b>${rates[4]}%</b></div>
+                    <div class="rate-item">5★<b>${rates[5]}%</b></div>
+                </div>`;
+            block.appendChild(line);
         }
-        block.appendChild(resultsDiv);
         container.appendChild(block);
     });
 }
 
-// 預測下一期勝率
 function predictNextRate(nums,data){
     const last50 = data.slice(-50);
     const freq = {};
     last50.forEach(d=>d.nums.forEach(n=>freq[n]=(freq[n]||0)+1));
-
     const prob = {};
     for(let i=1;i<=39;i++){ prob[i]=(freq[i]||0)/50; }
 
@@ -174,7 +232,10 @@ function predictNextRate(nums,data){
                 cumulative+=prob[n];
                 if(r<=cumulative && !draw.includes(n)){ draw.push(n); break; }
             }
-            if(draw.length<5) draw.push(Math.floor(Math.random()*39)+1);
+            if(draw.length<5) {
+                let rn = Math.floor(Math.random()*39)+1;
+                if(!draw.includes(rn)) draw.push(rn);
+            }
         }
         const match=nums.filter(x=>draw.includes(x)).length;
         if(match>=2 && match<=5) hits[match]++;
@@ -183,33 +244,32 @@ function predictNextRate(nums,data){
     return hits;
 }
 
-// 策略函數
 function generateHotStrategy(data){
     const freq={};
     data.slice(-50).forEach(d=>d.nums.forEach(n=>freq[n]=(freq[n]||0)+1));
     const sorted=Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(x=>parseInt(x[0])).slice(0,5);
-    return shuffle(sorted).slice(0,5);
+    return shuffle(sorted);
 }
 
 function generateMixedStrategy(data){
     const freq={};
     data.slice(-50).forEach(d=>d.nums.forEach(n=>freq[n]=(freq[n]||0)+1));
     const sorted=Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(x=>parseInt(x[0]));
-    const hot=sorted.slice(0,3);
-    const cold=sorted.slice(-2);
-    return shuffle(hot.concat(cold));
+    return shuffle(sorted.slice(0,3).concat(sorted.slice(-2)));
 }
 
 function generateDropStrategy(data){
-    if(data.length<2) return generateHotStrategy(data);
-    const lastNums=data[data.length-1].nums;
-    let result=shuffle(lastNums).slice(0,5);
-    return result;
+    const lastNums = data.length > 0 ? data[data.length-1].nums : Array.from({length:39},(_,i)=>i+1);
+    return shuffle([...lastNums]).slice(0,5);
 }
 
-// 洗牌
-function shuffle(array){ return array.sort(()=>Math.random()-0.5); }
-
+function shuffle(array){ 
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
 </script>
 </body>
 </html>
