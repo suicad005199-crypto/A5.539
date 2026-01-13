@@ -23,176 +23,144 @@
         background: var(--card-bg); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08);
         padding: 24px; border-radius: 24px; margin-bottom: 25px;
     }
+    /* Scroll View 設定 */
+    .scroll-view {
+        max-height: 400px; /* 固定高度 */
+        overflow-y: auto;  /* 垂直捲動 */
+        padding-right: 10px;
+    }
+    /* 美化捲軸 */
+    .scroll-view::-webkit-scrollbar { width: 6px; }
+    .scroll-view::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+    .scroll-view::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+
     .upload-section { border: 2px dashed rgba(56, 189, 248, 0.2); text-align: center; padding: 40px 20px; }
     button { 
         background: linear-gradient(135deg, var(--accent), #0284c7); color: white; border: none; 
         padding: 16px; border-radius: 14px; font-weight: 800; cursor: pointer; width: 100%;
     }
     .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
-    @media (min-width: 768px) { .dashboard-grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 768px) { .dashboard-grid { grid-template-columns: 1.2fr 0.8fr; } }
+    
     .ball { 
         display: inline-block; width: 35px; height: 35px; line-height: 35px; text-align: center; 
         border-radius: 50%; background: radial-gradient(circle at 30% 30%, #475569, #1e293b);
         margin: 3px; font-weight: 800; color: var(--accent); font-size: 14px;
     }
     table { width: 100%; border-collapse: collapse; }
-    td { padding: 10px 5px; border-bottom: 1px solid rgba(255,255,255,0.03); text-align: center; }
+    td { padding: 12px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: center; }
     .strategy-block { background: var(--glass); padding: 15px; margin: 10px 0; border-radius: 15px; border-left: 4px solid var(--accent); }
     .cold-tag { background: rgba(239, 68, 68, 0.15); color: var(--error); padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; }
-    .inline-input { width: 50px; height: 50px; text-align: center; border-radius: 12px; background: #0f172a; color: var(--gold); border: 1px solid #334155; font-size: 1.2rem; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
 <div class="container">
-    <header><h1>539 QUANT PRO</h1><p>數據驅動 • 量化分析</p></header>
+    <header><h1>539 QUANT PRO</h1><p>數據驅動 • 降冪分析</p></header>
 
     <div class="card upload-section">
         <input type="file" id="csvFile" accept=".csv" style="display: none;">
         <label for="csvFile" id="fileLabel" style="display: block; padding: 20px; background: var(--secondary); border-radius: 10px; cursor: pointer; margin-bottom: 20px; color: #94a3b8;">
-            點擊選取歷史數據 CSV (日期,號碼1,號碼2,號碼3,號碼4,號碼5)
+            點擊選取歷史數據 CSV
         </label>
-        <button onclick="runAll()">啟動量化決策分析</button>
-    </div>
-
-    <div id="coldRankSection" class="card" style="display:none;">
-        <h3>⚠️ 極冷號遺漏統計</h3>
-        <div id="coldList" style="display: flex; justify-content: space-around; flex-wrap: wrap;"></div>
+        <button onclick="runAll()">啟動量化分析</button>
     </div>
 
     <div class="dashboard-grid">
-        <div id="history" class="card"><h3>近期開獎歷史</h3><div class="content">等待數據...</div></div>
-        <div id="stats_table" class="card"><h3>策略模擬表現</h3><div class="content">等待數據...</div></div>
+        <div class="card">
+            <h3>📅 近期開獎歷史 (最新至最舊)</h3>
+            <div id="history" class="scroll-view">
+                <div style="text-align: center; opacity: 0.3; padding: 20px;">等待上傳數據...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>⚠️ 極冷號遺漏統計</h3>
+            <div id="coldList" style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="text-align: center; opacity: 0.3;">等待數據...</div>
+            </div>
+        </div>
     </div>
 
-    <div id="results" class="card"><h3>智能推荐組合</h3><div class="content" style="text-align: center; opacity: 0.3;">等待數據執行...</div></div>
-
-    <div class="card">
-        <h3>自選號碼勝率驗證</h3>
-        <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 20px;">
-            <input type="number" class="inline-input" id="userNum1" placeholder="1">
-            <input type="number" class="inline-input" id="userNum2" placeholder="2">
-            <input type="number" class="inline-input" id="userNum3" placeholder="3">
-            <input type="number" class="inline-input" id="userNum4" placeholder="4">
-            <input type="number" class="inline-input" id="userNum5" placeholder="5">
-        </div>
-        <button onclick="verifyUserPick()" style="background: transparent; border: 2px solid var(--accent); color: var(--accent);">驗證歷史潛力</button>
-        <div id="userPickResult" style="margin-top:20px;"></div>
+    <div id="results" class="card">
+        <h3>智能推荐組合</h3>
+        <div class="content" style="text-align: center; opacity: 0.3;">等待計算...</div>
     </div>
 </div>
 
 <script>
 let HIST_DATA = [];
 
-// 1. CSV 解析修正
 function parseCSV(text) {
     const lines = text.trim().split(/\r?\n/);
-    if (isNaN(parseInt(lines[0].split(',')[1]))) lines.shift(); // 移除標題列
+    if (isNaN(parseInt(lines[0].split(',')[1]))) lines.shift(); 
     
-    return lines.map(l => {
+    let data = lines.map(l => {
         const p = l.split(",");
         if (p.length < 6) return null;
-        // 假設格式：日期, 號1, 號2, 號3, 號4, 號5
         const nums = p.slice(1, 6).map(n => parseInt(n.trim())).filter(n => !isNaN(n)).sort((a,b)=>a-b);
-        return nums.length === 5 ? { date: p[0], nums } : null;
+        return { date: p[0].trim(), nums };
     }).filter(x => x !== null);
+
+    // 關鍵：依日期降冪排序 (由新到舊)
+    return data.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
-// 2. 遺漏值計算
-function getOmissionMap(data) {
-    const map = {};
-    for(let i=1; i<=39; i++) map[i] = data.length;
-    data.forEach((d, idx) => {
-        d.nums.forEach(n => map[n] = data.length - 1 - idx);
-    });
-    return map;
-}
-
-// 3. UI 更新：歷史紀錄
 function showHistory(data) {
     let html = "<table>";
-    data.slice(-5).reverse().forEach(d => {
-        html += `<tr><td style="font-size:12px;color:#94a3b8">${d.date}</td><td>${d.nums.map(n=>`<span class="ball">${String(n).padStart(2,'0')}</span>`).join('')}</td></tr>`;
+    data.forEach(d => {
+        html += `<tr>
+            <td style="font-size:12px;color:#94a3b8;width:100px;">${d.date}</td>
+            <td style="text-align:left;">${d.nums.map(n=>`<span class="ball">${String(n).padStart(2,'0')}</span>`).join('')}</td>
+        </tr>`;
     });
-    document.querySelector("#history .content").innerHTML = html + "</table>";
+    document.getElementById("history").innerHTML = html + "</table>";
 }
 
-// 4. UI 更新：冷號榜
-function updateColdRankUI(omission) {
-    const sorted = Object.entries(omission).sort((a,b) => b[1] - a[1]).slice(0, 5);
-    document.getElementById("coldRankSection").style.display = "block";
+function updateColdRankUI(data) {
+    const map = {};
+    for(let i=1; i<=39; i++) map[i] = 0;
+    
+    // 從最新一期往回找
+    for(let i=1; i<=39; i++) {
+        const lastIdx = data.findIndex(d => d.nums.includes(i));
+        map[i] = (lastIdx === -1) ? data.length : lastIdx;
+    }
+
+    const sorted = Object.entries(map).sort((a,b) => b[1] - a[1]).slice(0, 5);
     document.getElementById("coldList").innerHTML = sorted.map(item => `
-        <div style="text-align:center;">
+        <div style="display:flex; align-items:center; justify-content: space-between; background:rgba(255,255,255,0.05); padding:10px; border-radius:12px;">
             <div class="ball" style="border:1px solid var(--error)">${String(item[0]).padStart(2,'0')}</div>
-            <div class="cold-tag">${item[1]}期未開</div>
+            <div class="cold-tag">${item[1]} 期未開</div>
         </div>`).join("");
 }
 
-// 5. 核心執行函式
+function generateRecommendations(data) {
+    // 簡單邏輯：取最近 20 期的高頻號
+    const recent = data.slice(0, 20);
+    const freq = {};
+    recent.forEach(d => d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1));
+    const hotOnes = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0, 5).map(x=>x[0]);
+
+    document.querySelector("#results .content").innerHTML = `
+        <div class="strategy-block">
+            <strong>🔥 近 20 期熱號推薦</strong><br>
+            ${hotOnes.map(n => `<span class="ball">${String(n).padStart(2,'0')}</span>`).join('')}
+        </div>`;
+}
+
 async function runAll() {
     const fileInput = document.getElementById("csvFile");
     if(!fileInput.files[0]) return alert("請選取 CSV");
     
     const text = await fileInput.files[0].text();
     HIST_DATA = parseCSV(text);
-    if(HIST_DATA.length === 0) return alert("數據解析失敗");
+    
+    if(HIST_DATA.length === 0) return alert("數據解析失敗，請確認格式");
 
-    const omission = getOmissionMap(HIST_DATA);
     showHistory(HIST_DATA);
-    updateColdRankUI(omission);
-    generateRecommendations(omission);
-    renderStatsTable();
-}
-
-// 6. 隨機推薦邏輯 (示意)
-function generateRecommendations(omission) {
-    const hotOnes = Object.entries(omission).sort((a,b)=>a[1]-b[1]).slice(0, 10).map(x=>x[0]);
-    const coldOnes = Object.entries(omission).sort((a,b)=>b[1]-a[1]).slice(0, 10).map(x=>x[0]);
-    
-    let html = `
-        <div class="strategy-block">
-            <strong>🔥 熱門趨勢組合</strong><br>
-            ${Array(5).fill(0).map(() => `<span class="ball">${String(hotOnes[Math.floor(Math.random()*10)]).padStart(2,'0')}</span>`).join('')}
-        </div>
-        <div class="strategy-block">
-            <strong>❄️ 冷門翻轉組合</strong><br>
-            ${Array(5).fill(0).map(() => `<span class="ball">${String(coldOnes[Math.floor(Math.random()*10)]).padStart(2,'0')}</span>`).join('')}
-        </div>`;
-    document.querySelector("#results .content").innerHTML = html;
-}
-
-function renderStatsTable() {
-    document.querySelector("#stats_table .content").innerHTML = `
-        <table>
-            <tr><th>策略</th><th>勝率預估</th></tr>
-            <tr><td>保守型</td><td><span class="cold-tag" style="background:var(--success)">68.2%</span></td></tr>
-            <tr><td>進攻型</td><td><span class="cold-tag">42.5%</span></td></tr>
-        </table>`;
-}
-
-function verifyUserPick() {
-    if(HIST_DATA.length === 0) return alert("請先上傳數據");
-    const user = [
-        parseInt(document.getElementById('userNum1').value),
-        parseInt(document.getElementById('userNum2').value),
-        parseInt(document.getElementById('userNum3').value),
-        parseInt(document.getElementById('userNum4').value),
-        parseInt(document.getElementById('userNum5').value)
-    ].filter(n => !isNaN(n));
-    
-    if(user.length < 2) return alert("請至少輸入兩個號碼");
-    
-    let hits = 0;
-    HIST_DATA.forEach(d => {
-        const match = user.filter(n => d.nums.includes(n)).length;
-        if(match >= 2) hits++;
-    });
-    
-    document.getElementById('userPickResult').innerHTML = `
-        <div style="background:var(--secondary); padding:15px; border-radius:10px; text-align:center;">
-            歷史相似組合共出現過 <strong>${hits}</strong> 次 (2星以上)
-        </div>`;
+    updateColdRankUI(HIST_DATA);
+    generateRecommendations(HIST_DATA);
 }
 
 document.getElementById('csvFile').addEventListener('change', e => {
