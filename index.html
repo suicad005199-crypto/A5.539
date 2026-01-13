@@ -3,128 +3,234 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 Pro 數據分析</title>
+    <title>539 Pro Analysis</title>
     <style>
-        :root {
-            --bg: #0f172a;
-            --card: #1e293b;
-            --accent: #38bdf8;
-            --ball-bg: #334155;
-            --selected: #fbbf24;
-        }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --selected: #fbbf24; --red: #ff4757; --green: #2ed573; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; background: var(--bg); color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; }
+        body { margin: 0; background: var(--bg); color: white; font-family: -apple-system, sans-serif; display: flex; justify-content: center; }
+        .app { width: 100%; max-width: 500px; padding: 15px; }
         
-        .app-container { width: 100%; max-width: 500px; padding: 20px; min-height: 100vh; }
-        h2 { text-align: center; color: var(--accent); margin-bottom: 25px; font-weight: 300; letter-spacing: 2px; }
-        
-        /* 檔案上傳樣式 */
-        .file-upload { background: var(--card); border: 1px dashed #475569; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 20px; font-size: 14px; }
-        input[type="file"] { display: none; }
-        .file-label { cursor: pointer; color: var(--accent); }
+        /* 區塊樣式 */
+        .section { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #334155; }
+        h3 { margin: 0 0 10px 0; font-size: 14px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
 
-        /* 數據面版 */
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        .stat-card { background: var(--card); padding: 12px; border-radius: 12px; text-align: center; }
-        .stat-label { font-size: 12px; color: #94a3b8; display: block; }
-        .stat-val { font-size: 18px; font-weight: bold; color: white; }
+        /* CSV 上傳 */
+        .file-input { display: none; }
+        .btn-upload { display: block; padding: 10px; border: 1px dashed var(--accent); border-radius: 8px; text-align: center; color: var(--accent); cursor: pointer; font-size: 14px; }
 
-        /* 選號球區 */
-        .ball-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 25px; }
-        .ball { aspect-ratio: 1/1; background: var(--ball-bg); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-weight: bold; border: 1px solid transparent; }
-        .ball.active { background: var(--selected); color: #000; transform: scale(1.1); box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); }
-        .freq-text { font-size: 8px; opacity: 0.7; font-weight: normal; }
+        /* 數據面板 */
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .stat-item { background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; text-align: center; }
+        .stat-label { font-size: 11px; color: #94a3b8; display: block; }
+        .stat-val { font-size: 16px; font-weight: bold; }
 
-        /* 操作按鈕 */
-        .btn-group { display: flex; gap: 10px; position: sticky; bottom: 20px; }
-        button { flex: 1; padding: 15px; border-radius: 12px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-primary { background: var(--accent); color: var(--bg); }
-        .btn-secondary { background: #475569; color: white; }
-        
-        /* 顯示結果 */
-        .result-bar { background: #000; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px; font-size: 24px; font-family: monospace; color: var(--selected); }
+        /* 冷熱號 */
+        .rank-list { font-size: 13px; line-height: 1.6; }
+        .rank-hot { color: var(--red); }
+        .rank-cold { color: var(--accent); }
+
+        /* 號碼球 */
+        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+        .ball { aspect-ratio: 1; background: #334155; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+        .ball.active { background: var(--selected); color: #000; border-color: #fff; }
+        .ball span { font-size: 14px; font-weight: bold; }
+        .ball small { font-size: 8px; opacity: 0.6; }
+
+        /* 智慧設定 */
+        .config-row { display: flex; align-items: center; gap: 10px; font-size: 13px; margin-bottom: 8px; }
+        select { background: #0f172a; color: white; border: 1px solid #475569; border-radius: 4px; padding: 2px 5px; }
+
+        /* 操作 */
+        .res-display { background: #000; padding: 15px; border-radius: 12px; text-align: center; font-size: 24px; color: var(--selected); font-family: monospace; margin-bottom: 15px; border: 1px solid var(--selected); }
+        .btn-group { display: flex; gap: 10px; }
+        button { flex: 1; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+        .btn-main { background: var(--accent); color: #000; }
+        .btn-sub { background: #475569; color: white; }
     </style>
 </head>
 <body>
 
-<div class="app-container">
-    <h2>539 DATA MASTER</h2>
-
-    <div class="file-upload">
-        <label class="file-label" for="csvFile">按此上傳 history_last30.csv</label>
-        <input type="file" id="csvFile" accept=".csv" onchange="loadData()">
+<div class="app">
+    <div class="section">
+        <label class="btn-upload" for="csv">📂 上傳 CSV 歷史數據</label>
+        <input type="file" id="csv" class="file-input" accept=".csv" onchange="handleFile(this)">
     </div>
 
-    <div class="result-bar" id="res">00 00 00 00 00</div>
+    <div class="res-display" id="res_num">00 00 00 00 00</div>
 
-    <div class="stats-grid">
-        <div class="stat-card"><span class="stat-label">平均值</span><span class="stat-val" id="avg">0</span></div>
-        <div class="stat-card"><span class="stat-label">最熱門</span><span class="stat-val" id="top">--</span></div>
+    <div class="section">
+        <div class="stats-row">
+            <div class="stat-item"><span class="stat-label">奇偶比</span><span class="stat-val" id="st_oe">-</span></div>
+            <div class="stat-item"><span class="stat-label">大小比 (≥20)</span><span class="stat-val" id="st_bs">-</span></div>
+        </div>
+        <div class="stats-row">
+            <div class="stat-item">
+                <h3>🔥 熱號 TOP 5</h3>
+                <div id="hot_list" class="rank-list rank-hot"></div>
+            </div>
+            <div class="stat-item">
+                <h3>❄️ 冷號 TOP 5</h3>
+                <div id="cold_list" class="rank-list rank-cold"></div>
+            </div>
+        </div>
     </div>
 
-    <div class="ball-grid" id="grid"></div>
+    <div class="section">
+        <h3>智慧過濾設定</h3>
+        <div class="config-row">
+            奇數要求：
+            <select id="cfg_odd">
+                <option value="any">不限</option>
+                <option value="2">2 奇 3 偶</option>
+                <option value="3">3 奇 2 偶</option>
+            </select>
+        </div>
+        <div class="config-row">
+            大號要求：
+            <select id="cfg_big">
+                <option value="any">不限</option>
+                <option value="2">2 大 3 小</option>
+                <option value="3">3 大 2 小</option>
+            </select>
+        </div>
+    </div>
 
-    <div class="btn-group">
-        <button class="btn-secondary" onclick="reset()">重置</button>
-        <button class="btn-primary" onclick="smartPick()">智慧選牌</button>
+    <div class="grid" id="grid"></div>
+
+    <div class="btn-group" style="margin-top: 20px;">
+        <button class="btn-sub" onclick="reset()">清空</button>
+        <button class="btn-main" onclick="smartPick()">智慧隨機選牌</button>
     </div>
 </div>
 
 <script>
-    let freqMap = {};
+    let rawData = []; // 存儲解析後的數據
+    let freqMap = {}; // 號碼 -> 出現次數
+    let lastSeen = {}; // 號碼 -> 距離最近一次開獎的期數
     let selected = new Set();
 
-    function loadData() {
-        const file = document.getElementById('csvFile').files[0];
+    function handleFile(input) {
+        const file = input.files[0];
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
-            const rows = e.target.result.split('\n').slice(1);
-            freqMap = {};
-            rows.forEach(row => {
-                const cols = row.split(',');
-                for(let i=1; i<=5; i++){
-                    let n = parseInt(cols[i]);
-                    if(n) freqMap[n] = (freqMap[n] || 0) + 1;
-                }
-            });
-            render();
-            const topNum = Object.keys(freqMap).reduce((a, b) => freqMap[a] > freqMap[b] ? a : b, "--");
-            document.getElementById('top').innerText = topNum;
+            const content = e.target.result;
+            parseCSV(content);
         };
         reader.readAsText(file);
     }
 
-    function render() {
+    function parseCSV(text) {
+        try {
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+            if (lines.length < 2) throw "格式錯誤";
+            
+            freqMap = {};
+            lastSeen = {};
+            rawData = [];
+
+            // 初始化 1-39 間隔為總期數
+            for(let i=1; i<=39; i++) lastSeen[i] = lines.length - 1;
+
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(s => s.trim());
+                if (cols.length < 6) continue;
+                
+                const nums = cols.slice(1, 6).map(Number).filter(n => !isNaN(n) && n >= 1 && n <= 39);
+                if (nums.length === 5) {
+                    rawData.push(nums);
+                    nums.forEach(n => {
+                        freqMap[n] = (freqMap[n] || 0) + 1;
+                        // 記錄間隔（i=1 是最新一期）
+                        if (lastSeen[n] > i - 1) lastSeen[n] = i - 1;
+                    });
+                }
+            }
+            if (rawData.length === 0) throw "無效數據";
+            renderStats();
+            renderGrid();
+        } catch (err) {
+            alert("⚠️ CSV 解析錯誤：請檢查格式是否為「日期,號碼1,2,3,4,5」");
+        }
+    }
+
+    function renderStats() {
+        const sorted = Object.keys(freqMap).map(Number).sort((a,b) => freqMap[b] - freqMap[a]);
+        const hot5 = sorted.slice(0, 5);
+        const cold5 = sorted.slice(-5).reverse();
+
+        document.getElementById('hot_list').innerHTML = hot5.map(n => `No.${n} (${freqMap[n]}次)`).join('<br>');
+        document.getElementById('cold_list').innerHTML = cold5.map(n => `No.${n} (${freqMap[n]}次)`).join('<br>');
+    }
+
+    function renderGrid() {
         const grid = document.getElementById('grid');
         grid.innerHTML = '';
         for (let i = 1; i <= 39; i++) {
-            const div = document.createElement('div');
-            div.className = `ball ${selected.has(i) ? 'active' : ''}`;
-            div.innerHTML = `<span>${i.toString().padStart(2,'0')}</span><span class="freq-text">${freqMap[i] || 0}</span>`;
-            div.onclick = () => {
+            const b = document.createElement('div');
+            b.className = `ball ${selected.has(i) ? 'active' : ''}`;
+            const gap = lastSeen[i] === undefined ? '-' : lastSeen[i];
+            b.innerHTML = `<span>${i.toString().padStart(2,'0')}</span><small>${gap}期未開</small>`;
+            b.onclick = () => {
                 if(selected.has(i)) selected.delete(i);
                 else if(selected.size < 5) selected.add(i);
                 updateUI();
             };
-            grid.appendChild(div);
+            grid.appendChild(b);
         }
     }
 
     function updateUI() {
         const arr = Array.from(selected).sort((a,b)=>a-b);
-        document.getElementById('res').innerText = arr.length ? arr.map(n=>n.toString().padStart(2,'0')).join(' ') : '00 00 00 00 00';
-        document.getElementById('avg').innerText = arr.length ? (arr.reduce((a,b)=>a+b)/arr.length).toFixed(1) : 0;
-        render();
+        document.getElementById('res_num').innerText = arr.length ? arr.map(n=>n.toString().padStart(2,'0')).join(' ') : '00 00 00 00 00';
+        
+        // 奇偶比例
+        const odd = arr.filter(n => n % 2 !== 0).length;
+        document.getElementById('st_oe').innerText = arr.length ? `${odd} 奇 : ${arr.length-odd} 偶` : '-';
+        
+        // 大小比例 (>=20 為大)
+        const big = arr.filter(n => n >= 20).length;
+        document.getElementById('st_bs').innerText = arr.length ? `${big} 大 : ${arr.length-big} 小` : '-';
+        
+        renderGrid();
     }
 
     function smartPick() {
-        selected.clear();
-        let pool = [];
-        for(let i=1; i<=39; i++) {
-            let w = 1 + (freqMap[i] || 0);
-            for(let j=0; j<w; j++) pool.push(i);
+        const targetOdd = document.getElementById('cfg_odd').value;
+        const targetBig = document.getElementById('cfg_big').value;
+        
+        let attempts = 0;
+        let found = false;
+
+        while (attempts < 1000) {
+            attempts++;
+            let tempSet = new Set();
+            let pool = [];
+            // 基於權重建立池 (基礎權重 1 + 出現頻率)
+            for(let i=1; i<=39; i++) {
+                let w = 1 + (freqMap[i] || 0);
+                for(let j=0; j<w; j++) pool.push(i);
+            }
+
+            while(tempSet.size < 5) {
+                tempSet.add(pool[Math.floor(Math.random() * pool.length)]);
+            }
+
+            const arr = Array.from(tempSet);
+            const oddCount = arr.filter(n => n % 2 !== 0).length;
+            const bigCount = arr.filter(n => n >= 20).length;
+
+            const matchOdd = targetOdd === 'any' || oddCount === parseInt(targetOdd);
+            const matchBig = targetBig === 'any' || bigCount === parseInt(targetBig);
+
+            if (matchOdd && matchBig) {
+                selected = tempSet;
+                found = true;
+                break;
+            }
         }
-        while(selected.size < 5) selected.add(pool[Math.floor(Math.random() * pool.length)]);
+
+        if (!found) alert("符合條件的組合較難隨機產生，請嘗試放寬限制。");
         updateUI();
     }
 
@@ -133,7 +239,7 @@
         updateUI();
     }
 
-    render();
+    renderGrid();
 </script>
 </body>
 </html>
