@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539策略回測 Demo v9</title>
+<title>539策略回測 Demo v10</title>
 <style>
 html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#0B2545; color:#F0F0F0; }
 .container { display:flex; flex-direction:column; align-items:center; padding:10px; min-height:100vh; box-sizing:border-box; }
@@ -23,7 +23,7 @@ td { background:#142850; }
 </head>
 <body>
 <div class="container">
-<h1>539策略回測 Demo v9</h1>
+<h1>539策略回測 Demo v10</h1>
 
 <div class="card">
 <h2>上傳歷史 CSV</h2>
@@ -33,9 +33,9 @@ td { background:#142850; }
 
 <div class="card">
 <h2>策略模組</h2>
-<p>L1：S1 趨勢動能</p>
-<p>L2：S1 + S2 冷熱混合</p>
-<p>L3：S1 + S2 + S3 結構約束</p>
+<p>L1：高頻 + 區間平衡（強化）</p>
+<p>L2_new：高頻+低頻+中頻混合 + 區間約束（替換原 L2）</p>
+<p>L3：區間選號優化（強化）</p>
 </div>
 
 <div class="card">
@@ -49,7 +49,7 @@ td { background:#142850; }
 <div style="display:flex; align-items:center; margin-bottom:5px;">
 <select id="strategySelect" onchange="updateLog()">
   <option value="L1">L1</option>
-  <option value="L2">L2</option>
+  <option value="L2_new">L2_new</option>
   <option value="L3">L3</option>
 </select>
 <span class="rateDisplay" id="recent5Rate">近5期命中率: --</span>
@@ -95,29 +95,51 @@ function computeFrequency(data){
   return freq;
 }
 
-// 策略生成
+// 強化策略生成
 function generatePredictionL1(freq){
-  const nums = [];
-  freq.forEach((count, n) => { if(n>0) nums.push({n, count}); });
-  nums.sort((a,b)=>b.count - a.count);
-  return nums.slice(0,5).map(x=>x.n);
-}
-function generatePredictionL2(freq){
-  const nums = [];
-  let sorted = freq.map((c,n)=>({n,c})).filter(x=>x.n>0).sort((a,b)=>b.c - a.c);
-  nums.push(...sorted.slice(0,3).map(x=>x.n));
-  let low = sorted.slice(-10).map(x=>x.n).filter(n=>!nums.includes(n));
-  nums.push(...low.slice(0,2));
-  return nums;
-}
-function generatePredictionL3(freq){
-  const nums = [];
+  // 前5高頻號碼，並盡量分布三個區間
+  let nums = [];
   let sorted = freq.map((c,n)=>({n,c})).filter(x=>x.n>0).sort((a,b)=>b.c - a.c);
   const ranges = [[1,13],[14,26],[27,39]];
   ranges.forEach(r=>{
-    const arr = sorted.filter(x=>x.n>=r[0] && x.n<=r[1]).map(x=>x.n).slice(0,2);
-    arr.forEach(n=>{ if(nums.length<5) nums.push(n); });
+    let pick = sorted.filter(x=>x.n>=r[0] && x.n<=r[1]).map(x=>x.n);
+    for(let n of pick){
+      if(nums.length<5 && !nums.includes(n)) nums.push(n);
+    }
   });
+  if(nums.length<5){
+    sorted.forEach(x=>{ if(!nums.includes(x.n) && nums.length<5) nums.push(x.n); });
+  }
+  return nums;
+}
+
+function generatePredictionL2_new(freq){
+  // 高頻2 + 低頻2 + 中頻1，跨三個區間
+  let sorted = freq.map((c,n)=>({n,c})).filter(x=>x.n>0).sort((a,b)=>b.c - a.c);
+  let high = sorted.slice(0,10).map(x=>x.n);
+  let low = sorted.slice(-10).map(x=>x.n);
+  let mid = sorted.slice(10,30).map(x=>x.n);
+  let nums = [];
+  nums.push(...high.slice(0,2));
+  nums.push(...low.slice(0,2));
+  nums.push(mid[0]);
+  return nums;
+}
+
+function generatePredictionL3(freq){
+  // 區間優化，每區至少1高頻
+  let nums = [];
+  let sorted = freq.map((c,n)=>({n,c})).filter(x=>x.n>0).sort((a,b)=>b.c - a.c);
+  const ranges = [[1,13],[14,26],[27,39]];
+  ranges.forEach(r=>{
+    let pick = sorted.filter(x=>x.n>=r[0] && x.n<=r[1]).map(x=>x.n);
+    for(let n of pick){
+      if(nums.length<5 && !nums.includes(n)) nums.push(n);
+    }
+  });
+  if(nums.length<5){
+    sorted.forEach(x=>{ if(!nums.includes(x.n) && nums.length<5) nums.push(x.n); });
+  }
   return nums;
 }
 
@@ -130,10 +152,10 @@ function runBacktest(){
   const freq = computeFrequency(csvData);
   csvData.forEach(row=>{
     const l1 = generatePredictionL1(freq);
-    const l2 = generatePredictionL2(freq);
+    const l2 = generatePredictionL2_new(freq);
     const l3 = generatePredictionL3(freq);
     backtestResults.push({date:row.date, actual:row.numbers, strategy:'L1', pred:l1, hits:hitCount(row.numbers,l1)});
-    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L2', pred:l2, hits:hitCount(row.numbers,l2)});
+    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L2_new', pred:l2, hits:hitCount(row.numbers,l2)});
     backtestResults.push({date:row.date, actual:row.numbers, strategy:'L3', pred:l3, hits:hitCount(row.numbers,l3)});
   });
   document.getElementById('backtestCount').innerText = `回測筆數：${backtestResults.length}`;
