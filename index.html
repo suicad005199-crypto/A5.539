@@ -2,180 +2,163 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539 策略回測系統 PRO</title>
+<title>539 ≥2 星策略回測與預測</title>
+
 <style>
-:root {
-    --primary: #2563eb;
-    --success: #22c55e;
-    --danger: #ef4444;
-    --bg: #f8fafc;
-}
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: #1e293b; margin: 0; padding: 20px;
-}
-.container { max-width: 1100px; margin: 0 auto; }
-.header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
-}
-.card {
-    background: white; border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    padding: 20px; margin-bottom: 20px;
-}
-button {
-    background: var(--primary); color: white;
-    border: none; padding: 8px 20px;
-    border-radius: 6px; cursor: pointer; font-weight: 600;
-}
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px; margin-bottom: 20px;
-}
-.stat-box {
-    padding: 15px; border-radius: 8px;
-    text-align: center; border: 1px solid #e2e8f0;
-}
-.stat-val { font-size: 24px; font-weight: bold; color: var(--primary); }
-.stat-label { font-size: 12px; color: #64748b; margin-top: 5px; }
+body { font-family: system-ui; background:#f8fafc; padding:20px; color:#1e293b }
+.container { max-width:1000px; margin:auto }
 
-.table-container { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 800px; }
-th { background: #f1f5f9; padding: 12px; font-size: 14px; text-align: left; }
-td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; vertical-align: top; }
+h2,h3 { margin:10px 0 }
+.card { background:#fff; border-radius:10px; padding:15px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,.1) }
 
-.hit2 { color: var(--success); font-weight: bold; }
-.match { background: #22c55e !important; color: white !important; border-color: #16a34a !important; }
-.warn-banner {
-    background: #fef2f2; border: 1px solid #fee2e2;
-    color: var(--danger); padding: 12px;
-    border-radius: 8px; margin-bottom: 20px;
-    text-align: center; font-weight: bold;
-}
-.num-tag {
-    display: inline-block; border: 1px solid #cbd5e1;
-    border-radius: 4px; padding: 2px 6px; margin: 2px;
-    font-family: monospace; background: #fff;
-}
-.draw-tag { background: #64748b; color: white; border-color: #475569; }
+button { padding:6px 16px; background:#2563eb; color:#fff; border:0; border-radius:6px; cursor:pointer }
+
+table { width:100%; border-collapse:collapse; font-size:14px }
+th,td { padding:8px; border-bottom:1px solid #e5e7eb; vertical-align:top }
+
+.num { display:inline-block; padding:2px 6px; margin:2px; border:1px solid #cbd5e1; border-radius:4px; font-family:monospace }
+.hit { background:#22c55e; color:#fff; border-color:#16a34a }
+.draw { background:#64748b; color:#fff; border-color:#475569 }
+
+.panel { max-height:380px; overflow:auto }
 </style>
 </head>
 
 <body>
 <div class="container">
-    <div class="header">
-        <h2>📊 539 策略回測（含開獎對比）</h2>
-        <div>
-            <input type="file" id="csvFile" accept=".csv">
-            <button onclick="run()">分析回測</button>
-        </div>
-    </div>
 
-    <div id="warn"></div>
-    <div id="summary" class="grid"></div>
+<h2>📊 539 專攻 ≥2 星 回測 / 下期預測</h2>
 
-    <div class="card table-container">
-        <h3>歷史回測詳情</h3>
-        <div id="log"></div>
-    </div>
+<input type="file" id="csv" accept=".csv">
+<button onclick="run()">執行</button>
+
+<!-- 下期預測 -->
+<div id="next" class="card"></div>
+
+<!-- 回測 log -->
+<div class="card">
+<h3>回測 Log（開獎 vs 預測）</h3>
+<div id="log" class="panel"></div>
+</div>
+
+<!-- 邏輯說明 -->
+<div class="card" id="logic"></div>
+
 </div>
 
 <script>
-function parseCSV(text) {
-    return text.trim().split('\n').slice(1).map(r => {
-        const p = r.split(',');
-        return { date: p[0], nums: p.slice(1).map(Number) };
-    });
+/* ---------- 基礎 ---------- */
+function parseCSV(t){
+  return t.trim().split('\n').slice(1).map(r=>{
+    const p=r.split(',');
+    return {date:p[0], nums:p.slice(1).map(Number)};
+  }).filter(r=>r.nums.length===5);
 }
 
-function run() {
-    const f = document.getElementById('csvFile').files[0];
-    if (!f) return alert('請上傳 CSV');
-    const r = new FileReader();
-    r.onload = e => simulate(parseCSV(e.target.result));
-    r.readAsText(f);
+function run(){
+  const f=document.getElementById('csv').files[0];
+  if(!f) return alert('請上傳 CSV');
+  const r=new FileReader();
+  r.onload=e=>simulate(parseCSV(e.target.result));
+  r.readAsText(f);
 }
 
-function buildPool(data, i) {
-    const hist = data.slice(i - 10, i);
-    const freq = {};
-    hist.forEach(d => d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1));
-    const hot = Object.keys(freq).filter(n => freq[n] >= 2).map(Number);
-    let pool = [...new Set(hot)];
-    for (let n = 1; pool.length < 25 && n <= 39; n++) {
-        if (!pool.includes(n)) pool.push(n);
+/* ---------- 核心策略（專攻 ≥2） ---------- */
+function buildPool(data,i){
+  const hist=data.slice(i-10,i);
+  const freq={};
+  hist.forEach(d=>d.nums.forEach(n=>freq[n]=(freq[n]||0)+1));
+  return Object.keys(freq)
+    .filter(n=>freq[n]>=2)
+    .map(Number)
+    .slice(0,20);
+}
+
+function genPicks(pool,count=5){
+  const picks=[];
+  let idx=0;
+  while(picks.length<count){
+    let c=[];
+    for(let k=0;k<pool.length && c.length<5;k++){
+      const n=pool[(idx+k*2)%pool.length];
+      if(!c.includes(n)) c.push(n);
     }
-    return pool;
+    idx++;
+    c.sort((a,b)=>a-b);
+    if(!picks.some(p=>p.join()==c.join())) picks.push(c);
+  }
+  return picks;
 }
 
-function generatePicks(pool, need = 10) {
-    const picks = [];
-    let tries = 0;
-    while (picks.length < need && tries < 500) {
-        tries++;
-        const c = [];
-        while (c.length < 5) {
-            const n = pool[Math.floor(Math.random() * pool.length)];
-            if (!c.includes(n)) c.push(n);
-        }
-        const odd = c.filter(n => n % 2).length;
-        const sum = c.reduce((a,b)=>a+b,0);
-        if ((odd === 2 || odd === 3) && sum >= 70 && sum <= 115) {
-            const key = c.slice().sort((a,b)=>a-b).join(',');
-            if (!picks.some(p => p.join(',') === key)) picks.push(c.sort((a,b)=>a-b));
-        }
-    }
-    return picks;
+/* ---------- 回測 ---------- */
+function simulate(data){
+  let rows='';
+  let hit2=0, total=0;
+
+  for(let i=10;i<data.length;i++){
+    const draw=data[i].nums;
+    const pool=buildPool(data,i);
+    if(pool.length<5) continue;
+
+    const picks=genPicks(pool);
+    let best=0;
+
+    const pickHTML=picks.map(p=>{
+      const h=p.filter(n=>draw.includes(n)).length;
+      best=Math.max(best,h);
+      return `<div>${p.map(n=>
+        `<span class="num ${draw.includes(n)?'hit':''}">${n}</span>`
+      ).join('')}</div>`;
+    }).join('');
+
+    if(best>=2) hit2++;
+    total++;
+
+    rows=`
+    <tr>
+      <td>${data[i].date}</td>
+      <td>${draw.map(n=>`<span class="num draw">${n}</span>`).join('')}</td>
+      <td>${best} 星</td>
+      <td>${pickHTML}</td>
+    </tr>`+rows;
+  }
+
+  document.getElementById('log').innerHTML=
+    `<table>
+      <tr><th>日期</th><th>開獎</th><th>結果</th><th>預測牌組</th></tr>
+      ${rows}
+    </table>`;
+
+  renderNext(data);
+  renderLogic(hit2,total);
 }
 
-function simulate(data) {
-    let hit2 = 0, no2 = 0, rows = '';
+/* ---------- 下期預測 ---------- */
+function renderNext(data){
+  const pool=buildPool(data,data.length);
+  const picks=genPicks(pool);
 
-    for (let i = 10; i < data.length; i++) {
-        const target = data[i].nums;
-        const pool = buildPool(data, i);
-        const picks = generatePicks(pool, 10);
-        let best = 0;
+  document.getElementById('next').innerHTML=`
+    <h3>📌 下期預測牌組（${data[data.length-1].date} 後一期）</h3>
+    ${picks.map((p,i)=>
+      `<div><strong>組${i+1}</strong>：
+      ${p.map(n=>`<span class="num">${n}</span>`).join('')}</div>`
+    ).join('')}
+  `;
+}
 
-        // 計算最佳命中並標記匹配號碼
-        const picksHtml = picks.map(p => {
-            const h = p.filter(n => target.includes(n)).length;
-            best = Math.max(best, h);
-            return `<div>${p.map(n => 
-                `<span class="num-tag ${target.includes(n) ? 'match' : ''}">${n}</span>`
-            ).join('')}</div>`;
-        }).join('');
-
-        if (best >= 2) { hit2++; no2 = 0; } else { no2++; }
-
-        rows = `
-        <tr>
-            <td><strong>${data[i].date}</strong></td>
-            <td>${target.map(n => `<span class="num-tag draw-tag">${n}</span>`).join('')}</td>
-            <td class="${best>=2?'hit2':''}">${best} 星</td>
-            <td>${picksHtml}</td>
-        </tr>` + rows;
-    }
-
-    const total = data.length - 10;
-    document.getElementById('summary').innerHTML = `
-        <div class="stat-box"><div class="stat-val">${total}</div><div class="stat-label">回測期數</div></div>
-        <div class="stat-box" style="border-bottom:3px solid var(--success)">
-            <div class="stat-val">${(hit2/total*100).toFixed(1)}%</div><div class="stat-label">≥2 命中率</div>
-        </div>
-    `;
-
-    document.getElementById('warn').innerHTML =
-        no2 >= 20 ? `<div class="warn-banner">⚠ 已連續 ${no2} 期未中 2 星，建議停手</div>` : '';
-
-    document.getElementById('log').innerHTML =
-        `<table>
-            <tr><th>日期</th><th>開獎號碼</th><th>結果</th><th>10 組預測 (綠色為中獎)</th></tr>
-            ${rows}
-        </table>`;
+/* ---------- 邏輯說明 ---------- */
+function renderLogic(hit2,total){
+  document.getElementById('logic').innerHTML=`
+    <h3>策略邏輯（專攻 ≥2 星）</h3>
+    <ul>
+      <li>僅使用「近 10 期出現 ≥2 次」的高覆蓋號碼</li>
+      <li>每期固定產生 5 組，避免亂數漂移</li>
+      <li>目標不是爆擊，而是提高「至少中 2 星」機率</li>
+      <li>回測 ≥2 命中率：約 ${(hit2/total*100).toFixed(1)}%</li>
+      <li>策略定位：覆蓋導向、低波動</li>
+    </ul>
+  `;
 }
 </script>
 </body>
