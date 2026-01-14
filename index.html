@@ -2,27 +2,22 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>539 覆蓋導向回測系統（組別貢獻）</title>
+<title>539 聯集 ≥2 覆蓋率回測</title>
 <style>
 body { font-family: Arial; padding: 20px; }
-table { border-collapse: collapse; margin-top: 12px; font-size: 13px; }
-td, th { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
-.hit2 { background:#e0f5e0; }
-.hit3 { background:#a5e0a5; font-weight:bold; }
-.hit4 { background:#ffd54f; font-weight:bold; }
+table { border-collapse: collapse; margin-top: 10px; }
+td, th { border: 1px solid #ccc; padding: 6px 8px; text-align: center; }
+.good { background: #c8f7c5; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<h2>539 覆蓋導向策略系統（組別 ≥2 貢獻）</h2>
+<h2>539 聯集 ≥2 覆蓋率回測（6 / 8 / 10 / 12 組）</h2>
 
 <input type="file" id="csvFile" accept=".csv">
 <button onclick="run()">執行回測</button>
 
 <div id="summary"></div>
-<div id="group"></div>
-<div id="next"></div>
-<div id="log"></div>
 
 <script>
 function parseCSV(text) {
@@ -35,89 +30,85 @@ function parseCSV(text) {
 function run() {
   const f = document.getElementById('csvFile').files[0];
   if (!f) return alert('請上傳 CSV');
+
   const r = new FileReader();
   r.onload = e => simulate(parseCSV(e.target.result));
   r.readAsText(f);
 }
 
-function buildCoveragePicks(fullData, idx) {
-  const freq = {};
-  fullData.slice(0, idx).forEach(d =>
-    d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1)
-  );
-
-  const cold = Object.keys(freq)
-    .map(Number)
-    .sort((a,b)=>freq[a]-freq[b]);
-
-  return [
-    [1,2,3,4,5],
-    [10,11,12,13,14],
-    [16,17,18,19,20],
-    [25,26,27,28,29],
-    cold.slice(0,5)
-  ];
-}
-
 function simulate(data) {
-  let hit2=0, hit3=0, hit4=0;
-  let groupHit2=[0,0,0,0,0];
-  let rows='';
+  let total = data.length - 10;
 
-  for (let i=0;i<data.length;i++) {
-    const picks=buildCoveragePicks(data,i);
-    const target=data[i].nums;
+  let hit6 = 0, hit8 = 0, hit10 = 0, hit12 = 0;
 
-    let best=0;
-    picks.forEach((p,gi)=>{
-      const h=p.filter(n=>target.includes(n)).length;
-      best=Math.max(best,h);
-      if (h>=2) groupHit2[gi]++;
-    });
+  for (let i = 10; i < data.length; i++) {
+    const hist = data.slice(i - 10, i);
+    const target = data[i].nums;
 
-    if (best>=2) hit2++;
-    if (best>=3) hit3++;
-    if (best>=4) hit4++;
+    // 穩定池：熱號 + 冷號
+    const freq = {};
+    hist.forEach(d => d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1));
+    const hot = Object.keys(freq).filter(n => freq[n] >= 2).map(Number);
 
-    rows+=`<tr class="${best>=4?'hit4':best>=3?'hit3':best>=2?'hit2':''}">
-      <td>${data[i].date}</td>
-      <td>${best}</td>
-      <td>${picks.map((p,i)=>`組${i+1}：[${p.join(' ')}]`).join('<br>')}</td>
-    </tr>`;
+    const lastSeen = {};
+    data.slice(0, i).forEach((d, idx) =>
+      d.nums.forEach(n => lastSeen[n] = idx)
+    );
+    const cold = Object.keys(lastSeen)
+      .filter(n => i - lastSeen[n] >= 12)
+      .map(Number);
+
+    const pool = [...new Set([...hot, ...cold])].filter(n => n >= 1 && n <= 39);
+
+    // 固定生成 12 組（不隨機）
+    let picks = [];
+    for (let k = 0; k < pool.length && picks.length < 12; k++) {
+      for (let j = k + 1; j < pool.length && picks.length < 12; j++) {
+        for (let m = j + 1; m < pool.length && picks.length < 12; m++) {
+          let c = [pool[k], pool[j], pool[m]];
+          while (c.length < 5) {
+            const n = pool[(c.length * 7 + k) % pool.length];
+            if (!c.includes(n)) c.push(n);
+          }
+          const odd = c.filter(n => n % 2).length;
+          const sum = c.reduce((a,b)=>a+b,0);
+          if ((odd === 2 || odd === 3) && sum >= 70 && sum <= 115) {
+            picks.push(c.sort((a,b)=>a-b));
+          }
+        }
+      }
+    }
+
+    function unionHit(cnt) {
+      for (let i = 0; i < cnt; i++) {
+        if (!picks[i]) continue;
+        let h = picks[i].filter(n => target.includes(n)).length;
+        if (h >= 2) return true;
+      }
+      return false;
+    }
+
+    if (unionHit(6)) hit6++;
+    if (unionHit(8)) hit8++;
+    if (unionHit(10)) hit10++;
+    if (unionHit(12)) hit12++;
   }
 
-  const total=data.length;
-
-  document.getElementById('summary').innerHTML=`
-    <h3>整體命中</h3>
-    ≥2：${(hit2/total*100).toFixed(1)}%　
-    ≥3：${(hit3/total*100).toFixed(1)}%　
-    ≥4：${(hit4/total*100).toFixed(1)}%
-  `;
-
-  document.getElementById('group').innerHTML=`
-    <h3>各組 ≥2 命中次數（貢獻度）</h3>
-    ${groupHit2.map((c,i)=>
-      `組${i+1}：${c} 期（${(c/total*100).toFixed(1)}%）`
-    ).join('<br>')}
-  `;
-
-  document.getElementById('log').innerHTML=
-    `<table>
-      <tr><th>日期</th><th>最高命中</th><th>出手 5 組</th></tr>
-      ${rows}
-    </table>`;
-
-  predictNext(data);
-}
-
-function predictNext(data){
-  const picks=buildCoveragePicks(data,data.length);
-  document.getElementById('next').innerHTML=`
-    <h3>📌 下期預測牌組（覆蓋導向）</h3>
-    ${picks.map((p,i)=>`組${i+1}：[${p.join(' ')}]`).join('<br>')}
+  document.getElementById('summary').innerHTML = `
+  <h3>回測結果（${total} 期）</h3>
+  <table>
+    <tr>
+      <th>出手組數</th>
+      <th>聯集 ≥2 命中率</th>
+    </tr>
+    <tr><td>6 組</td><td>${(hit6/total*100).toFixed(1)}%</td></tr>
+    <tr><td>8 組</td><td>${(hit8/total*100).toFixed(1)}%</td></tr>
+    <tr class="good"><td>10 組</td><td>${(hit10/total*100).toFixed(1)}%</td></tr>
+    <tr><td>12 組</td><td>${(hit12/total*100).toFixed(1)}%</td></tr>
+  </table>
   `;
 }
 </script>
+
 </body>
 </html>
