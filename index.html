@@ -2,126 +2,124 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>539 版路滾動回測系統</title>
+<title>539 ≥3 中星專打回測系統</title>
 <style>
 body { font-family: Arial; padding: 20px; }
 button { padding: 8px 16px; margin: 10px 0; }
-.result { margin-top: 20px; line-height: 1.8; }
 table { border-collapse: collapse; margin-top: 10px; }
 td, th { border: 1px solid #ccc; padding: 6px 10px; }
 </style>
 </head>
 <body>
 
-<h2>539 多特徵版路滾動回測系統</h2>
+<h2>539 ≥3 中星專打｜滾動回測</h2>
 
 <input type="file" id="csvFile" accept=".csv">
 <br>
-<button onclick="runBacktest()">執行滾動回測</button>
+<button onclick="runBacktest()">執行回測</button>
 
-<div class="result" id="output"></div>
+<div id="output"></div>
 
 <script>
 function parseCSV(text) {
-    return text.trim().split("\n").slice(1).map(r =>
-        r.split(",").slice(1).map(Number)
-    );
+  return text.trim().split("\n").slice(1)
+    .map(r => r.split(",").slice(1).map(Number));
 }
 
 function oddEvenOK(nums) {
-    const odd = nums.filter(n => n % 2 === 1).length;
-    return odd === 2 || odd === 3;
-}
-
-function sumOK(nums, min, max) {
-    const s = nums.reduce((a,b)=>a+b,0);
-    return s >= min && s <= max;
+  const odd = nums.filter(n => n % 2).length;
+  return odd >= 1 && odd <= 4;
 }
 
 function tailOK(nums) {
-    const tails = nums.map(n => n % 10);
-    return new Set(tails).size >= 3;
+  return new Set(nums.map(n => n % 10)).size >= 2;
+}
+
+function gapScore(g) {
+  if (g >= 15) return 6;
+  if (g >= 10) return 3;
+  if (g >= 5) return 1;
+  return 0;
 }
 
 function runBacktest() {
-    const file = document.getElementById("csvFile").files[0];
-    if (!file) return alert("請上傳 CSV");
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) return alert("請上傳 CSV");
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        const draws = parseCSV(reader.result);
-        const stats = { hit2:0, hit3:0, hit4:0, hit5:0, totalHit:0 };
+  const reader = new FileReader();
+  reader.onload = () => {
+    const draws = parseCSV(reader.result);
+    let tests = 0;
+    let hit3any = 0;
+    let hit2any = 0;
 
-        let tests = 0;
+    for (let i = 30; i < draws.length; i++) {
+      const history = draws.slice(0, i);
+      const actual = draws[i];
 
-        for (let i = 20; i < draws.length; i++) {
-            const history = draws.slice(0, i);
-            const actual = draws[i];
+      // Gap 計算
+      const gap = {};
+      for (let n = 1; n <= 39; n++) gap[n] = 0;
+      history.forEach(d => {
+        for (let n = 1; n <= 39; n++) gap[n]++;
+        d.forEach(n => gap[n] = 0);
+      });
 
-            // === Gap & 冷號計算 ===
-            const gap = {};
-            for (let n = 1; n <= 39; n++) gap[n] = 0;
+      // 熱 / 中 / 冷 分群
+      const freq5 = {};
+      history.slice(-5).forEach(d => d.forEach(n => freq5[n] = (freq5[n] || 0) + 1));
 
-            history.forEach(draw => {
-                for (let n = 1; n <= 39; n++) gap[n]++;
-                draw.forEach(n => gap[n] = 0);
-            });
+      const hot = Object.keys(freq5).filter(n => freq5[n] >= 2).map(Number);
+      const cold = Object.keys(gap).filter(n => gap[n] >= 10).map(Number);
+      const mid = Object.keys(gap).filter(n => gap[n] >= 5 && gap[n] < 10).map(Number);
 
-            const scored = Object.entries(gap)
-                .map(([n,g]) => ({
-                    n: Number(n),
-                    score: g >= 8 ? g * 1.5 : g
-                }))
-                .sort((a,b)=>b.score-a.score)
-                .map(e=>e.n);
+      // 候選排序（冷號優先）
+      const ranked = Object.keys(gap)
+        .map(n => ({ n: Number(n), s: gapScore(gap[n]) }))
+        .sort((a,b)=>b.s-a.s)
+        .map(e=>e.n);
 
-            // === 嘗試組合 ===
-            let prediction = [];
-            for (let i = 0; i < scored.length; i++) {
-                for (let j = i+1; j < scored.length; j++) {
-                    for (let k = j+1; k < scored.length; k++) {
-                        for (let l = k+1; l < scored.length; l++) {
-                            for (let m = l+1; m < scored.length; m++) {
-                                const combo = [
-                                    scored[i],scored[j],scored[k],
-                                    scored[l],scored[m]
-                                ];
-                                if (!oddEvenOK(combo)) continue;
-                                if (!sumOK(combo, 70, 120)) continue;
-                                if (!tailOK(combo)) continue;
-                                prediction = combo;
-                                i=j=k=l=m=100; // break all
-                            }
-                        }
-                    }
-                }
+      const predictions = [];
+
+      // 產生 5 組 ≥3 專打組合
+      for (let h = 0; h < hot.length && predictions.length < 5; h++) {
+        for (let c1 = 0; c1 < cold.length; c1++) {
+          for (let c2 = c1+1; c2 < cold.length; c2++) {
+            for (let m = 0; m < mid.length; m++) {
+              const combo = [hot[h], cold[c1], cold[c2], mid[m], ranked[predictions.length]];
+              const uniq = [...new Set(combo)];
+              if (uniq.length !== 5) continue;
+              if (!oddEvenOK(uniq)) continue;
+              if (!tailOK(uniq)) continue;
+              predictions.push(uniq);
+              if (predictions.length >= 5) break;
             }
-
-            if (prediction.length !== 5) continue;
-
-            const hit = prediction.filter(n => actual.includes(n)).length;
-            stats.totalHit += hit;
-            if (hit >= 2) stats.hit2++;
-            if (hit >= 3) stats.hit3++;
-            if (hit >= 4) stats.hit4++;
-            if (hit === 5) stats.hit5++;
-
-            tests++;
+            if (predictions.length >= 5) break;
+          }
+          if (predictions.length >= 5) break;
         }
+      }
 
-        document.getElementById("output").innerHTML = `
-        <b>回測期數：</b> ${tests}<br>
-        <b>平均命中顆數：</b> ${(stats.totalHit / tests).toFixed(2)}<br>
-        <table>
-        <tr><th>命中條件</th><th>次數</th><th>機率</th></tr>
-        <tr><td>≥ 2 顆</td><td>${stats.hit2}</td><td>${(stats.hit2/tests*100).toFixed(1)}%</td></tr>
-        <tr><td>≥ 3 顆</td><td>${stats.hit3}</td><td>${(stats.hit3/tests*100).toFixed(1)}%</td></tr>
-        <tr><td>≥ 4 顆</td><td>${stats.hit4}</td><td>${(stats.hit4/tests*100).toFixed(1)}%</td></tr>
-        <tr><td>5 顆全中</td><td>${stats.hit5}</td><td>${(stats.hit5/tests*100).toFixed(2)}%</td></tr>
-        </table>
-        `;
-    };
-    reader.readAsText(file);
+      if (predictions.length === 0) continue;
+
+      let maxHit = 0;
+      predictions.forEach(p => {
+        const hit = p.filter(n => actual.includes(n)).length;
+        if (hit > maxHit) maxHit = hit;
+      });
+
+      if (maxHit >= 2) hit2any++;
+      if (maxHit >= 3) hit3any++;
+      tests++;
+    }
+
+    document.getElementById("output").innerHTML = `
+      <b>回測期數：</b> ${tests}<br>
+      <b>至少一組 ≥2：</b> ${(hit2any/tests*100).toFixed(1)}%<br>
+      <b><u>至少一組 ≥3：</u></b> <b>${(hit3any/tests*100).toFixed(1)}%</b>
+    `;
+  };
+  reader.readAsText(file);
 }
 </script>
 
