@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539策略回測 Demo v4</title>
+<title>539策略回測 Demo v5</title>
 <style>
 html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#0B2545; color:#F0F0F0; }
 .container { display:flex; flex-direction:column; align-items:center; padding:10px; min-height:100vh; box-sizing:border-box; }
@@ -22,7 +22,7 @@ td { background:#142850; }
 </head>
 <body>
 <div class="container">
-<h1>539策略回測 Demo v4</h1>
+<h1>539策略回測 Demo v5</h1>
 
 <div class="card">
 <h2>上傳歷史 CSV</h2>
@@ -62,7 +62,7 @@ td { background:#142850; }
 
 <script>
 let csvData = [];
-let backtestResults = []; // 存所有回測資料
+let backtestResults = [];
 
 document.getElementById('csvFile').addEventListener('change', function(e){
   const file = e.target.files[0];
@@ -79,26 +79,43 @@ document.getElementById('csvFile').addEventListener('change', function(e){
   reader.readAsText(file);
 });
 
-// Demo 策略生成
-function generatePredictionL1(){ 
+// 計算號碼出現頻率
+function computeFrequency(data){
+  const freq = Array(40).fill(0);
+  data.forEach(row=>{
+    row.numbers.forEach(n => freq[parseInt(n)]++);
+  });
+  return freq;
+}
+
+// L1: 前5高頻號碼
+function generatePredictionL1(freq){
   const nums = [];
-  while(nums.length<5){
-    const n = Math.floor(Math.random()*39)+1;
-    if(!nums.includes(n)) nums.push(n);
-  }
+  freq.forEach((count, n) => { if(n>0) nums.push({n, count}); });
+  nums.sort((a,b)=>b.count - a.count);
+  return nums.slice(0,5).map(x=>x.n);
+}
+
+// L2: 冷熱混合 3高頻+2低頻
+function generatePredictionL2(freq){
+  const nums = [];
+  let sorted = freq.map((c,n)=>({n,c})).filter(x=>x.n>0).sort((a,b)=>b.c - a.c);
+  nums.push(...sorted.slice(0,3).map(x=>x.n));
+  let low = sorted.slice(-10).map(x=>x.n).filter(n=>!nums.includes(n));
+  nums.push(...low.slice(0,2));
   return nums;
 }
-function generatePredictionL2(){ 
-  const nums = generatePredictionL1();
-  while(nums.length<5){
-    const n = Math.floor(Math.random()*39)+1;
-    if(!nums.includes(n)) nums.push(n);
-  }
-  return nums;
-}
-function generatePredictionL3(){ 
-  const nums = generatePredictionL2();
-  nums.sort((a,b)=>a-b);
+
+// L3: 結構約束 依區間固定
+function generatePredictionL3(freq){
+  const nums = [];
+  let sorted = freq.map((c,n)=>({n,c})).filter(x=>x.n>0).sort((a,b)=>b.c - a.c);
+  // 1-13,14-26,27-39 各取1-2個
+  const ranges = [[1,13],[14,26],[27,39]];
+  ranges.forEach(r=>{
+    const arr = sorted.filter(x=>x.n>=r[0] && x.n<=r[1]).map(x=>x.n).slice(0,2);
+    arr.forEach(n=>{ if(nums.length<5) nums.push(n); });
+  });
   return nums;
 }
 
@@ -108,12 +125,15 @@ function hitCount(actual, pred){
 
 function runBacktest(){
   backtestResults = [];
+  const freq = computeFrequency(csvData);
   csvData.forEach(row=>{
-    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L1', pred:generatePredictionL1(), hits:0});
-    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L2', pred:generatePredictionL2(), hits:0});
-    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L3', pred:generatePredictionL3(), hits:0});
+    const l1 = generatePredictionL1(freq);
+    const l2 = generatePredictionL2(freq);
+    const l3 = generatePredictionL3(freq);
+    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L1', pred:l1, hits:hitCount(row.numbers,l1)});
+    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L2', pred:l2, hits:hitCount(row.numbers,l2)});
+    backtestResults.push({date:row.date, actual:row.numbers, strategy:'L3', pred:l3, hits:hitCount(row.numbers,l3)});
   });
-  backtestResults.forEach(r=> r.hits = hitCount(r.actual, r.pred));
   document.getElementById('backtestCount').innerText = `回測筆數：${backtestResults.length}`;
   updateLog();
 }
@@ -122,7 +142,7 @@ function updateLog(){
   const select = document.getElementById('strategySelect').value;
   const logBody = document.getElementById('backtestLog');
   logBody.innerHTML = '';
-  const filtered = backtestResults.filter(r=>r.strategy===select).slice(-30); // 最近30期
+  const filtered = backtestResults.filter(r=>r.strategy===select).slice(-30); 
   filtered.forEach(r=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${r.date}</td><td>${r.actual.join(',')}</td><td>${r.pred.join(',')}</td><td>${r.hits}</td>`;
