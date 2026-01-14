@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539策略回測 Demo v5</title>
+<title>539策略回測 Demo v6</title>
 <style>
 html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#0B2545; color:#F0F0F0; }
 .container { display:flex; flex-direction:column; align-items:center; padding:10px; min-height:100vh; box-sizing:border-box; }
@@ -22,7 +22,7 @@ td { background:#142850; }
 </head>
 <body>
 <div class="container">
-<h1>539策略回測 Demo v5</h1>
+<h1>539策略回測 Demo v6</h1>
 
 <div class="card">
 <h2>上傳歷史 CSV</h2>
@@ -44,7 +44,7 @@ td { background:#142850; }
 </div>
 
 <div class="card">
-<h2>回測 Log (近30期)</h2>
+<h2>回測 Log (最近30期，最新在上)</h2>
 <label for="strategySelect">選擇策略：</label>
 <select id="strategySelect" onchange="updateLog()">
   <option value="L1">L1</option>
@@ -110,7 +110,6 @@ function generatePredictionL2(freq){
 function generatePredictionL3(freq){
   const nums = [];
   let sorted = freq.map((c,n)=>({n,c})).filter(x=>x.n>0).sort((a,b)=>b.c - a.c);
-  // 1-13,14-26,27-39 各取1-2個
   const ranges = [[1,13],[14,26],[27,39]];
   ranges.forEach(r=>{
     const arr = sorted.filter(x=>x.n>=r[0] && x.n<=r[1]).map(x=>x.n).slice(0,2);
@@ -142,7 +141,8 @@ function updateLog(){
   const select = document.getElementById('strategySelect').value;
   const logBody = document.getElementById('backtestLog');
   logBody.innerHTML = '';
-  const filtered = backtestResults.filter(r=>r.strategy===select).slice(-30); 
+  // 取最近30期，越新越上
+  const filtered = backtestResults.filter(r=>r.strategy===select).slice(-30).reverse();
   filtered.forEach(r=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${r.date}</td><td>${r.actual.join(',')}</td><td>${r.pred.join(',')}</td><td>${r.hits}</td>`;
