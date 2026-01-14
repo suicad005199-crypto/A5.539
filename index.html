@@ -2,149 +2,135 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>539 回測系統｜逐期牌組驗證</title>
+<title>539 回測系統｜每期必出手版</title>
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; }
-button { padding: 8px 16px; margin: 10px 0; }
-.result { margin-top: 20px; line-height: 1.8; }
-.highlight { font-size: 18px; font-weight: bold; }
+body { font-family: Arial; padding: 20px; }
 table { border-collapse: collapse; margin-top: 10px; }
 th, td { border: 1px solid #999; padding: 4px 6px; text-align: center; }
 th { background: #eee; }
 .hit { color: red; font-weight: bold; }
-.period { margin-top: 30px; }
-.maxhit { font-weight: bold; margin-top: 5px; }
+.period { margin-top: 25px; }
 </style>
 </head>
 <body>
 
-<h2>539 回測系統（逐期牌組＋命中標色）</h2>
-
+<h2>539 回測系統（每期必出手）</h2>
 <input type="file" id="csvFile" accept=".csv">
-<br>
-<button onclick="runBacktest()">執行回測</button>
+<br><button onclick="run()">執行回測</button>
 
-<div id="output" class="result"></div>
+<div id="summary"></div>
 <div id="detail"></div>
 
 <script>
-function parseCSV(text) {
-  return text.trim().split("\n").slice(1).map(r => {
-    const p = r.split(",");
-    return { date: p[0], nums: p.slice(1).map(Number) };
+function parseCSV(t){
+  return t.trim().split("\n").slice(1).map(r=>{
+    const p=r.split(",");
+    return {date:p[0], nums:p.slice(1).map(Number)};
   });
 }
 
-function runBacktest() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) return alert("請上傳 CSV");
+function run(){
+  const f=document.getElementById("csvFile").files[0];
+  if(!f) return alert("請上傳 CSV");
+  const r=new FileReader();
+  r.onload=()=>{
+    const d=parseCSV(r.result);
+    let total=0, hit2=0, hit3=0, hit4=0;
+    let detail="";
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    const draws = parseCSV(reader.result);
-
-    let total = 0, played = 0;
-    let hit2 = 0, hit3 = 0, hit4 = 0;
-    let hitPeriods = 0;
-
-    let detailHTML = "";
-
-    for (let i = 30; i < draws.length; i++) {
+    for(let i=30;i<d.length;i++){
       total++;
-      const history = draws.slice(0, i);
-      const actual = draws[i];
+      const hist=d.slice(0,i);
+      const act=d[i];
 
-      // ===== Gap ≥20 =====
-      const gap = {};
-      for (let n = 1; n <= 39; n++) gap[n] = 0;
-      history.forEach(d => {
-        for (let n = 1; n <= 39; n++) gap[n]++;
-        d.nums.forEach(n => gap[n] = 0);
+      // === 計 Gap ===
+      const gap={};
+      for(let n=1;n<=39;n++) gap[n]=0;
+      hist.forEach(dr=>{
+        for(let n=1;n<=39;n++) gap[n]++;
+        dr.nums.forEach(n=>gap[n]=0);
       });
-      const cold = Object.keys(gap).filter(n => gap[n] >= 20).map(Number);
-      if (cold.length === 0) continue;
 
-      // ===== 熱號 近5期 ≥3 =====
-      const freq = {};
-      history.slice(-5).forEach(d =>
-        d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1)
-      );
-      const hot = Object.keys(freq).filter(n => freq[n] >= 3).map(Number);
-      if (hot.length === 0) continue;
+      // === 計 熱度 ===
+      const freq={};
+      hist.slice(-10).forEach(dr=>{
+        dr.nums.forEach(n=>freq[n]=(freq[n]||0)+1);
+      });
 
-      // ===== 熱號釋放 =====
-      const last3 = history.slice(-3).flatMap(d => d.nums);
-      const last1 = history[history.length - 1].nums;
-      const releaseHot = hot.filter(n => last3.includes(n) && !last1.includes(n));
-      if (releaseHot.length === 0) continue;
+      // === 每顆號碼評分 ===
+      const score={};
+      for(let n=1;n<=39;n++){
+        let s=0;
+        if(gap[n]>=15) s+=3;
+        else if(gap[n]>=8) s+=2;
+        else if(gap[n]>=3) s+=1;
 
-      played++;
+        if(freq[n]>=4) s+=3;
+        else if(freq[n]>=2) s+=2;
+        else if(freq[n]>=1) s+=1;
 
-      // ===== 產生牌組 =====
-      const preds = [];
-      for (let a = 0; a < releaseHot.length && preds.length < 12; a++)
-        for (let b = 0; b < hot.length && preds.length < 12; b++)
-          for (let c = b + 1; c < hot.length && preds.length < 12; c++)
-            for (let d = 0; d < cold.length && preds.length < 12; d++) {
-              const p = [
-                releaseHot[a],
-                hot[b],
-                hot[c],
-                cold[d],
-                cold[(d + 1) % cold.length]
-              ];
-              if (new Set(p).size === 5) preds.push(p);
-            }
+        score[n]=s;
+      }
 
-      let maxHit = 0;
-      let rows = "";
+      // === 取前12顆 ===
+      const pool=Object.keys(score)
+        .sort((a,b)=>score[b]-score[a])
+        .slice(0,12).map(Number);
 
-      preds.forEach(p => {
-        let hitCount = 0;
-        const cells = p.map(n => {
-          if (actual.nums.includes(n)) {
-            hitCount++;
-            return `<span class="hit">${n}</span>`;
-          }
+      // === 組合 ===
+      const combos=[];
+      for(let a=0;a<pool.length;a++)
+      for(let b=a+1;b<pool.length;b++)
+      for(let c=b+1;c<pool.length;c++)
+      for(let e=c+1;e<pool.length;e++)
+      for(let f=e+1;f<pool.length;f++){
+        const p=[pool[a],pool[b],pool[c],pool[e],pool[f]];
+        let odd=p.filter(n=>n%2).length;
+        let ps=p.reduce((x,n)=>x+score[n],0);
+        if(odd===2||odd===3) ps+=2;
+        combos.push({p, ps});
+      }
+
+      combos.sort((x,y)=>y.ps-x.ps);
+      const plays=combos.slice(0,10);
+
+      let max=0, rows="";
+      plays.forEach(c=>{
+        let h=0;
+        const cells=c.p.map(n=>{
+          if(act.nums.includes(n)){h++; return `<span class="hit">${n}</span>`;}
           return n;
         });
-        if (hitCount > maxHit) maxHit = hitCount;
-        rows += `<tr><td>${cells.join("</td><td>")}</td><td>${hitCount}</td></tr>`;
+        if(h>max) max=h;
+        rows+=`<tr><td>${cells.join("</td><td>")}</td><td>${h}</td></tr>`;
       });
 
-      if (maxHit >= 2) hitPeriods++;
-      if (maxHit >= 2) hit2++;
-      if (maxHit >= 3) hit3++;
-      if (maxHit >= 4) hit4++;
+      if(max>=2) hit2++;
+      if(max>=3) hit3++;
+      if(max>=4) hit4++;
 
-      detailHTML += `
+      detail+=`
         <div class="period">
-          <div><b>${actual.date}</b></div>
-          <div>開獎號碼：${actual.nums.join(", ")}</div>
+          <b>${act.date}</b>｜開獎：${act.nums.join(", ")}
           <table>
-            <tr><th colspan="5">牌組</th><th>中</th></tr>
+            <tr><th colspan="5">出手牌</th><th>中</th></tr>
             ${rows}
           </table>
-          <div class="maxhit">本期最高命中：${maxHit}</div>
-        </div>
-      `;
+          本期最高命中：${max}
+        </div>`;
     }
 
-    document.getElementById("output").innerHTML = `
-      <b>可回測期數：</b>${total}<br>
-      <b>出手期數：</b>${played}<br>
-      <span class="highlight">出手比例：${(played / total * 100).toFixed(1)}%</span><hr>
-      <b>命中期數（≥2）：</b>${hitPeriods}<br>
-      出手期 ≥2：${played ? (hit2 / played * 100).toFixed(1) : 0}%<br>
-      出手期 ≥3：${played ? (hit3 / played * 100).toFixed(1) : 0}%<br>
-      出手期 ≥4：${played ? (hit4 / played * 100).toFixed(1) : 0}%
+    document.getElementById("summary").innerHTML=`
+      可回測期數：${total}<br>
+      出手期數：${total}<br>
+      出手期 ≥2：${(hit2/total*100).toFixed(1)}%<br>
+      出手期 ≥3：${(hit3/total*100).toFixed(1)}%<br>
+      出手期 ≥4：${(hit4/total*100).toFixed(1)}%
     `;
-
-    document.getElementById("detail").innerHTML = detailHTML;
+    document.getElementById("detail").innerHTML=detail;
   };
-  reader.readAsText(file);
+  r.readAsText(f);
 }
 </script>
-
 </body>
 </html>
