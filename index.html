@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539策略回測 Demo v8</title>
+<title>539策略回測 Demo v9</title>
 <style>
 html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#0B2545; color:#F0F0F0; }
 .container { display:flex; flex-direction:column; align-items:center; padding:10px; min-height:100vh; box-sizing:border-box; }
@@ -11,8 +11,9 @@ h1 { font-size:1.8em; margin:10px 0; text-align:center; }
 .card { background:#142850; border-radius:12px; padding:15px; margin:10px 0; width:90%; max-width:500px; box-shadow:0 4px 8px rgba(0,0,0,0.3); }
 .card h2 { margin:0 0 10px 0; font-size:1.2em; color:#F8F8FF; }
 .card p { margin:5px 0; font-size:1em; line-height:1.4; }
-button, select { background:#1B3B6F; color:#F0F0F0; border:none; border-radius:10px; padding:10px; margin:5px 5px 5px 0; font-size:1em; width:48%; }
-span.rateDisplay { display:inline-block; width:48%; text-align:center; font-weight:bold; font-size:1em; color:#FFD700; }
+button, select { background:#1B3B6F; color:#F0F0F0; border:none; border-radius:10px; padding:10px; margin:5px 5px 5px 0; font-size:1em; width:48%; box-sizing:border-box; }
+span.rateDisplay { display:inline-block; width:48%; text-align:center; font-weight:bold; font-size:1em; color:#FFD700; line-height:2.2em; vertical-align:middle; }
+.table-container { width:100%; overflow-x:auto; }
 table { width:100%; border-collapse:collapse; margin-top:10px; }
 th, td { border:1px solid #334A69; padding:8px; text-align:center; }
 th { background:#1B3B6F; }
@@ -22,7 +23,7 @@ td { background:#142850; }
 </head>
 <body>
 <div class="container">
-<h1>539策略回測 Demo v8</h1>
+<h1>539策略回測 Demo v9</h1>
 
 <div class="card">
 <h2>上傳歷史 CSV</h2>
@@ -45,13 +46,15 @@ td { background:#142850; }
 
 <div class="card">
 <h2>回測 Log (最近30期，最新在上)</h2>
-<label for="strategySelect">選擇策略：</label>
+<div style="display:flex; align-items:center; margin-bottom:5px;">
 <select id="strategySelect" onchange="updateLog()">
   <option value="L1">L1</option>
   <option value="L2">L2</option>
   <option value="L3">L3</option>
 </select>
 <span class="rateDisplay" id="recent5Rate">近5期命中率: --</span>
+</div>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -60,6 +63,7 @@ td { background:#142850; }
 </thead>
 <tbody id="backtestLog"></tbody>
 </table>
+</div>
 </div>
 </div>
 
@@ -91,7 +95,7 @@ function computeFrequency(data){
   return freq;
 }
 
-// 策略生成函數
+// 策略生成
 function generatePredictionL1(freq){
   const nums = [];
   freq.forEach((count, n) => { if(n>0) nums.push({n, count}); });
@@ -146,10 +150,10 @@ function updateLog(){
     tr.innerHTML = `<td>${r.date}</td><td>${r.actual.join(',')}</td><td>${r.pred.join(',')}</td><td>${r.hits}</td>`;
     logBody.appendChild(tr);
   });
-  // 計算最近五期命中率
+  // 計算近5期命中率（只算命中2星的期數）
   const recent5 = backtestResults.filter(r=>r.strategy===select).slice(-5);
-  const hitsSum = recent5.reduce((sum,x)=>sum+x.hits,0);
-  const rate = recent5.length>0 ? (hitsSum / (recent5.length*2)*100).toFixed(1) + '%' : '--';
+  const twoStarHits = recent5.filter(x=>x.hits===2).length;
+  const rate = recent5.length>0 ? (twoStarHits / recent5.length * 100).toFixed(1) + '%' : '--';
   document.getElementById('recent5Rate').innerText = `近5期命中率: ${rate}`;
 }
 </script>
