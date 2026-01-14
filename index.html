@@ -2,11 +2,11 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>539 聯集 ≥2 覆蓋率回測</title>
+<title>539 聯集 ≥2 覆蓋率回測（穩定版）</title>
 <style>
 body { font-family: Arial; padding: 20px; }
-table { border-collapse: collapse; margin-top: 10px; }
-td, th { border: 1px solid #ccc; padding: 6px 8px; text-align: center; }
+table { border-collapse: collapse; margin-top: 12px; }
+td, th { border: 1px solid #aaa; padding: 6px 10px; text-align: center; }
 .good { background: #c8f7c5; font-weight: bold; }
 </style>
 </head>
@@ -37,15 +37,21 @@ function run() {
 }
 
 function simulate(data) {
-  let total = data.length - 10;
+  if (data.length < 20) {
+    alert('資料期數不足（至少 20 期）');
+    return;
+  }
+
+  const start = 10;
+  const total = data.length - start;
 
   let hit6 = 0, hit8 = 0, hit10 = 0, hit12 = 0;
 
-  for (let i = 10; i < data.length; i++) {
+  for (let i = start; i < data.length; i++) {
     const hist = data.slice(i - 10, i);
     const target = data[i].nums;
 
-    // 穩定池：熱號 + 冷號
+    /* === 建立穩定 pool === */
     const freq = {};
     hist.forEach(d => d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1));
     const hot = Object.keys(freq).filter(n => freq[n] >= 2).map(Number);
@@ -58,31 +64,35 @@ function simulate(data) {
       .filter(n => i - lastSeen[n] >= 12)
       .map(Number);
 
-    const pool = [...new Set([...hot, ...cold])].filter(n => n >= 1 && n <= 39);
+    let pool = [...new Set([...hot, ...cold])].filter(n => n >= 1 && n <= 39);
 
-    // 固定生成 12 組（不隨機）
+    /* pool 不足補齊 */
+    for (let n = 1; pool.length < 20 && n <= 39; n++) {
+      if (!pool.includes(n)) pool.push(n);
+    }
+
+    /* === 固定生成 12 組 === */
     let picks = [];
-    for (let k = 0; k < pool.length && picks.length < 12; k++) {
-      for (let j = k + 1; j < pool.length && picks.length < 12; j++) {
-        for (let m = j + 1; m < pool.length && picks.length < 12; m++) {
-          let c = [pool[k], pool[j], pool[m]];
-          while (c.length < 5) {
-            const n = pool[(c.length * 7 + k) % pool.length];
-            if (!c.includes(n)) c.push(n);
-          }
-          const odd = c.filter(n => n % 2).length;
-          const sum = c.reduce((a,b)=>a+b,0);
-          if ((odd === 2 || odd === 3) && sum >= 70 && sum <= 115) {
-            picks.push(c.sort((a,b)=>a-b));
-          }
-        }
+    let idx = 0;
+    while (picks.length < 12) {
+      let c = [];
+      for (let k = 0; k < pool.length && c.length < 5; k++) {
+        const n = pool[(idx + k * 3) % pool.length];
+        if (!c.includes(n)) c.push(n);
+      }
+      idx++;
+
+      const odd = c.filter(n => n % 2).length;
+      const sum = c.reduce((a,b)=>a+b,0);
+
+      if ((odd === 2 || odd === 3) && sum >= 70 && sum <= 115) {
+        picks.push(c.sort((a,b)=>a-b));
       }
     }
 
     function unionHit(cnt) {
       for (let i = 0; i < cnt; i++) {
-        if (!picks[i]) continue;
-        let h = picks[i].filter(n => target.includes(n)).length;
+        const h = picks[i].filter(n => target.includes(n)).length;
         if (h >= 2) return true;
       }
       return false;
@@ -95,17 +105,17 @@ function simulate(data) {
   }
 
   document.getElementById('summary').innerHTML = `
-  <h3>回測結果（${total} 期）</h3>
-  <table>
-    <tr>
-      <th>出手組數</th>
-      <th>聯集 ≥2 命中率</th>
-    </tr>
-    <tr><td>6 組</td><td>${(hit6/total*100).toFixed(1)}%</td></tr>
-    <tr><td>8 組</td><td>${(hit8/total*100).toFixed(1)}%</td></tr>
-    <tr class="good"><td>10 組</td><td>${(hit10/total*100).toFixed(1)}%</td></tr>
-    <tr><td>12 組</td><td>${(hit12/total*100).toFixed(1)}%</td></tr>
-  </table>
+    <h3>回測結果（${total} 期）</h3>
+    <table>
+      <tr>
+        <th>出手組數</th>
+        <th>聯集 ≥2 命中率</th>
+      </tr>
+      <tr><td>6 組</td><td>${(hit6/total*100).toFixed(1)}%</td></tr>
+      <tr><td>8 組</td><td>${(hit8/total*100).toFixed(1)}%</td></tr>
+      <tr class="good"><td>10 組</td><td>${(hit10/total*100).toFixed(1)}%</td></tr>
+      <tr><td>12 組</td><td>${(hit12/total*100).toFixed(1)}%</td></tr>
+    </table>
   `;
 }
 </script>
