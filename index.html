@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>539策略回測 Demo v1</title>
+<title>539策略回測 Demo v2</title>
 <style>
 html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#0B2545; color:#F0F0F0; }
 .container { display:flex; flex-direction:column; align-items:center; padding:10px; min-height:100vh; box-sizing:border-box; }
@@ -17,105 +17,4 @@ table { width:100%; border-collapse:collapse; margin-top:10px; }
 th, td { border:1px solid #334A69; padding:8px; text-align:center; }
 th { background:#1B3B6F; }
 td { background:#142850; }
-@media(max-width:400px){ h1{font-size:1.5em;} .card{padding:12px;} button{padding:10px;font-size:0.9em;} }
-</style>
-</head>
-<body>
-<div class="container">
-<h1>539策略回測 Demo v1</h1>
-
-<div class="card">
-<h2>上傳歷史 CSV</h2>
-<input type="file" id="csvFile" accept=".csv">
-<p id="csvCount">CSV 筆數：0</p>
-</div>
-
-<div class="card">
-<h2>策略模組</h2>
-<p>L1：S1 趨勢動能</p>
-<p>L2：S1 + S2 冷熱混合</p>
-<p>L3：S1 + S2 + S3 結構約束</p>
-</div>
-
-<div class="card">
-<h2>回測控制</h2>
-<button onclick="runBacktest()">執行回測</button>
-<p id="backtestCount">回測筆數：0</p>
-</div>
-
-<div class="card">
-<h2>回測 Log</h2>
-<table>
-<thead>
-<tr><th>日期</th><th>開獎號碼</th><th>預測號碼</th></tr>
-</thead>
-<tbody id="backtestLog"></tbody>
-</table>
-</div>
-</div>
-
-<script>
-let csvData = [];
-
-document.getElementById('csvFile').addEventListener('change', function(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(event){
-    const text = event.target.result;
-    csvData = text.trim().split('\n').slice(1).map(line=>{
-      const [date,n1,n2,n3,n4,n5] = line.split(',');
-      return {date, numbers:[n1,n2,n3,n4,n5]};
-    });
-    document.getElementById('csvCount').innerText = `CSV 筆數：${csvData.length}`;
-  };
-  reader.readAsText(file);
-});
-
-// Demo 策略生成
-function generatePredictionL1(){ //S1 趨勢動能
-  const nums = [];
-  while(nums.length<5){
-    const n = Math.floor(Math.random()*39)+1;
-    if(!nums.includes(n)) nums.push(n);
-  }
-  return nums;
-}
-function generatePredictionL2(){ //S1+S2 冷熱融合
-  const nums = generatePredictionL1();
-  while(nums.length<5){
-    const n = Math.floor(Math.random()*39)+1;
-    if(!nums.includes(n)) nums.push(n);
-  }
-  return nums;
-}
-function generatePredictionL3(){ //S1+S2+S3 結構約束
-  const nums = generatePredictionL2();
-  nums.sort((a,b)=>a-b);
-  return nums;
-}
-
-function runBacktest(){
-  const logBody = document.getElementById('backtestLog');
-  logBody.innerHTML = '';
-  let count = 0;
-  csvData.forEach(row=>{
-    const predL1 = generatePredictionL1();
-    const predL2 = generatePredictionL2();
-    const predL3 = generatePredictionL3();
-    const tr1 = document.createElement('tr');
-    tr1.innerHTML = `<td>${row.date}</td><td>${row.numbers.join(',')}</td><td>${predL1.join(',')}</td>`;
-    logBody.appendChild(tr1);
-    const tr2 = document.createElement('tr');
-    tr2.innerHTML = `<td>${row.date}</td><td>${row.numbers.join(',')}</td><td>${predL2.join(',')}</td>`;
-    logBody.appendChild(tr2);
-    const tr3 = document.createElement('tr');
-    tr3.innerHTML = `<td>${row.date}</td><td>${row.numbers.join(',')}</td><td>${predL3.join(',')}</td>`;
-    logBody.appendChild(tr3);
-    count += 3;
-  });
-  document.getElementById('backtestCount').innerText = `回測筆數：${count}`;
-}
-</script>
-</body>
-</html>
+@media(max-width:400px){ h1{font-size:1.
