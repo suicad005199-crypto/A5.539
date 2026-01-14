@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>539 覆蓋導向回測系統（路 A）</title>
+<title>539 覆蓋導向回測系統（組別貢獻）</title>
 <style>
 body { font-family: Arial; padding: 20px; }
 table { border-collapse: collapse; margin-top: 12px; font-size: 13px; }
@@ -14,12 +14,13 @@ td, th { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
 </head>
 <body>
 
-<h2>539 覆蓋導向策略系統（路 A）</h2>
+<h2>539 覆蓋導向策略系統（組別 ≥2 貢獻）</h2>
 
 <input type="file" id="csvFile" accept=".csv">
 <button onclick="run()">執行回測</button>
 
 <div id="summary"></div>
+<div id="group"></div>
 <div id="next"></div>
 <div id="log"></div>
 
@@ -40,34 +41,27 @@ function run() {
 }
 
 function buildCoveragePicks(fullData, idx) {
-  // 計算歷史出現次數（全歷史，非短窗）
   const freq = {};
   fullData.slice(0, idx).forEach(d =>
     d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1)
   );
 
-  // 補洞池：歷史最少出現的號碼
   const cold = Object.keys(freq)
     .map(Number)
     .sort((a,b)=>freq[a]-freq[b]);
 
   return [
-    rangePick(1,15),
-    rangePick(10,24),
-    rangePick(16,30),
-    rangePick(25,39),
+    [1,2,3,4,5],
+    [10,11,12,13,14],
+    [16,17,18,19,20],
+    [25,26,27,28,29],
     cold.slice(0,5)
   ];
 }
 
-function rangePick(min, max) {
-  let r=[];
-  for(let i=min;i<=max;i++) r.push(i);
-  return r.slice(0,5);
-}
-
 function simulate(data) {
   let hit2=0, hit3=0, hit4=0;
+  let groupHit2=[0,0,0,0,0];
   let rows='';
 
   for (let i=0;i<data.length;i++) {
@@ -75,9 +69,10 @@ function simulate(data) {
     const target=data[i].nums;
 
     let best=0;
-    picks.forEach(p=>{
+    picks.forEach((p,gi)=>{
       const h=p.filter(n=>target.includes(n)).length;
       best=Math.max(best,h);
+      if (h>=2) groupHit2[gi]++;
     });
 
     if (best>=2) hit2++;
@@ -92,13 +87,19 @@ function simulate(data) {
   }
 
   const total=data.length;
+
   document.getElementById('summary').innerHTML=`
-    <h3>回測結果（覆蓋導向）</h3>
-    可回測期數：${total}<br>
-    出手期數：${total}<br>
-    ≥2 命中率：${(hit2/total*100).toFixed(1)}%<br>
-    ≥3 命中率：${(hit3/total*100).toFixed(1)}%<br>
-    ≥4 命中率：${(hit4/total*100).toFixed(1)}%
+    <h3>整體命中</h3>
+    ≥2：${(hit2/total*100).toFixed(1)}%　
+    ≥3：${(hit3/total*100).toFixed(1)}%　
+    ≥4：${(hit4/total*100).toFixed(1)}%
+  `;
+
+  document.getElementById('group').innerHTML=`
+    <h3>各組 ≥2 命中次數（貢獻度）</h3>
+    ${groupHit2.map((c,i)=>
+      `組${i+1}：${c} 期（${(c/total*100).toFixed(1)}%）`
+    ).join('<br>')}
   `;
 
   document.getElementById('log').innerHTML=
@@ -113,7 +114,7 @@ function simulate(data) {
 function predictNext(data){
   const picks=buildCoveragePicks(data,data.length);
   document.getElementById('next').innerHTML=`
-    <h3>📌 下期預測牌組（5 組｜覆蓋導向）</h3>
+    <h3>📌 下期預測牌組（覆蓋導向）</h3>
     ${picks.map((p,i)=>`組${i+1}：[${p.join(' ')}]`).join('<br>')}
   `;
 }
