@@ -10,6 +10,7 @@ td, th { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
 .hit2 { background: #d0f0d0; }
 .hit3 { background: #90e090; font-weight: bold; }
 .warn { color: red; font-weight: bold; }
+.reject { color: #b00000; font-weight: bold; font-size: 16px; }
 </style>
 </head>
 <body>
@@ -44,6 +45,8 @@ function simulate(data) {
   let hit2 = 0, hit3 = 0, hit4 = 0;
   let no3 = 0;
   let rows = '';
+
+  const total = data.length - 10;
 
   for (let i = 10; i < data.length; i++) {
     const hist = data.slice(i - 10, i);
@@ -91,14 +94,26 @@ function simulate(data) {
     </tr>`;
   }
 
+  const rate2 = hit2 / total * 100;
+  const rate3 = hit3 / total * 100;
+  const rate4 = hit4 / total * 100;
+
   document.getElementById('summary').innerHTML = `
   <h3>回測結果</h3>
-  可回測期數：${data.length - 10}<br>
-  出手期數：${data.length - 10}<br>
-  ≥2：${(hit2/(data.length-10)*100).toFixed(1)}%<br>
-  ≥3：${(hit3/(data.length-10)*100).toFixed(1)}%<br>
-  ≥4：${(hit4/(data.length-10)*100).toFixed(1)}%
+  可回測期數：${total}<br>
+  出手期數：${total}<br>
+  ≥2：${rate2.toFixed(1)}%<br>
+  ≥3：${rate3.toFixed(1)}%<br>
+  ≥4：${rate4.toFixed(1)}%
   `;
+
+  if (rate2 < 70) {
+    document.getElementById('warn').innerHTML =
+      `<div class="reject">❌ 策略淘汰：≥2 命中率低於 70%，已自動過濾</div>`;
+    document.getElementById('log').innerHTML = '';
+    document.getElementById('next').innerHTML = '';
+    return;
+  }
 
   document.getElementById('warn').innerHTML =
     no3 >= 20 ? `<div class="warn">⚠ 已連續 ${no3} 期未出 ≥3，建議停手</div>` : '';
@@ -130,7 +145,7 @@ function predictNext(data) {
   }
 
   document.getElementById('next').innerHTML = `
-  <h3>📌 1/14 模擬預測（10 組）</h3>
+  <h3>📌 下期模擬預測（10 組）</h3>
   ${result.map(p=>'['+p.join(' ')+']').join('<br>')}
   `;
 }
