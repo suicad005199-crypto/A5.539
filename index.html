@@ -2,19 +2,19 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>539 平衡型策略回測與預測</title>
+<title>539 覆蓋導向回測系統（路 A）</title>
 <style>
 body { font-family: Arial; padding: 20px; }
 table { border-collapse: collapse; margin-top: 12px; font-size: 13px; }
 td, th { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
 .hit2 { background:#e0f5e0; }
-.hit3 { background:#9fe29f; font-weight:bold; }
+.hit3 { background:#a5e0a5; font-weight:bold; }
 .hit4 { background:#ffd54f; font-weight:bold; }
 </style>
 </head>
 <body>
 
-<h2>539 平衡型策略系統（路線 B）</h2>
+<h2>539 覆蓋導向策略系統（路 A）</h2>
 
 <input type="file" id="csvFile" accept=".csv">
 <button onclick="run()">執行回測</button>
@@ -39,46 +39,40 @@ function run() {
   r.readAsText(f);
 }
 
-function buildPicks(hist, fullData, idx) {
+function buildCoveragePicks(fullData, idx) {
+  // 計算歷史出現次數（全歷史，非短窗）
   const freq = {};
-  hist.forEach(d => d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1));
+  fullData.slice(0, idx).forEach(d =>
+    d.nums.forEach(n => freq[n] = (freq[n] || 0) + 1)
+  );
 
-  const hot = Object.keys(freq)
-    .filter(n => freq[n] >= 2)
+  // 補洞池：歷史最少出現的號碼
+  const cold = Object.keys(freq)
     .map(Number)
-    .sort((a,b) => freq[b]-freq[a]);
+    .sort((a,b)=>freq[a]-freq[b]);
 
-  const lastSeen = {};
-  fullData.slice(0, idx).forEach((d,i) => d.nums.forEach(n => lastSeen[n]=i));
-
-  const gap = Object.keys(lastSeen)
-    .map(Number)
-    .sort((a,b)=>(idx-lastSeen[b])-(idx-lastSeen[a]));
-
-  const pool = [...new Set([
-    ...hot.slice(0,6),
-    ...gap.slice(0,6),
-    ...hot.slice(6,8)
-  ])].filter(n=>n>=1&&n<=39);
-
-  // 角色分工 5 組（deterministic）
   return [
-    pool.slice(0,5),
-    pool.slice(1,6),
-    pool.slice(2,7),
-    [pool[0],pool[2],pool[4],pool[6],pool[8]].filter(n=>n!==undefined),
-    [pool[1],pool[3],pool[5],pool[7],pool[9]].filter(n=>n!==undefined)
-  ].map(p=>p.sort((a,b)=>a-b));
+    rangePick(1,15),
+    rangePick(10,24),
+    rangePick(16,30),
+    rangePick(25,39),
+    cold.slice(0,5)
+  ];
+}
+
+function rangePick(min, max) {
+  let r=[];
+  for(let i=min;i<=max;i++) r.push(i);
+  return r.slice(0,5);
 }
 
 function simulate(data) {
   let hit2=0, hit3=0, hit4=0;
   let rows='';
 
-  for (let i=10;i<data.length;i++) {
-    const hist=data.slice(i-10,i);
+  for (let i=0;i<data.length;i++) {
+    const picks=buildCoveragePicks(data,i);
     const target=data[i].nums;
-    const picks=buildPicks(hist,data,i);
 
     let best=0;
     picks.forEach(p=>{
@@ -93,13 +87,13 @@ function simulate(data) {
     rows+=`<tr class="${best>=4?'hit4':best>=3?'hit3':best>=2?'hit2':''}">
       <td>${data[i].date}</td>
       <td>${best}</td>
-      <td>${picks.map(p=>'['+p.join(' ')+']').join('<br>')}</td>
+      <td>${picks.map((p,i)=>`組${i+1}：[${p.join(' ')}]`).join('<br>')}</td>
     </tr>`;
   }
 
-  const total=data.length-10;
+  const total=data.length;
   document.getElementById('summary').innerHTML=`
-    <h3>回測結果</h3>
+    <h3>回測結果（覆蓋導向）</h3>
     可回測期數：${total}<br>
     出手期數：${total}<br>
     ≥2 命中率：${(hit2/total*100).toFixed(1)}%<br>
@@ -117,11 +111,9 @@ function simulate(data) {
 }
 
 function predictNext(data){
-  const hist=data.slice(-10);
-  const picks=buildPicks(hist,data,data.length);
-
+  const picks=buildCoveragePicks(data,data.length);
   document.getElementById('next').innerHTML=`
-    <h3>📌 下期預測牌組（5 組｜平衡型）</h3>
+    <h3>📌 下期預測牌組（5 組｜覆蓋導向）</h3>
     ${picks.map((p,i)=>`組${i+1}：[${p.join(' ')}]`).join('<br>')}
   `;
 }
