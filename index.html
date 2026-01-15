@@ -5,168 +5,115 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>必中 v1</title>
 <style>
-body { margin:0; font-family:-apple-system,BlinkMacSystemFont; background:#0f1a2b; color:#fff; }
-h1 { text-align:center; margin:12px 0; color:#00ff99; }
-.panel { padding:16px; border-bottom:1px solid #24324a; }
-h2 { margin:0 0 12px 0; font-size:18px; }
-button, select, input { width:100%; padding:14px; font-size:16px; margin-top:8px; border-radius:12px; border:none; }
-button { background:#1e3a5f; color:#fff; transition:0.2s; }
-button:hover:not(.disabled){ background:#2a4a7f; cursor:pointer; }
-button.disabled { opacity:0.5; pointer-events:none; }
-.log-item { background:#16253d; padding:12px; border-radius:12px; margin-bottom:10px; }
-.small { font-size:13px; opacity:0.8; margin-top:2px; }
-.strategy-num { display:inline-block; padding:4px 8px; border-radius:8px; margin:2px; cursor:default; }
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont;background:#0f1a2b;color:#fff}
+h1{text-align:center;color:#00ff99;margin:12px 0}
+.panel{padding:14px;border-bottom:1px solid #24324a}
+h2{font-size:17px;margin-bottom:10px}
+button,input{width:100%;padding:12px;border-radius:10px;border:none;font-size:15px}
+button{background:#1e3a5f;color:#fff}
+.log{background:#16253d;border-radius:10px;padding:10px;margin-bottom:10px}
+.small{font-size:13px;opacity:.85}
+.strategy{margin-top:6px}
 </style>
 </head>
 <body>
 
 <h1>必中 v1</h1>
 
-<!-- Panel 1：CSV 上傳 & 回測 -->
 <div class="panel">
   <h2>Panel 1｜CSV 上傳 & 回測</h2>
   <input type="file" id="csvInput" accept=".csv">
   <button onclick="runBacktest()">執行回測</button>
 </div>
 
-<!-- Panel 2：策略近10期回測 Log -->
 <div class="panel">
   <h2>Panel 2｜近10期回測 Log</h2>
-  <div id="logContainer"></div>
+  <div id="logPanel"></div>
 </div>
 
-<!-- Panel 3：策略群組與差異性 -->
 <div class="panel">
-  <h2>Panel 3｜策略群組與差異性</h2>
-  <div id="strategyDiff"></div>
+  <h2>Panel 3｜策略差異</h2>
+  <div id="diffPanel"></div>
 </div>
 
-<!-- Panel 4：實戰預測 & 歷史 log -->
 <div class="panel">
-  <h2>Panel 4｜實戰預測</h2>
-  <button id="predictBtn" class="disabled" onclick="runLivePrediction()">產生預測號碼</button>
-  <div id="liveResult"></div>
-  <button onclick="viewHistory()">查看歷史績效</button>
+  <h2>Panel 4｜下一期預測</h2>
+  <button onclick="predictNext()">產生預測</button>
+  <div id="predictPanel"></div>
 </div>
 
 <script>
-let data=[], logs={}, bestParams={}, historyJSON=[]
-const strategies = {
-  hot:{name:"熱號策略", group:"熱號組", params:{N:10}, predict(h,p){return pickTopWeighted(h,p.N)}},
-  coldHot:{name:"冷熱混合策略", group:"混合組", params:{hotN:5,coldN:5}, predict(h,p){
-    const hot=pickTopWeighted(h,p.hotN); const cold=pickTopWeighted(h,p.coldN,true);
-    return [...new Set([...hot,...cold])].slice(0,5);
-  }},
-  oddEven:{name:"奇偶平衡策略", group:"平衡組", params:{N:10}, predict(h,p){
-    let nums=pickTopWeighted(h,p.N); let odd=nums.filter(n=>n%2===1); let even=nums.filter(n=>n%2===0);
-    while(odd.length+even.length<5){ odd.length<even.length?odd.push(nums[0]):even.push(nums[0]); }
-    return [...odd,...even].slice(0,5);
-  }},
-  consecutive:{name:"連號策略", group:"連號組", params:{N:15}, predict(h,p){
-    const freq={}; h.slice(-p.N).forEach(d=>d.numbers.forEach(n=>freq[n]=(freq[n]||0)+1));
-    const sorted=Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).map(Number);
-    let result=[]; for(let i=0;i<sorted.length;i++){ if(sorted.includes(sorted[i]+1)&&result.length<5) result.push(sorted[i],sorted[i]+1); }
-    return [...new Set(result)].slice(0,5);
-  }},
-  delayed:{name:"延遲補權策略", group:"延遲組", params:{delayN:10}, predict(h,p){
-    const freq={}; h.slice(-p.delayN).forEach(d=>d.numbers.forEach(n=>freq[n]=(freq[n]||0)+1));
-    const allNums=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
-    return allNums.filter(n=>!Object.keys(freq).includes(n.toString())).slice(0,5);
-  }}
+let data=[], logs=[]
+const strategies={
+  hot:{name:"熱號",predict:h=>pick(h,10)},
+  cold:{name:"冷號",predict:h=>pick(h,10,true)},
+  mix:{name:"冷熱混合",predict:h=>[...pick(h,5),...pick(h,5,true)]},
+  seq:{name:"連號",predict:h=>pick(h,15).filter((n,i,a)=>a.includes(n+1))},
+  delay:{name:"延遲",predict:h=>[1,2,3,4,5,6,7,8,9,10].filter(n=>!h.slice(-5).flatMap(d=>d.numbers).includes(n))}
 }
 
-// ===== CSV 讀取 =====
-document.getElementById("csvInput").addEventListener("change", e=>{
-  const file=e.target.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=()=>parseCSV(reader.result);
-  reader.readAsText(file);
-});
-function parseCSV(text){
-  const rows=text.trim().split(/\r?\n/);
-  data=rows.slice(1).map(r=>{
-    const cols=r.split(",").map(c=>c.trim());
-    return {date:cols[0], numbers: cols.slice(1).map(n=>parseInt(n,10)).filter(n=>!isNaN(n))};
-  });
-  alert(`成功讀取 ${data.length} 筆資料`);
-}
+document.getElementById("csvInput").addEventListener("change",e=>{
+  const r=new FileReader()
+  r.onload=()=>data=r.result.trim().split(/\r?\n/).slice(1).map(l=>{
+    const c=l.split(",");return{date:c[0],numbers:c.slice(1).map(Number)}
+  })
+  r.readAsText(e.target.files[0])
+})
 
-// ===== 回測 =====
 function runBacktest(){
-  logs={}; historyJSON=[]; bestParams={}
-  Object.keys(strategies).forEach(k=>logs[k]=[]);
+  logs=[]
   for(let i=3;i<data.length;i++){
-    const history=data.slice(0,i); const actual=data[i].numbers; const date=data[i].date;
-    for(const key in strategies){
-      const predicted=strategies[key].predict(history,strategies[key].params);
-      const hit=predicted.filter(n=>actual.includes(n)).length;
-      logs[key].push({date, actual, predicted, hit});
+    const h=data.slice(0,i),a=data[i]
+    const entry={date:a.date,actual:a.numbers,strategies:{},final:[]}
+    for(const k in strategies){
+      const p=strategies[k].predict(h).slice(0,5)
+      entry.strategies[k]={nums:p,hit:p.filter(n=>a.numbers.includes(n)).length}
     }
+    entry.final=Object.values(entry.strategies).flatMap(s=>s.nums)
+      .sort((a,b)=>entry.final?.filter(n=>n===b).length-entry.final?.filter(n=>n===a).length)
+      .slice(0,5)
+    logs.push(entry)
   }
-  renderLogs(); renderStrategyDiff(); document.getElementById("predictBtn").classList.remove("disabled");
+  renderLogs()
+  renderDiff()
 }
 
-// ===== Panel 2 Log =====
 function renderLogs(){
-  const container=document.getElementById("logContainer"); container.innerHTML="";
-  if(!data.length) return;
-  const last10=data.slice(-10);
-  last10.forEach((d,i)=>{
-    container.innerHTML+=`<div class="log-item"><div>${d.date}</div></div>`;
-  });
+  const el=document.getElementById("logPanel");el.innerHTML=""
+  logs.slice(-10).forEach(l=>{
+    let html=`<div class="log"><div>${l.date}</div>
+      <div class="small">開獎：${l.actual.join(" ")}</div>`
+    for(const k in l.strategies){
+      const s=l.strategies[k]
+      html+=`<div class="strategy small">${strategies[k].name}：${s.nums.join(" ")}（命中 ${s.hit}）</div>`
+    }
+    html+=`</div>`
+    el.innerHTML+=html
+  })
 }
 
-// ===== Panel 3 策略差異性 =====
-function renderStrategyDiff(){
-  const container=document.getElementById("strategyDiff"); container.innerHTML="";
-  Object.keys(strategies).forEach(k=>{
-    const log=logs[k].slice(-10);
-    const twoStar=log.filter(r=>r.hit>=2).length;
-    const rate=(log.length?((twoStar/log.length)*100).toFixed(1):0);
-    container.innerHTML+=`<div class="log-item"><strong>${strategies[k].name}</strong> (${strategies[k].group}) 近10期2星率: ${rate}%</div>`;
-  });
+function renderDiff(){
+  const el=document.getElementById("diffPanel");el.innerHTML=""
+  for(const k in strategies){
+    const hit=logs.slice(-10).filter(l=>l.strategies[k]?.hit>=2).length
+    el.innerHTML+=`<div class="small">${strategies[k].name}：2★率 ${(hit/10*100).toFixed(1)}%</div>`
+  }
 }
 
-// ===== Panel 4 實戰預測 =====
-function runLivePrediction(){
-  if(!data.length){ alert("請先上傳 CSV"); return; }
-  const votes={}; const strategyPreds={};
-  Object.keys(strategies).forEach(k=>{
-    const nums=strategies[k].predict(data,strategies[k].params);
-    strategyPreds[k]=nums;
-    nums.forEach(n=>votes[n]=(votes[n]||0)+1); //簡單投票
-  });
-  // 計算最終預測
-  const finalPrediction=Object.keys(votes).sort((a,b)=>votes[b]-votes[a]).slice(0,5).map(Number);
-  historyJSON.push({date:data[data.length-1].date, strategies:strategyPreds, finalPrediction});
-  // 顯示
-  const container=document.getElementById("liveResult"); container.innerHTML="";
-  Object.keys(strategyPreds).forEach(k=>{
-    const nums=strategyPreds[k].join(" ");
-    container.innerHTML+=`<div class="strategy-num" title="近10期命中率: ${logs[k].slice(-10).filter(r=>r.hit>=2).length*10}%">${strategies[k].name}: ${nums}</div>`;
-  });
-  container.innerHTML+=`<div class="log-item" style="margin-top:10px;"><strong>最終預測號碼:</strong> ${finalPrediction.join(" ")}</div>`;
+function predictNext(){
+  const h=data
+  let html=""
+  for(const k in strategies){
+    const p=strategies[k].predict(h).slice(0,5)
+    html+=`<div class="small">${strategies[k].name}：${p.join(" ")}</div>`
+  }
+  document.getElementById("predictPanel").innerHTML=html
 }
 
-// ===== 歷史 log 彈窗 =====
-function viewHistory(){
-  if(historyJSON.length===0){ alert("尚無歷史績效"); return; }
-  const w = window.open("", "historyWindow", "width=600,height=500,scrollbars=yes");
-  w.document.write("<html><head><title>歷史績效</title><style>body{font-family:-apple-system,BlinkMacSystemFont;color:#000;background:#fff;padding:10px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #333;padding:6px;text-align:center}</style></head><body>");
-  w.document.write("<h2>歷史績效</h2><table><tr><th>日期</th><th>策略號碼</th><th>最終預測</th></tr>");
-  historyJSON.forEach(item=>{
-    let stratStr=Object.entries(item.strategies).map(([k,v])=>`${k}: ${v.join(" ")}`).join("<br>");
-    w.document.write(`<tr><td>${item.date}</td><td>${stratStr}</td><td>${item.finalPrediction.join(" ")}</td></tr>`);
-  });
-  w.document.write("</table></body></html>");
-  w.document.close();
-}
-
-// ===== 共用工具 =====
-function pickTopWeighted(history,N,reverse=false){
-  const freq={};
-  history.forEach(d=>d.numbers.forEach(n=>freq[n]=(freq[n]||0)+1));
-  return Object.keys(freq).sort((a,b)=>reverse?freq[a]-freq[b]:freq[b]-freq[a]).slice(0,N).map(Number);
+function pick(h,n,rev){
+  const f={}
+  h.forEach(d=>d.numbers.forEach(x=>f[x]=(f[x]||0)+1))
+  return Object.keys(f).sort((a,b)=>rev?f[a]-f[b]:f[b]-f[a]).map(Number).slice(0,n)
 }
 </script>
 </body>
