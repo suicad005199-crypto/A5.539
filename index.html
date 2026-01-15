@@ -3,20 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 數據分析系統 v14.0</title>
+    <title>539 數據分析系統 v14.1</title>
     <style>
         :root { --bg: #0a192f; --card: #172a45; --gold: #c5a059; --cyan: #64ffda; --text: #e6f1ff; }
         body { font-family: -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 15px; box-sizing: border-box; }
         h2 { font-size: 0.9rem; color: var(--gold); margin-bottom: 12px; border-left: 3px solid var(--gold); padding-left: 8px; }
         .panel { background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid #233554; }
         
-        /* Panel 1 & 2 */
         .upload-btn { width: 100%; padding: 15px; background: rgba(197, 160, 89, 0.1); border: 1px dashed var(--gold); border-radius: 8px; color: var(--gold); cursor: pointer; font-weight: bold; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .stat-box { text-align: center; }
         .stat-val { font-size: 1.2rem; font-weight: bold; color: var(--cyan); }
 
-        /* Panel 3: Log Table */
         .log-ctrl { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         select { background: var(--bg); color: var(--gold); border: 1px solid var(--gold); padding: 5px; border-radius: 5px; font-size: 0.8rem; }
         table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
@@ -24,13 +22,13 @@
         td { padding: 8px 5px; border-bottom: 1px solid #0a192f; }
         .hit { color: var(--cyan); font-weight: bold; }
 
-        /* Panel 4: Strategy Cards */
         .strat-card { background: var(--bg); border-radius: 10px; padding: 12px; margin-bottom: 10px; border-left: 4px solid var(--gold); }
         .strat-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 8px; }
         .ball-row { display: flex; gap: 6px; }
         .ball { width: 35px; height: 35px; background: var(--gold); border-radius: 50%; color: var(--bg); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; }
 
-        .main-btn { width: 100%; padding: 18px; border-radius: 30px; border: none; background: var(--gold); color: var(--bg); font-weight: bold; font-size: 1rem; cursor: pointer; }
+        .main-btn { width: 100%; padding: 18px; border-radius: 30px; border: none; background: var(--gold); color: var(--bg); font-weight: bold; font-size: 1rem; cursor: pointer; transition: opacity 0.3s; }
+        .main-btn:disabled { background: #444; color: #8892b0; cursor: not-allowed; }
         input[type="file"] { display: none; }
     </style>
 </head>
@@ -38,7 +36,7 @@
 
 <div class="panel">
     <h2>1. 數據來源</h2>
-    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">📂 點擊上傳 CSV 檔案</button>
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">📂 載入 CSV 檔案</button>
     <input type="file" id="fileInput" accept=".csv" onchange="handleCSV(this)">
 </div>
 
@@ -68,7 +66,7 @@
 
 <div class="panel">
     <h2>4. 下期開獎預測</h2>
-    <button id="runBtn" class="main-btn" onclick="renderPredictions()" disabled>生成預測牌組</button>
+    <button id="runBtn" class="main-btn" onclick="renderPredictions()" disabled>立即生成預測牌組</button>
     <div id="stratContainer" style="margin-top: 15px;"></div>
 </div>
 
@@ -85,17 +83,19 @@
             }).filter(item => item.nums.length === 5);
 
             if (history.length > 0) {
+                // 重設狀態
                 document.getElementById('readCount').innerText = history.length;
                 document.getElementById('backCount').innerText = history.length * 3;
+                document.getElementById('stratContainer').innerHTML = ''; // 清空舊預測
                 document.getElementById('runBtn').disabled = false;
+                
+                // 只更新 Log 面板
                 updateLog();
-                renderPredictions();
             }
         };
         reader.readAsText(input.files[0]);
     }
 
-    // 純數據邏輯提取 (不含隨機)
     function getLogicNumbers(type, dataSubset) {
         if (dataSubset.length === 0) return [1,2,3,4,5];
         let counts = {};
@@ -129,7 +129,10 @@
         document.getElementById('periodRate').innerText = `30期命中(>2星)概率: ${((hitsCount/recent.length)*100).toFixed(2)}%`;
     }
 
+    // 只有點擊按鈕才會執行此函式
     function renderPredictions() {
+        if (history.length === 0) return;
+        
         const types = [
             { id: 'mix', name: '平衡混合 (3熱+2冷)' },
             { id: 'hot', name: '高頻熱門 (Top 5)' },
