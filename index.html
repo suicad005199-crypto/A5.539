@@ -3,18 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>預測模擬系統 - 優化版</title>
+<title>預測模擬系統 - 強勢策略版</title>
 <style>
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont;
-  background: #0f1a2b;
-  color: #ffffff;
-}
-.panel {
-  padding: 16px;
-  border-bottom: 1px solid #24324a;
-}
+body { margin:0; font-family:-apple-system,BlinkMacSystemFont; background:#0f1a2b; color:#fff;}
+.panel { padding:16px; border-bottom:1px solid #24324a; }
 h2 { margin:0 0 12px 0; font-size:18px; }
 button, select, input { width:100%; padding:14px; font-size:16px; margin-top:8px; border-radius:10px; border:none; }
 button { background:#1e3a5f; color:#fff; }
@@ -37,7 +29,6 @@ button { background:#1e3a5f; color:#fff; }
   <h2>Panel 2｜近 10 期回測 Log + 2星命中率%</h2>
   <select id="strategySelect" onchange="renderLogs()"></select>
   <div id="logContainer"></div>
-  <div class="small">可透過下方 Panel 優化策略參數以提升命中率</div>
 </div>
 
 <!-- Panel 3 -->
@@ -66,55 +57,57 @@ button { background:#1e3a5f; color:#fff; }
 let data = []
 let logs = {}
 
-// ===== 策略定義 =====
+// ===== 新策略定義 =====
 const strategies = {
-  hotDynamic: {
-    name: "動態熱號",
-    description: "根據最近 N 期出現頻率選號，可調 N",
-    params: {N:10},
-    predict(history, params={N:10}) {
+  weightedHot: {
+    name: "熱號加權策略",
+    description: "取過去15期熱號加權，選前5高權重號碼",
+    params: {N:15},
+    predict(history, params={N:15}) {
       const recent = history.slice(-params.N)
-      return pickByFrequency(recent)
+      return pickTopWeighted(recent,5)
     }
   },
-  coldDynamic: {
-    name: "動態冷號",
-    description: "挑選長期未出現的號碼，可調 N",
-    params: {N:10},
-    predict(history, params={N:10}) {
-      return pickByFrequency(history.slice(-params.N), true)
+  hotColdMix: {
+    name: "冷熱混合策略",
+    description: "取最近10期熱號前3 + 過去20期冷號2，組合成5個號碼",
+    params: {hotN:10, coldN:20},
+    predict(history, params={hotN:10,coldN:20}) {
+      const hot = pickTopWeighted(history.slice(-params.hotN),3)
+      const cold = pickTopWeighted(history.slice(-params.coldN),2,true)
+      return [...hot,...cold]
     }
   }
 }
 
 // ===== CSV 讀取 =====
-document.getElementById("csvInput").addEventListener("change", e => {
-  const file = e.target.files[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = () => parseCSV(reader.result)
+document.getElementById("csvInput").addEventListener("change", e=>{
+  const file=e.target.files[0]
+  if(!file) return
+  const reader=new FileReader()
+  reader.onload=()=>parseCSV(reader.result)
   reader.readAsText(file)
 })
 
-function parseCSV(text) {
-  const rows = text.trim().split("\n")
+function parseCSV(text){
+  const rows=text.trim().split("\n")
   data = rows.slice(1).map(r=>{
-    const [date,...nums] = r.split(",")
-    return { date, numbers: nums.map(n=>parseInt(n,10)) }
+    const [date,...nums]=r.split(",")
+    return {date, numbers:nums.map(n=>parseInt(n,10))}
   })
 }
 
-// ===== 回測主流程（鎖死） =====
-function runBacktest() {
-  logs = {}
+// ===== 回測鎖死 =====
+function runBacktest(){
+  logs={}
   Object.keys(strategies).forEach(k=>logs[k]=[])
   for(let i=3;i<data.length;i++){
-    const history = data.slice(0,i)
-    const actual = data[i].numbers
-    const date = data[i].date
+    const history=data.slice(0,i)
+    const actual=data[i].numbers
+    const date=data[i].date
     for(const key in strategies){
-      const predicted = strategies[key].predict(history, strategies[key].params)
-      const hit = predicted.filter(n=>actual.includes(n)).length
+      const predicted=strategies[key].predict(history,strategies[key].params)
+      const hit=predicted.filter(n=>actual.includes(n)).length
       logs[key].push({date, actual, predicted, hit})
     }
   }
@@ -124,13 +117,13 @@ function runBacktest() {
 }
 
 // ===== Panel 2 =====
-function renderLogs() {
-  const key = document.getElementById("strategySelect").value
-  const container = document.getElementById("logContainer")
-  container.innerHTML = ""
+function renderLogs(){
+  const key=document.getElementById("strategySelect").value
+  const container=document.getElementById("logContainer")
+  container.innerHTML=""
   if(!logs[key]) return
-  const recentLogs = logs[key].slice(-10).reverse()
-  let twoStarHits = 0
+  const recentLogs=logs[key].slice(-10).reverse()
+  let twoStarHits=0
   recentLogs.forEach(r=>{
     if(r.hit>=2) twoStarHits++
     container.innerHTML+=`
@@ -142,14 +135,14 @@ function renderLogs() {
       </div>
     `
   })
-  const rate = recentLogs.length?((twoStarHits/recentLogs.length)*100).toFixed(1):0
+  const rate=recentLogs.length?((twoStarHits/recentLogs.length)*100).toFixed(1):0
   container.innerHTML+=`<div class="log-item"><strong>近10期2星以上命中率: ${rate}%</strong></div>`
 }
 
 // ===== Panel 3 =====
-function renderStrategyDesc() {
-  const box = document.getElementById("strategyDesc")
-  box.innerHTML = Object.values(strategies).map(s=>`
+function renderStrategyDesc(){
+  const box=document.getElementById("strategyDesc")
+  box.innerHTML=Object.values(strategies).map(s=>`
     <div class="log-item">
       <strong>${s.name}</strong>
       <div class="small">${s.description}</div>
@@ -158,12 +151,12 @@ function renderStrategyDesc() {
 }
 
 // ===== Panel 4 =====
-function runLivePrediction() {
+function runLivePrediction(){
   if(data.length===0) return
-  const key = document.getElementById("liveStrategySelect").value
-  const strategy = strategies[key]
-  const history = data.slice(0)
-  const predicted = strategy.predict(history, strategy.params)
+  const key=document.getElementById("liveStrategySelect").value
+  const strategy=strategies[key]
+  const history=data.slice(0)
+  const predicted=strategy.predict(history,strategy.params)
   document.getElementById("liveResult").innerHTML=`
     <div class="log-item">
       <div>策略：${strategy.name}</div>
@@ -175,16 +168,17 @@ function runLivePrediction() {
 
 // ===== Panel 5 優化參數 =====
 function optimizeParams(){
-  const key = document.getElementById("optStrategySelect").value
-  const strategy = strategies[key]
-  const Nvalues = [5,6,7,8,9,10,11,12,13,14,15]
-  let resultHTML = ''
+  const key=document.getElementById("optStrategySelect").value
+  const strategy=strategies[key]
+  const Nvalues=[5,6,7,8,9,10,11,12,13,14,15]
+  let resultHTML=''
   Nvalues.forEach(N=>{
-    strategy.params.N = N
+    if(strategy.name==="熱號加權策略") strategy.params.N=N
+    if(strategy.name==="冷熱混合策略") strategy.params.hotN=N
     runBacktest()
-    const log = logs[key].slice(-10)
-    const twoStar = log.filter(r=>r.hit>=2).length
-    const rate = log.length?((twoStar/log.length)*100).toFixed(1):0
+    const log=logs[key].slice(-10)
+    const twoStar=log.filter(r=>r.hit>=2).length
+    const rate=log.length?((twoStar/log.length)*100).toFixed(1):0
     resultHTML+=`<div class="log-item">N=${N} → 2星命中率: ${rate}%</div>`
   })
   document.getElementById("optResult").innerHTML=resultHTML
@@ -192,13 +186,13 @@ function optimizeParams(){
 
 // ===== 共用 =====
 function populateSelects(){
-  const selects = [
+  const selects=[
     document.getElementById("strategySelect"),
     document.getElementById("liveStrategySelect"),
     document.getElementById("optStrategySelect")
   ]
   selects.forEach(sel=>{
-    sel.innerHTML = ''
+    sel.innerHTML=""
     for(const k in strategies){
       sel.innerHTML+=`<option value="${k}">${strategies[k].name}</option>`
     }
@@ -206,12 +200,12 @@ function populateSelects(){
 }
 
 // ===== 工具 =====
-function pickByFrequency(history, reverse=false){
+function pickTopWeighted(history, count, reverse=false){
   const freq={}
   history.forEach(d=>d.numbers.forEach(n=>freq[n]=(freq[n]||0)+1))
   return Object.keys(freq)
     .sort((a,b)=>reverse?freq[a]-freq[b]:freq[b]-freq[a])
-    .slice(0,5)
+    .slice(0,count)
     .map(Number)
 }
 </script>
