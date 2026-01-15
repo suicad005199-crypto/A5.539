@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>預測模擬系統 - 強化優化版</title>
+<title>預測模擬系統 - 多策略升級版</title>
 <style>
 body { margin:0; font-family:-apple-system,BlinkMacSystemFont; background:#0f1a2b; color:#fff;}
 .panel { padding:16px; border-bottom:1px solid #24324a; }
@@ -26,7 +26,7 @@ button { background:#1e3a5f; color:#fff; }
 
 <!-- Panel 2 -->
 <div class="panel">
-  <h2>Panel 2｜近 10 期回測 Log + 2星命中率%</h2>
+  <h2>Panel 2｜近10期回測 Log + 2星命中率%</h2>
   <select id="strategySelect" onchange="renderLogs()"></select>
   <div id="logContainer"></div>
 </div>
@@ -40,8 +40,7 @@ button { background:#1e3a5f; color:#fff; }
 <!-- Panel 4 -->
 <div class="panel">
   <h2>Panel 4｜實戰預測（未來）</h2>
-  <select id="liveStrategySelect"></select>
-  <button onclick="runLivePrediction()">產生預測</button>
+  <button onclick="runLivePrediction()">多策略加權預測</button>
   <div id="liveResult"></div>
 </div>
 
@@ -58,10 +57,10 @@ let data=[]
 let logs={}
 let bestParams={}
 
-// ===== 策略定義 =====
+// ===== 多策略定義 =====
 const strategies = {
   weightedHot: {
-    name:"熱號加權策略",
+    name:"熱號加權",
     description:"取過去 N 期熱號加權，選前5高權重號碼",
     params:{N:15},
     predict(history, params={N:15}) {
@@ -69,13 +68,44 @@ const strategies = {
     }
   },
   hotColdMix: {
-    name:"冷熱混合策略",
-    description:"取最近 hotN 期熱號前3 + 過去 coldN 期冷號2，組合5個號碼",
+    name:"冷熱混合",
+    description:"取最近 hotN 期熱號前3 + 過去 coldN 期冷號2",
     params:{hotN:10,coldN:20},
     predict(history, params={hotN:10,coldN:20}) {
       const hot = pickTopWeighted(history.slice(-params.hotN),3)
       const cold = pickTopWeighted(history.slice(-params.coldN),2,true)
       return [...hot,...cold]
+    }
+  },
+  oddEvenBalance: {
+    name:"奇偶平衡",
+    description:"選號保持奇偶比例約2:3或3:2",
+    params:{N:15},
+    predict(history, params={N:15}) {
+      const top = pickTopWeighted(history.slice(-params.N),5)
+      let odd = top.filter(n=>n%2===1)
+      let even = top.filter(n=>n%2===0)
+      // 調整奇偶數量
+      while(odd.length+even.length<5) { odd.length<even.length?odd.push(top[0]):even.push(top[0]) }
+      return [...odd,...even].slice(0,5)
+    }
+  },
+  consecutivePattern: {
+    name:"連號模式",
+    description:"偏好連號出現的號碼",
+    params:{N:20},
+    predict(history, params={N:20}) {
+      const freq={}
+      history.slice(-params.N).forEach(d=>{
+        d.numbers.forEach(n=>freq[n]=(freq[n]||0)+1)
+      })
+      // 找連號組
+      const sorted = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).map(Number)
+      let result=[]
+      for(let i=0;i<sorted.length;i++){
+        if(sorted.includes(sorted[i]+1) && result.length<5) result.push(sorted[i],sorted[i]+1)
+      }
+      return [...new Set(result)].slice(0,5)
     }
   }
 }
@@ -96,7 +126,7 @@ function parseCSV(text){
   })
 }
 
-// ===== 回測鎖死 =====
+// ===== 回測 =====
 function runBacktest(){
   logs={}
   Object.keys(strategies).forEach(k=>logs[k]=[])
@@ -152,34 +182,35 @@ function renderStrategyDesc(){
 // ===== Panel 4 =====
 function runLivePrediction(){
   if(data.length===0) return
-  const key=document.getElementById("liveStrategySelect").value
-  const strategy=strategies[key]
-  const history=data.slice(0)
-  const params = bestParams[key] || strategy.params
-  const predicted=strategy.predict(history, params)
+  const votes={}
+  Object.keys(strategies).forEach(k=>{
+    const strategy=strategies[k]
+    const params = bestParams[k] || strategy.params
+    const nums=strategy.predict(data,params)
+    nums.forEach(n=>votes[n]=(votes[n]||0)+1)
+  })
+  const finalPrediction=Object.keys(votes).sort((a,b)=>votes[b]-votes[a]).slice(0,5).map(Number)
   document.getElementById("liveResult").innerHTML=`
     <div class="log-item">
-      <div>策略：${strategy.name}</div>
-      <div class="small">資料：${history[0].date} ～ ${history[history.length-1].date}</div>
-      <div>預測號碼：<strong>${predicted.join(" ")}</strong></div>
-      <div class="small">套用最佳參數: ${JSON.stringify(params)}</div>
+      <div>策略加權投票預測</div>
+      <div class="small">資料範圍：${data[0].date} ～ ${data[data.length-1].date}</div>
+      <div>預測號碼：<strong>${finalPrediction.join(" ")}</strong></div>
+      <div class="small">各策略最佳參數：${JSON.stringify(bestParams)}</div>
     </div>
   `
 }
 
-// ===== Panel 5 優化參數 =====
+// ===== Panel 5 優化 =====
 function optimizeParams(){
   const key=document.getElementById("optStrategySelect").value
   const strategy=strategies[key]
   const Nvalues=[5,6,7,8,9,10,11,12,13,14,15]
-  let bestRate=0
-  let bestN=0
+  let bestRate=0, bestN=0
   let resultHTML=""
   Nvalues.forEach(N=>{
-    // 更新策略參數
-    if(strategy.name==="熱號加權策略") strategy.params.N=N
-    if(strategy.name==="冷熱混合策略") strategy.params.hotN=N
-    // 回測
+    if(strategy.name==="熱號加權" || strategy.name==="奇偶平衡") strategy.params.N=N
+    if(strategy.name==="冷熱混合") strategy.params.hotN=N
+    if(strategy.name==="連號模式") strategy.params.N=N
     runBacktest()
     const log=logs[key].slice(-10)
     const twoStar=log.filter(r=>r.hit>=2).length
@@ -188,8 +219,10 @@ function optimizeParams(){
     const highlight=rate==bestRate?' best':''
     resultHTML+=`<div class="log-item${highlight}">N=${N} → 2星命中率: ${rate}%</div>`
   })
-  // 儲存最佳參數，Panel 4 使用
-  bestParams[key]=strategy.name==="熱號加權策略"?{N:bestN}:{hotN:bestN}
+  if(strategy.name==="熱號加權" || strategy.name==="奇偶平衡" || strategy.name==="連號模式")
+    bestParams[key]={N:bestN}
+  else if(strategy.name==="冷熱混合")
+    bestParams[key]={hotN:bestN}
   document.getElementById("optResult").innerHTML=resultHTML
 }
 
@@ -197,7 +230,6 @@ function optimizeParams(){
 function populateSelects(){
   const selects=[
     document.getElementById("strategySelect"),
-    document.getElementById("liveStrategySelect"),
     document.getElementById("optStrategySelect")
   ]
   selects.forEach(sel=>{
