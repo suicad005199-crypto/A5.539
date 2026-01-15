@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>預測模擬系統 - 強化版</title>
+<title>預測模擬系統 - 強化優化版</title>
 <style>
 body { margin:0; font-family:-apple-system,BlinkMacSystemFont; background:#0f1a2b; color:#fff;}
 .panel { padding:16px; border-bottom:1px solid #24324a; }
@@ -56,7 +56,7 @@ button { background:#1e3a5f; color:#fff; }
 <script>
 let data=[]
 let logs={}
-let bestParams={} // 儲存最佳 N
+let bestParams={}
 
 // ===== 策略定義 =====
 const strategies = {
@@ -64,22 +64,24 @@ const strategies = {
     name:"熱號加權策略",
     description:"取過去 N 期熱號加權，選前5高權重號碼",
     params:{N:15},
-    predict(history, params={N:15}) { return pickTopWeighted(history.slice(-params.N),5) }
+    predict(history, params={N:15}) {
+      return pickTopWeighted(history.slice(-params.N),5)
+    }
   },
   hotColdMix: {
     name:"冷熱混合策略",
     description:"取最近 hotN 期熱號前3 + 過去 coldN 期冷號2，組合5個號碼",
     params:{hotN:10,coldN:20},
     predict(history, params={hotN:10,coldN:20}) {
-      const hot=pickTopWeighted(history.slice(-params.hotN),3)
-      const cold=pickTopWeighted(history.slice(-params.coldN),2,true)
+      const hot = pickTopWeighted(history.slice(-params.hotN),3)
+      const cold = pickTopWeighted(history.slice(-params.coldN),2,true)
       return [...hot,...cold]
     }
   }
 }
 
 // ===== CSV 讀取 =====
-document.getElementById("csvInput").addEventListener("change",e=>{
+document.getElementById("csvInput").addEventListener("change", e=>{
   const file=e.target.files[0]
   if(!file) return
   const reader=new FileReader()
@@ -153,13 +155,14 @@ function runLivePrediction(){
   const key=document.getElementById("liveStrategySelect").value
   const strategy=strategies[key]
   const history=data.slice(0)
-  const predicted=strategy.predict(history,strategy.params)
+  const params = bestParams[key] || strategy.params
+  const predicted=strategy.predict(history, params)
   document.getElementById("liveResult").innerHTML=`
     <div class="log-item">
       <div>策略：${strategy.name}</div>
       <div class="small">資料：${history[0].date} ～ ${history[history.length-1].date}</div>
       <div>預測號碼：<strong>${predicted.join(" ")}</strong></div>
-      <div class="small">套用最佳 N: ${JSON.stringify(bestParams[key]||{})}</div>
+      <div class="small">套用最佳參數: ${JSON.stringify(params)}</div>
     </div>
   `
 }
@@ -169,18 +172,23 @@ function optimizeParams(){
   const key=document.getElementById("optStrategySelect").value
   const strategy=strategies[key]
   const Nvalues=[5,6,7,8,9,10,11,12,13,14,15]
-  let bestRate=0, bestN=0
-  let resultHTML=''
+  let bestRate=0
+  let bestN=0
+  let resultHTML=""
   Nvalues.forEach(N=>{
+    // 更新策略參數
     if(strategy.name==="熱號加權策略") strategy.params.N=N
     if(strategy.name==="冷熱混合策略") strategy.params.hotN=N
+    // 回測
     runBacktest()
     const log=logs[key].slice(-10)
     const twoStar=log.filter(r=>r.hit>=2).length
     const rate=log.length?((twoStar/log.length)*100).toFixed(1):0
     if(rate>bestRate){ bestRate=rate; bestN=N }
-    resultHTML+=`<div class="log-item ${rate==bestRate?'best':''}">N=${N} → 2星命中率: ${rate}%</div>`
+    const highlight=rate==bestRate?' best':''
+    resultHTML+=`<div class="log-item${highlight}">N=${N} → 2星命中率: ${rate}%</div>`
   })
+  // 儲存最佳參數，Panel 4 使用
   bestParams[key]=strategy.name==="熱號加權策略"?{N:bestN}:{hotN:bestN}
   document.getElementById("optResult").innerHTML=resultHTML
 }
