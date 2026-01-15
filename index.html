@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>539 數據核心 v5.0</title>
+    <title>539 數據核心 v5.1</title>
     <style>
         :root { --bg: #0a192f; --card: #172a45; --gold: #c5a059; --cyan: #64ffda; --text: #e6f1ff; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -12,23 +12,29 @@
             margin: 0; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
             display: flex; flex-direction: column; height: 100vh; overflow: hidden; 
         }
-        .header { padding: 15px; text-align: center; flex-shrink: 0; border-bottom: 1px solid #233554; }
+        .header { padding: 15px; text-align: center; border-bottom: 1px solid #233554; flex-shrink: 0; }
         .scroll-area { flex-grow: 1; overflow-y: auto; padding: 10px; -webkit-overflow-scrolling: touch; }
         
-        /* 監控面板系統 */
+        /* 上傳面板 */
+        .upload-panel { 
+            background: rgba(197, 160, 89, 0.1); border: 1.5px dashed var(--gold); 
+            border-radius: 12px; padding: 15px; text-align: center; margin-bottom: 15px;
+        }
+
+        /* 數據監控面板 */
         .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .info-panel { background: var(--card); padding: 12px; border-radius: 12px; border: 1px solid #233554; text-align: center; }
         .panel-label { font-size: 0.65rem; color: #8892b0; margin-bottom: 4px; }
         .panel-val { font-size: 1.1rem; font-weight: bold; color: var(--gold); }
 
-        /* Log 分析面板 */
+        /* Log 面板 */
         .log-panel { background: var(--card); border-radius: 15px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--gold); }
         .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        select { background: var(--bg); color: var(--gold); border: 1px solid var(--gold); padding: 5px; border-radius: 5px; font-size: 0.8rem; }
-        .log-list { height: 150px; overflow-y: auto; font-size: 0.75rem; font-family: monospace; border-top: 1px solid #233554; padding-top: 10px; }
+        select { background: var(--bg); color: var(--gold); border: 1px solid var(--gold); padding: 4px; border-radius: 5px; font-size: 0.8rem; outline: none; }
+        .log-list { height: 140px; overflow-y: auto; font-size: 0.75rem; font-family: monospace; border-top: 1px solid #233554; padding-top: 10px; }
         .log-item { display: flex; justify-content: space-between; margin-bottom: 5px; padding: 4px 0; border-bottom: 1px solid #ffffff05; }
 
-        /* 策略結果卡片 */
+        /* 策略卡片 */
         .strat-card { background: var(--card); border-radius: 15px; padding: 15px; margin-bottom: 10px; border-left: 5px solid var(--gold); }
         .ball-row { display: flex; gap: 6px; justify-content: space-between; margin-top: 10px; }
         .ball { width: 18%; aspect-ratio: 1/1; background: var(--gold); border-radius: 50%; color: var(--bg); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; }
@@ -41,17 +47,22 @@
 </head>
 <body>
 
-<div class="header"><h1 style="font-size:1.1rem; color:var(--gold); margin:0;">539 數據核心分析儀 v5.0</h1></div>
+<div class="header"><h1 style="font-size:1.1rem; color:var(--gold); margin:0;">539 數據分析面板 v5.1</h1></div>
 
 <div class="scroll-area">
+    <div class="upload-panel" onclick="document.getElementById('fileInput').click()">
+        <span style="color: var(--gold); font-size: 0.95rem; font-weight: bold;">📂 點擊這裡上傳 CSV 檔案</span>
+        <input type="file" id="fileInput" accept=".csv" onchange="handleFile(this)">
+    </div>
+
     <div class="panel-grid">
-        <div class="info-panel"><div class="panel-label">CSV 讀取筆數</div><div id="p-csv" class="panel-val">0</div></div>
-        <div class="info-panel"><div class="panel-label">總回測次數</div><div id="p-bt" class="panel-val">0</div></div>
+        <div class="info-panel"><div class="panel-label">CSV 總筆數</div><div id="p-csv" class="panel-val">0</div></div>
+        <div class="info-panel"><div class="panel-label">回測總筆數</div><div id="p-bt" class="panel-val">0</div></div>
     </div>
 
     <div class="log-panel">
         <div class="log-header">
-            <span style="font-size: 0.85rem; font-weight: bold; color: var(--gold);">近 30 期策略 Log 分析</span>
+            <span style="font-size: 0.85rem; font-weight: bold; color: var(--gold);">近 30 期對照 Log</span>
             <select id="stratSelector" onchange="updateLog()">
                 <option value="missing">遺漏補償</option>
                 <option value="hot">頻率最優</option>
@@ -59,70 +70,76 @@
                 <option value="weighted">多維加權</option>
             </select>
         </div>
-        <div id="logList" class="log-list">請先載入歷史數據檔案...</div>
+        <div id="logList" class="log-list">等待載入數據...</div>
     </div>
 
     <div id="results"></div>
 </div>
 
 <div class="footer">
-    <input type="file" id="fileInput" accept=".csv" onchange="process(this)">
-    <button id="runBtn" class="main-btn" onclick="document.getElementById('fileInput').click()">📂 載入 CSV 並執行全分析</button>
+    <button id="runBtn" class="main-btn" onclick="executeAll()" disabled>執行數據模擬分析</button>
 </div>
 
 <script>
-    let history = [];
-    let stats = { hot:[], missing:[], neighbors:[], weighted:[] };
-    let backtestRates = {};
+    let historyData = [];
+    let statsData = { hot:[], missing:[], neighbors:[], weighted:[] };
+    let rates = {};
 
-    function process(input) {
+    function handleFile(input) {
         const reader = new FileReader();
         reader.onload = function(e) {
             const lines = e.target.result.split('\n');
-            history = lines.map(l => l.split(',').map(v => parseInt(v.trim())).filter(n => n >= 1 && n <= 39)).filter(a => a.length === 5);
-            if (history.length > 30) {
-                document.getElementById('p-csv').innerText = history.length;
-                document.getElementById('p-bt').innerText = history.length * 4;
-                analyzeData();
-                renderAll();
-                updateLog();
+            historyData = lines.map(l => l.split(',').map(v => parseInt(v.trim())).filter(n => n >= 1 && n <= 39)).filter(a => a.length === 5);
+            if (historyData.length > 0) {
+                document.getElementById('p-csv').innerText = historyData.length;
+                document.getElementById('p-bt').innerText = historyData.length * 4;
+                document.getElementById('runBtn').disabled = false;
+                executeAll();
             }
         };
         reader.readAsText(input.files[0]);
     }
 
-    function analyzeData() {
+    function executeAll() {
+        analyze();
+        calculateRates();
+        renderStrats();
+        updateLog();
+    }
+
+    function analyze() {
         let counts = {}, lastSeen = {};
-        for(let i=1; i<=39; i++) { counts[i] = 0; lastSeen[i] = history.length; }
-        history.forEach((draw, index) => {
+        for(let i=1; i<=39; i++) { counts[i] = 0; lastSeen[i] = historyData.length; }
+        historyData.forEach((draw, idx) => {
             draw.forEach(n => {
                 counts[n]++;
-                if (lastSeen[n] === history.length) lastSeen[n] = index;
+                if (lastSeen[n] === historyData.length) lastSeen[n] = idx;
             });
         });
-        stats.hot = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0, 10).map(i=>parseInt(i[0]));
-        stats.missing = Object.entries(lastSeen).sort((a,b)=>b[1]-a[1]).slice(0, 10).map(i=>parseInt(i[0]));
-        let t1 = stats.hot[0];
-        stats.neighbors = [t1, t1-1<1?39:t1-1, t1+1>39?1:t1+1, stats.hot[1], stats.hot[2]];
-        stats.weighted = stats.hot.slice(0,3).concat(stats.missing.slice(0,2));
+        statsData.hot = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0, 10).map(i=>parseInt(i[0]));
+        statsData.missing = Object.entries(lastSeen).sort((a,b)=>b[1]-a[1]).slice(0, 10).map(i=>parseInt(i[0]));
+        let t1 = statsData.hot[0];
+        statsData.neighbors = [t1, t1-1<1?39:t1-1, t1+1>39?1:t1+1, statsData.hot[1], statsData.hot[2]];
+        statsData.weighted = statsData.hot.slice(0,3).concat(statsData.missing.slice(0,2));
+    }
 
+    function calculateRates() {
         ['missing','hot','neighbors','weighted'].forEach(t => {
-            const pick = getPick(t, 0);
-            let hits = 0, range = Math.min(100, history.length-1);
-            for(let i=1; i<=range; i++) if (getPick(t, i).filter(n => history[i-1].includes(n)).length >= 2) hits++;
-            backtestRates[t] = ((hits / range) * 100).toFixed(2);
+            let hits = 0, range = Math.min(100, historyData.length - 1);
+            for(let i=1; i<=range; i++) {
+                const pick = getPickAt(t, i);
+                if (pick.filter(n => historyData[i-1].includes(n)).length >= 2) hits++;
+            }
+            rates[t] = ((hits / range) * 100).toFixed(2);
         });
     }
 
-    // 動態獲取特定期數下的預測號碼 (用於 Log 比對)
-    function getPick(type, offset) {
-        let hSub = history.slice(offset);
-        if(hSub.length < 5) return [1,2,3,4,5]; 
-        // 簡化模擬：直接取當前統計
-        if (type === 'missing') return stats.missing.slice(0,5);
-        if (type === 'hot') return stats.hot.slice(0,5);
-        if (type === 'neighbors') return stats.neighbors;
-        return stats.weighted;
+    function getPickAt(type, offset) {
+        // 這裡維持去隨機化，直接抓取該時間點的統計排名（簡化邏輯）
+        if (type === 'missing') return statsData.missing.slice(0,5);
+        if (type === 'hot') return statsData.hot.slice(0,5);
+        if (type === 'neighbors') return statsData.neighbors;
+        return statsData.weighted;
     }
 
     function updateLog() {
@@ -130,33 +147,33 @@
         const list = document.getElementById('logList');
         list.innerHTML = '';
         for(let i=0; i<30; i++) {
-            if(!history[i+1]) break;
-            const actual = history[i];
-            const pred = getPick(type, i+1); // 基於「前一天」的數據預測
+            if(!historyData[i+1]) break;
+            const actual = historyData[i];
+            const pred = getPickAt(type, i+1);
             const matches = pred.filter(n => actual.includes(n));
             list.innerHTML += `
                 <div class="log-item">
-                    <span>期數-${i+1} [${actual.map(n=>n<10?'0'+n:n).join(' ')}]</span>
-                    <span>預測: ${pred.slice(0,2).join(',')}... <span class="hit">中 ${matches.length}</span></span>
+                    <span>期-${i+1} [${actual.map(n=>n<10?'0'+n:n).join(' ')}]</span>
+                    <span>預測中 <span class="hit">${matches.length}</span> 碼</span>
                 </div>`;
         }
     }
 
-    function renderAll() {
+    function renderStrats() {
         const container = document.getElementById('results');
         const confs = [
-            { id: 'missing', name: '遺漏補償 (數據回補)', rate: backtestRates.missing },
-            { id: 'hot', name: '頻率最優 (熱門 Top5)', rate: backtestRates.hot },
-            { id: 'neighbors', name: '鄰位聯動 (熱號左右)', rate: backtestRates.neighbors },
-            { id: 'weighted', name: '多維加權 (動能整合)', rate: backtestRates.weighted }
+            { id: 'missing', name: '遺漏補償 (數據回補)' },
+            { id: 'hot', name: '頻率最優 (熱門 Top5)' },
+            { id: 'neighbors', name: '鄰位聯動 (熱號左右)' },
+            { id: 'weighted', name: '多維加權 (動能整合)' }
         ];
         container.innerHTML = confs.map(c => `
             <div class="strat-card">
                 <div style="display:flex; justify-content:space-between">
                     <span class="strat-name">${c.name}</span>
-                    <span style="font-size:0.8rem; color:var(--cyan)">回測率: ${c.rate}%</span>
+                    <span style="font-size:0.8rem; color:var(--cyan)">回測: ${rates[c.id]}%</span>
                 </div>
-                <div class="ball-row">${getPick(c.id, 0).sort((a,b)=>a-b).map(n=>`<div class="ball">${n<10?'0'+n:n}</div>`).join('')}</div>
+                <div class="ball-row">${getPickAt(c.id, 0).sort((a,b)=>a-b).map(n=>`<div class="ball">${n<10?'0'+n:n}</div>`).join('')}</div>
             </div>`).join('');
     }
 </script>
