@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 極端共振系統 - 優化 v15</title>
+    <title>AI 三維熱度平衡系統 - 優化 v16</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -22,28 +22,28 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v15 極端共振版)</h3>
+        <h3 class="panel-title">1. 數據分析 (v16 三維平衡版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 極端共振預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 三維平衡預測 (下一期建議)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
             <h3 class="panel-title">3. 連號分布圖 (最新 10 期)</h3>
             <div class="table-container">
-                <table><thead><tr id="chartHeader"></tr></thead><tbody id="chartBody"></tbody></table>
+                <table id="distTable"><thead><tr id="chartHeader"></tr></thead><tbody id="chartBody"></tbody></table>
             </div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">4. 滾動回測 (目標：集彈性突破)</h3>
+            <h3 class="panel-title">4. 滾動回測紀錄 (集彈優化)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v15)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v16)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -69,36 +69,59 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getExtremePick(history) {
+        function get3DBalancePick(history) {
             const scores = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            
+            const pools = { hot: [], warm: [], cold: [] };
+
             for (let i = 1; i <= 39; i++) {
                 let miss = 0;
                 for (let j = history.length - 1; j >= 0; j--) {
                     if (!history[j].nums.includes(i)) miss++; else break;
                 }
-                // 加強極端回歸區 (4-7期) 與 連莊鄰號 (N±1)
-                if (miss >= 4 && miss <= 7) scores[i] += 150; 
-                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 100;
-                if (miss === 0) scores[i] += 50;
+                
+                // 分層標記
+                if (miss <= 2) pools.hot.push(i);
+                else if (miss <= 7) pools.warm.push(i);
+                else pools.cold.push(i);
+
+                // 核心加權邏輯
+                if (miss >= 4 && miss <= 7) scores[i] += 150; // 黃金溫號區
+                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 100; // 鄰號連動
+                if (miss === 0) scores[i] += 40; // 連莊潛力
+                
+                // 尾數共振 (近期高頻尾數)
+                const recentTails = history.slice(-5).flatMap(r => r.nums.map(n => n % 10));
+                const tailCount = recentTails.filter(t => t === (i % 10)).length;
+                scores[i] += tailCount * 10;
             }
 
             const sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
-            const top12 = sorted.slice(0, 12);
+            
+            // 比例選號：強制 2溫 + 2熱 + 1冷 (依得分排序補位)
             let final = [];
-
-            for (let n of sorted) {
-                if (final.includes(n)) continue;
-                final.push(n);
-                // 鄰號集彈邏輯：強迫成對
-                if (final.length < 5) {
-                    let next = n + 1;
-                    if (top12.includes(next) && !final.includes(next)) final.push(next);
+            const pickFromPool = (poolNums, count) => {
+                let picked = 0;
+                for (let n of sorted) {
+                    if (poolNums.includes(n) && !final.includes(n)) {
+                        final.push(n);
+                        picked++;
+                        if (picked >= count) break;
+                    }
                 }
+            };
+
+            pickFromPool(pools.warm, 2);
+            pickFromPool(pools.hot, 2);
+            pickFromPool(pools.cold, 1);
+
+            // 若池子不足則補齊
+            for (let n of sorted) {
                 if (final.length >= 5) break;
+                if (!final.includes(n)) final.push(n);
             }
-            return final.slice(0, 5).sort((a,b)=>a-b);
+
+            return final.sort((a, b) => a - b);
         }
 
         function processSystem(data) {
@@ -106,14 +129,14 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getExtremePick(data.slice(0, i));
+                const pred = get3DBalancePick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 2) tr.className = 'good-hit';
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getExtremePick(data);
+            const nextP = get3DBalancePick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
