@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 三元交互系統 - 優化 v69</title>
+    <title>AI 三元集彈系統 - 優化 v70</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -14,6 +14,7 @@
         table { border-collapse: collapse; width: 100%; white-space: nowrap; background: white; }
         th, td { border: 1px solid #eee; text-align: center; padding: 10px 5px; font-size: 13px; }
         th { background: var(--primary); color: white; }
+        .best-hit { background-color: #fff3cd !important; border: 2px solid #f1c40f !important; }
         .good-hit { background-color: #e8f5e9 !important; border: 2px solid var(--success) !important; }
         .hit-count { font-weight: bold; color: var(--success); font-size: 1.3rem; }
     </style>
@@ -21,21 +22,21 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v69 三元交互版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v70 三元集彈版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 網狀預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 集彈預測 (目標：擊穿命中 3)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 滾動回測 (目標：80% 覆蓋與擊穿命中 2)</h3>
+            <h3 class="panel-title">3. 滾動回測 (衝刺 40% 命中 3 覆蓋率)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v69)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v70)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -61,7 +62,7 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getTriadicPick(history) {
+        function getSynergyPick(history) {
             let scores = Array(40).fill(0);
             let missArr = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
@@ -76,38 +77,42 @@
                 }
                 missArr[i] = m;
 
-                // v69 交互網評分
-                if (m === 1) scores[i] += 850;       // 斜連最優先
-                else if (m >= 5 && m <= 9) scores[i] += 650; // 反彈
-                else if (m === 0) scores[i] += 400;  // 連莊
-                else if (m >= 2 && m <= 4) scores[i] += 50;  // 極低溫水權重
-                else if (m >= 13) scores[i] = 0;
+                // v70 強壓評分：極度偏好熱號連動
+                if (m === 1) scores[i] += 900;       
+                else if (m === 0) scores[i] += 500;
+                else if (m >= 5 && m <= 9) scores[i] += 700; 
+                else if (m >= 12) scores[i] = 0;
+                else scores[i] += 50;
 
-                scores[i] += tailFreq[i % 10] * 45; // 強化尾數連動
-                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 250; // 強化鄰號連動
+                scores[i] += tailFreq[i % 10] * 50; 
+                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 300; 
             }
 
             let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             let final = [];
 
-            // 1. 鎖定雙核心 (熱區 + 鄰號/同尾最強者)
-            let core1 = sorted[0];
-            final.push(core1);
-            
-            // 2. 交互網 A：尋找與核心 1 具備鄰號或同尾關係的最強號
-            let link1 = sorted.find(n => !final.includes(n) && (n % 10 === core1 % 10 || Math.abs(n - core1) === 1));
-            if (link1) final.push(link1);
+            // 1. 建立「三元核心群」(目標是命中 3 的基石)
+            let core = sorted[0];
+            final.push(core);
 
-            // 3. 核心 2：跨區找另一顆高分球
-            let core2 = sorted.find(n => !final.includes(n) && Math.abs(Math.floor(n/10) - Math.floor(core1/10)) >= 1);
-            if (core2) {
-                final.push(core2);
-                // 4. 交互網 B：尋找與核心 2 具備連動關係的號碼
-                let link2 = sorted.find(n => !final.includes(n) && (n % 10 === core2 % 10 || Math.abs(n - core2) === 1));
-                if (link2) final.push(link2);
+            // 尋找最強同尾
+            let bestTail = sorted.find(n => !final.includes(n) && (n % 10 === core % 10));
+            if (bestTail) final.push(bestTail);
+
+            // 尋找最強連號
+            let bestNeighbor = sorted.find(n => !final.includes(n) && Math.abs(n - core) === 1);
+            if (bestNeighbor) final.push(bestNeighbor);
+
+            // 2. 建立「二元備援群」(尋找反彈金區)
+            let backLead = sorted.find(n => !final.includes(n) && missArr[n] >= 5 && missArr[n] <= 9);
+            if (backLead) {
+                final.push(backLead);
+                // 嘗試為反彈號再配一顆同尾或連號，增加集彈力
+                let backLink = sorted.find(n => !final.includes(n) && (n % 10 === backLead % 10 || Math.abs(n - backLead) === 1));
+                if (backLink) final.push(backLink);
             }
 
-            // 5. 補齊位
+            // 3. 補齊剩餘位
             for (let n of sorted) {
                 if (final.length >= 5) break;
                 if (!final.includes(n)) final.push(n);
@@ -120,14 +125,15 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getTriadicPick(data.slice(0, i));
+                const pred = getSynergyPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
-                if (hits.length >= 2) tr.className = 'good-hit';
+                if (hits.length >= 3) tr.className = 'best-hit';
+                else if (hits.length >= 2) tr.className = 'good-hit';
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getTriadicPick(data);
+            const nextP = getSynergyPick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
