@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 尾數強排共振系統 - 優化 v23</title>
+    <title>AI 奇偶矩陣共振系統 - 優化 v24</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -16,19 +16,20 @@
         th { background: var(--primary); color: white; }
         .dot { background: var(--accent); color: white; border-radius: 50%; display: inline-block; width: 22px; height: 22px; line-height: 22px; font-weight: bold; }
         .good-hit { background-color: #e8f5e9 !important; border: 2px solid var(--success) !important; }
+        .best-hit { background-color: #fff3cd !important; border: 2px solid #f1c40f !important; }
         .hit-count { font-weight: bold; color: var(--success); font-size: 1.3rem; }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據上傳 (v23 尾數強排版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v24 奇偶矩陣版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 尾數強排預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 奇偶平衡預測 (下一期建議)</h3>
             <div id="predictionResults"></div>
         </div>
 
@@ -40,10 +41,10 @@
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">4. 滾動回測 (目標：找回集彈性)</h3>
+            <h3 class="panel-title">4. 滾動回測紀錄 (目標：衝刺命中 3 號)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v23)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v24)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -69,12 +70,10 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getResonancePick(history) {
+        function getBalancedPick(history) {
             const scores = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
             const recentNums = history.slice(-10).flatMap(r => r.nums);
-            
-            // 1. 尾數動能計算
             const tailFreq = Array(10).fill(0);
             recentNums.forEach(n => tailFreq[n % 10]++);
 
@@ -83,40 +82,31 @@
                 for (let j = history.length - 1; j >= 0; j--) {
                     if (!history[j].nums.includes(i)) miss++; else break;
                 }
-
-                // A. 遺漏權重：強化中溫區 (5-9期)
-                if (miss >= 5 && miss <= 9) scores[i] += 180;
-                else if (miss <= 1) scores[i] += 120; // 熱號
-                else scores[i] += 40;
-
-                // B. 鄰號 (N±1) 與跳號 (N±2)
-                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 100;
-                if (lastNums.some(n => Math.abs(n - i) === 2)) scores[i] += 60;
-
-                // C. 尾數權重
-                scores[i] += tailFreq[i % 10] * 15;
+                // 遺漏加權：強化中溫 (4-10期)
+                if (miss >= 4 && miss <= 10) scores[i] += 180;
+                else if (miss <= 1) scores[i] += 110;
+                else if (miss >= 15) scores[i] += 60; // 極冷補償
+                // 鄰號跳號
+                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 90;
+                if (lastNums.some(n => Math.abs(n - i) === 2)) scores[i] += 50;
+                // 尾數
+                scores[i] += tailFreq[i % 10] * 12;
             }
 
-            const sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
+            let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             
-            // 2. 尾數 2+2 強制策略
-            const topTails = tailFreq.map((v, i) => ({t: i, v})).sort((a, b) => b.v - a.v).slice(0, 2).map(x => x.t);
+            // 奇偶平衡選號邏輯
             let final = [];
-
-            topTails.forEach(t => {
-                let count = 0;
-                for (let n of sorted) {
-                    if (n % 10 === t && !final.includes(n) && count < 2) {
-                        final.push(n);
-                        count++;
-                    }
-                }
-            });
-
-            // 3. 補齊最後一個名額
             for (let n of sorted) {
                 if (final.length >= 5) break;
-                if (!final.includes(n)) final.push(n);
+                let odds = final.filter(x => x % 2 !== 0).length;
+                let evens = final.filter(x => x % 2 === 0).length;
+                
+                // 強制比例不超過 3
+                if (n % 2 !== 0 && odds >= 3) continue;
+                if (n % 2 === 0 && evens >= 3) continue;
+                
+                final.push(n);
             }
 
             return final.sort((a, b) => a - b);
@@ -127,15 +117,16 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getResonancePick(data.slice(0, i));
+                const pred = getBalancedPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
-                if (hits.length >= 2) tr.className = 'good-hit';
+                if (hits.length >= 3) tr.className = 'best-hit';
+                else if (hits.length >= 2) tr.className = 'good-hit';
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getResonancePick(data);
-            document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem; padding: 6px 18px;">${n}</span>`).join('');
+            const nextP = getBalancedPick(data);
+            document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
 
