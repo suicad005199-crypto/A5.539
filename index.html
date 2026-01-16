@@ -1,66 +1,228 @@
-// 生成預測號碼（優化版：歷史頻率加權 + 簡單約束）
-function generatePredictionNumbers(stats) {
-  const { frequency, sumStats, avgOdd, totalDraws } = stats;
+<script>
+/* =========================
+   全局資料
+========================= */
+let data = [];
+let analysisCache = null;
 
-  // 1. 計算每個號碼的權重（歷史出現次數）
-  const weights = new Array(40).fill(0); // index 1~39
-  let totalWeight = 0;
+/* =========================
+   CSV 載入（原邏輯保留）
+========================= */
+document.getElementById("csvInput").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
 
-  for (let num = 1; num <= 39; num++) {
-    const count = frequency[num] || 0;
-    weights[num] = count > 0 ? count : 0.1; // 避免完全沒出現的號碼機率為0
-    totalWeight += weights[num];
-  }
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const lines = evt.target.result.trim().split(/\r?\n/);
+    data = [];
 
-  // 2. 加權隨機抽樣函數
-  function weightedRandom() {
-    let r = Math.random() * totalWeight;
-    for (let num = 1; num <= 39; num++) {
-      r -= weights[num];
-      if (r <= 0) return num;
-    }
-    return 39; // 保險
-  }
-
-  // 3. 產生候選組合，直到滿足約束
-  const MAX_TRIES = 500;
-  let best = null;
-  let bestDiff = Infinity;
-
-  for (let tryCount = 0; tryCount < MAX_TRIES; tryCount++) {
-    const selected = new Set();
-    let oddCount = 0;
-
-    // 抽5個不重複號碼
-    while (selected.size < 5) {
-      const num = weightedRandom();
-      if (!selected.has(num)) {
-        selected.add(num);
-        if (num % 2 === 1) oddCount++;
+    lines.slice(1).forEach(line => {
+      const parts = line.split(",");
+      if (parts.length >= 6) {
+        const nums = parts.slice(1,6).map(n=>parseInt(n));
+        if (nums.every(n=>n>=1 && n<=39)) {
+          data.push({ date: parts[0], numbers: nums });
+        }
       }
+    });
+
+    if (!data.length) {
+      showStatus("csvInfo","CSV 無有效資料","error");
+      return;
     }
 
-    const nums = [...selected].sort((a, b) => a - b);
-    const sum = nums.reduce((a, b) => a + b, 0);
-    const span = nums[4] - nums[0];
+    showStatus(
+      "csvInfo",
+      `已載入 ${data.length} 期資料`,
+      "success"
+    );
+    showBasicStats();
+  };
+  reader.readAsText(file);
+});
 
-    // 約束條件（可調整寬鬆度）
-    const sumDiff = Math.abs(sum - sumStats.avg);
-    const oddDiff = Math.abs(oddCount - avgOdd);
-    const currentDiff = sumDiff * 0.7 + oddDiff * 20 + (span < 15 ? 40 : 0);
+/* =========================
+   基本統計
+========================= */
+function showBasicStats() {
+  const freq = {};
+  const sums = [];
 
-    // 記錄目前最好的
-    if (currentDiff < bestDiff) {
-      bestDiff = currentDiff;
-      best = nums;
-    }
+  data.forEach(d=>{
+    d.numbers.forEach(n=>freq[n]=(freq[n]||0)+1);
+    sums.push(d.numbers.reduce((a,b)=>a+b,0));
+  });
 
-    // 早點滿足就離開（可選）
-    if (sumDiff <= 20 && oddDiff <= 1 && span >= 15) {
-      return nums;
-    }
+  const avgSum = Math.round(sums.reduce((a,b)=>a+b,0)/sums.length);
+
+  const sorted = [...Array(39)].map((_,i)=>i+1)
+    .sort((a,b)=>(freq[b]||0)-(freq[a]||0));
+
+  document.getElementById("basicStats").style.display="grid";
+  document.getElementById("basicStats").innerHTML = `
+    <div class="stat-item"><div class="stat-label">總期數</div><div class="stat-value">${data.length}</div></div>
+    <div class="stat-item"><div class="stat-label">熱門</div><div class="stat-value">${sorted.slice(0,3).join(",")}</div></div>
+    <div class="stat-item"><div class="stat-label">冷門</div><div class="stat-value">${sorted.slice(-3).join(",")}</div></div>
+    <div class="stat-item"><div class="stat-label">平均和值</div><div class="stat-value">${avgSum}</div></div>
+  `;
+}
+
+/* =========================
+   進階分析（快取）
+========================= */
+function calculateAdvancedStats() {
+  const freq = {};
+  const lastSeen = {};
+  const sums = [];
+  const oddHist = [];
+
+  data.forEach((d,idx)=>{
+    d.numbers.forEach(n=>{
+      freq[n]=(freq[n]||0)+1;
+      lastSeen[n]=idx;
+    });
+    const s = d.numbers.reduce((a,b)=>a+b,0);
+    sums.push(s);
+    oddHist.push(d.numbers.filter(n=>n%2).length);
+  });
+
+  const avgSum = sums.reduce((a,b)=>a+b,0)/sums.length;
+  const std = Math.sqrt(
+    sums.reduce((a,s)=>a+(s-avgSum)**2,0)/sums.length
+  );
+
+  return {
+    freq,
+    lastSeen,
+    total:data.length,
+    sumAvg:avgSum,
+    sumStd:std,
+    avgOdd:Math.round(oddHist.reduce((a,b)=>a+b,0)/oddHist.length)
+  };
+}
+
+/* =========================
+   加權隨機工具
+========================= */
+function weightedRandom(items) {
+  const total = items.reduce((a,b)=>a+b.w,0);
+  let r = Math.random()*total;
+  for (let it of items) {
+    if ((r-=it.w)<=0) return it.v;
+  }
+  return items[items.length-1].v;
+}
+
+/* =========================
+   核心：模擬型預測生成
+========================= */
+function generatePredictionNumbers() {
+  if (!analysisCache) analysisCache = calculateAdvancedStats();
+  const {freq,lastSeen,total,sumAvg,sumStd,avgOdd} = analysisCache;
+
+  /* ---- 建立權重池 ---- */
+  const pool = [];
+  for (let n=1;n<=39;n++) {
+    const f = freq[n]||0;
+    const days = total-(lastSeen[n]??0);
+
+    // 頻率壓縮 + 時間衰減
+    const freqW = Math.sqrt(f+1);
+    let timeW = 1;
+    if (days<=30) timeW=1;
+    else if (days<=100) timeW=0.6;
+    else timeW=0.3;
+
+    // 小幅噪音
+    const noise = 0.9 + Math.random()*0.2;
+
+    pool.push({
+      v:n,
+      w:freqW*timeW*noise
+    });
   }
 
-  // 如果都找不到完美解，回傳最接近的
-  return best || Array.from({ length: 5 }, () => weightedRandom()).sort((a, b) => a - b);
+  /* ---- 重複抽樣 + 軟約束 ---- */
+  let attempt=0;
+  while (attempt<500) {
+    attempt++;
+    const picked=new Set();
+    while (picked.size<5) {
+      picked.add(weightedRandom(pool));
+    }
+    const nums=[...picked].sort((a,b)=>a-b);
+
+    const odd = nums.filter(n=>n%2).length;
+    const sum = nums.reduce((a,b)=>a+b,0);
+    const span = nums[4]-nums[0];
+
+    let pass=true;
+
+    // 奇偶軟約束
+    if (Math.abs(odd-avgOdd)>1 && Math.random()<0.6) pass=false;
+
+    // 和值軟約束
+    if (Math.abs(sum-sumAvg)>2*sumStd && Math.random()<0.7) pass=false;
+
+    // 跨度軟約束
+    if (span<15 && Math.random()<0.6) pass=false;
+
+    if (pass) return nums;
+  }
+
+  // fallback
+  return [...Array(39)].map((_,i)=>i+1)
+    .sort(()=>Math.random()-0.5)
+    .slice(0,5)
+    .sort((a,b)=>a-b);
 }
+
+/* =========================
+   UI 呼叫
+========================= */
+function generatePrediction() {
+  if (!data.length) return alert("請先載入資料");
+  showLoading("loadingC",true);
+  setTimeout(()=>{
+    const nums = generatePredictionNumbers();
+    displayPrediction(nums);
+    showLoading("loadingC",false);
+  },600);
+}
+
+/* =========================
+   顯示預測（沿用你原本）
+========================= */
+function displayPrediction(numbers) {
+  const sum = numbers.reduce((a,b)=>a+b,0);
+  const odd = numbers.filter(n=>n%2).length;
+  const span = numbers[4]-numbers[0];
+
+  document.getElementById("panelC").style.display="block";
+  document.getElementById("panelC").innerHTML=`
+    <div class="box">
+      <div class="box-title">🎯 模擬預測組合</div>
+      <div class="numbers-grid">
+        ${numbers.map(n=>`<div class="number-ball">${n}</div>`).join("")}
+      </div>
+      <div class="stats-row">
+        <div class="stat-item"><div class="stat-label">奇偶</div><div class="stat-value">${odd}:${5-odd}</div></div>
+        <div class="stat-item"><div class="stat-label">和值</div><div class="stat-value">${sum}</div></div>
+        <div class="stat-item"><div class="stat-label">跨度</div><div class="stat-value">${span}</div></div>
+      </div>
+      <div class="status success">此結果為「歷史分布模擬輸出」，非單點預測</div>
+    </div>
+  `;
+}
+
+/* =========================
+   小工具
+========================= */
+function showStatus(id,msg,type="info"){
+  document.getElementById(id).innerHTML=`<div class="status ${type}">${msg}</div>`;
+}
+function showLoading(id,show){
+  document.getElementById(id).style.display=show?"block":"none";
+}
+</script>
