@@ -3,64 +3,70 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CSV 號碼分析規則展示</title>
+<title>CSV 目標號碼規則分析</title>
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
-    background-color: #f9f9f9;
-    padding: 20px;
-  }
-  h1, h2 {
-    text-align: center;
-  }
-  input[type="file"] {
-    display: block;
-    margin: 20px auto;
-    font-size: 18px;
-  }
-  button {
-    display: block;
-    margin: 10px auto;
-    padding: 12px 25px;
-    font-size: 18px;
-    border: none;
-    background-color: #007AFF;
-    color: white;
-    border-radius: 10px;
-  }
-  #result {
-    margin-top: 20px;
-    font-size: 18px;
-    line-height: 1.6;
-  }
-  .number-box {
-    display: inline-block;
-    margin: 5px;
-    padding: 10px 15px;
-    border-radius: 50%;
-    background-color: #FFD700;
-    color: #000;
-    font-weight: bold;
-    font-size: 20px;
-    width: 45px;
-    text-align: center;
-  }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  background-color: #f9f9f9;
+  padding: 20px;
+}
+h1, h2 {
+  text-align: center;
+}
+input[type="file"], input[type="number"] {
+  display: block;
+  margin: 10px auto;
+  font-size: 18px;
+  width: 80%;
+}
+button {
+  display: block;
+  margin: 15px auto;
+  padding: 12px 25px;
+  font-size: 18px;
+  border: none;
+  background-color: #007AFF;
+  color: white;
+  border-radius: 10px;
+}
+#result {
+  margin-top: 20px;
+  font-size: 18px;
+  line-height: 1.6;
+}
+.number-box {
+  display: inline-block;
+  margin: 5px;
+  padding: 10px 15px;
+  border-radius: 50%;
+  background-color: #FFD700;
+  color: #000;
+  font-weight: bold;
+  font-size: 20px;
+  width: 45px;
+  text-align: center;
+}
 </style>
 </head>
 <body>
 
-<h1>CSV 號碼分析規則展示</h1>
-<p style="text-align:center;">上傳你的 CSV 歷史開獎號碼，即可展示如何生成 6、18、28、32、36</p>
+<h1>CSV 目標號碼規則分析</h1>
+<p style="text-align:center;">手動輸入五個號碼，並上傳 CSV 歷史號碼，比對規律</p>
+
+<div style="text-align:center;">
+  <input type="number" id="num1" placeholder="號碼 1" min="1" max="39">
+  <input type="number" id="num2" placeholder="號碼 2" min="1" max="39">
+  <input type="number" id="num3" placeholder="號碼 3" min="1" max="39">
+  <input type="number" id="num4" placeholder="號碼 4" min="1" max="39">
+  <input type="number" id="num5" placeholder="號碼 5" min="1" max="39">
+</div>
 
 <input type="file" id="csvFile" accept=".csv">
-<button id="analyzeBtn">分析生成規則</button>
+<button id="analyzeBtn">分析號碼規律</button>
 
 <div id="result"></div>
 
 <script>
-// 目標號碼
-const targetNumbers = [6,18,28,32,36];
-
 // 解析 CSV
 function parseCSV(text) {
   const rows = text.trim().split(/\r?\n/);
@@ -73,99 +79,82 @@ function parseCSV(text) {
   return data;
 }
 
-// 找出各號碼最近出現天數
-function getRecentNumbers(data, days=15) {
+// 計算區間分布
+function getRangeDistribution(numbers) {
+  const ranges = {
+    "1-10": [],
+    "11-20": [],
+    "21-30": [],
+    "31-39": []
+  };
+  numbers.forEach(n=>{
+    if(n>=1 && n<=10) ranges["1-10"].push(n);
+    else if(n>=11 && n<=20) ranges["11-20"].push(n);
+    else if(n>=21 && n<=30) ranges["21-30"].push(n);
+    else if(n>=31 && n<=39) ranges["31-39"].push(n);
+  });
+  return ranges;
+}
+
+// 分析規則
+function analyzeRules(inputNumbers, data){
   const recent = {};
-  const start = Math.max(0, data.length - days);
-  for (let i = start; i < data.length; i++) {
-    data[i].forEach(n => recent[n] = (recent[n] || 0) + 1);
-  }
-  return recent;
-}
-
-// 模擬生成號碼（區間 + 最近出現優先）
-function generateNumbers(data) {
-  const ranges = [
-    [1,10],
-    [11,20],
-    [21,30],
-    [31,39]
-  ];
-  const recent = getRecentNumbers(data, 15);
-  const nextNumbers = [];
-
-  ranges.forEach(range => {
-    const [min,max] = range;
-    const candidates = [];
-    for(let i=min;i<=max;i++){
-      candidates.push({num:i, recentCount: recent[i]||0});
-    }
-    candidates.sort((a,b)=>b.recentCount - a.recentCount);
-    const top = candidates.filter(c=>c.recentCount === candidates[0].recentCount);
-    const chosen = top[Math.floor(Math.random()*top.length)];
-    nextNumbers.push(chosen.num);
-  });
-
-  // 補足成五個號碼
-  while(nextNumbers.length < 5){
-    const remaining = [];
-    for(let i=1;i<=39;i++){
-      if(!nextNumbers.includes(i)) remaining.push({num:i, recentCount: recent[i]||0});
-    }
-    remaining.sort((a,b)=>b.recentCount - a.recentCount);
-    const top = remaining.filter(c=>c.recentCount===remaining[0].recentCount);
-    const chosen = top[Math.floor(Math.random()*top.length)];
-    nextNumbers.push(chosen.num);
+  const days = Math.min(15,data.length);
+  for(let i=data.length-days;i<data.length;i++){
+    data[i].forEach(n=> recent[n]=(recent[n]||0)+1);
   }
 
-  return nextNumbers;
-}
+  const ranges = getRangeDistribution(inputNumbers);
+  let html = "<h2>分析結果</h2>";
 
-// 顯示規則和結果
-function displayResult(generated) {
-  const resultDiv = document.getElementById('result');
-  let html = `<h2>生成號碼組合</h2>`;
+  // 顯示輸入號碼
   html += `<div>`;
-  generated.forEach(n=>{
-    html += `<span class="number-box">${n}</span>`;
-  });
+  inputNumbers.forEach(n=> html += `<span class="number-box">${n}</span>`);
   html += `</div>`;
 
-  // 檢查是否符合目標
-  const sortedGen = [...generated].sort((a,b)=>a-b);
-  const sortedTarget = [...targetNumbers].sort((a,b)=>a-b);
-  let match = true;
-  for(let i=0;i<5;i++){
-    if(sortedGen[i] !== sortedTarget[i]) match = false;
+  // 分析每個號碼的規律
+  html += `<p>號碼分區與最近出現次數：</p><ul>`;
+  inputNumbers.forEach(n=>{
+    const range = n<=10?"1-10":n<=20?"11-20":n<=30?"21-30":"31-39";
+    const count = recent[n]||0;
+    html += `<li>號碼 ${n} → 區間 ${range}，最近 ${days} 天出現 ${count} 次</li>`;
+  });
+  html += "</ul>";
+
+  // 規則判斷
+  let matchRule = true;
+  for(let n of inputNumbers){
+    if(!recent[n]) matchRule = false;
   }
 
-  if(match){
-    html += `<p style="margin-top:15px;"><strong>✅ 完全符合目標號碼 ${targetNumbers.join(', ')}</strong></p>`;
-    html += `<p>規則說明：</p>
-      <ol>
-        <li>將號碼分區：1–10、11–20、21–30、31–39</li>
-        <li>每個區間挑選近期出現過的號碼（未出現則隨機選擇）</li>
-        <li>若不足五個號碼，從剩餘號碼中補足</li>
-      </ol>`;
+  if(matchRule){
+    html += `<p><strong>✅ 所有號碼近期都有出現，符合「區間分布 + 最近出現」規則</strong></p>`;
   } else {
-    html += `<p style="margin-top:15px;"><strong>❌ 未符合目標號碼 ${targetNumbers.join(', ')}</strong></p>`;
-    html += `<p>原因可能：</p>
-      <ol>
-        <li>區間內近期出現號碼不足，隨機挑選導致不同</li>
-        <li>歷史資料不足以生成目標組合</li>
-      </ol>`;
+    html += `<p><strong>❌ 部分號碼近期未出現，可能不符合生成規則</strong></p>`;
   }
 
-  resultDiv.innerHTML = html;
+  return html;
 }
 
-document.getElementById('analyzeBtn').addEventListener('click', ()=>{
+document.getElementById('analyzeBtn').addEventListener('click',()=>{
+  const nums = [
+    parseInt(document.getElementById('num1').value),
+    parseInt(document.getElementById('num2').value),
+    parseInt(document.getElementById('num3').value),
+    parseInt(document.getElementById('num4').value),
+    parseInt(document.getElementById('num5').value)
+  ];
+  if(nums.some(n=>isNaN(n) || n<1 || n>39)){
+    alert("請輸入 1-39 的五個號碼");
+    return;
+  }
+
   const fileInput = document.getElementById('csvFile');
   const file = fileInput.files[0];
   const resultDiv = document.getElementById('result');
 
   if(!file){
-    alert('請先選擇 CSV 檔案');
+    alert("請先上傳 CSV 檔案");
     return;
   }
 
@@ -173,8 +162,8 @@ document.getElementById('analyzeBtn').addEventListener('click', ()=>{
   reader.onload = function(e){
     const text = e.target.result;
     const data = parseCSV(text);
-    const generated = generateNumbers(data);
-    displayResult(generated);
+    const html = analyzeRules(nums,data);
+    resultDiv.innerHTML = html;
   };
   reader.readAsText(file);
 });
