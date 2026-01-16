@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 三元集彈系統 - 優化 v70</title>
+    <title>AI 三元共振系統 - 優化 v71</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -15,28 +15,27 @@
         th, td { border: 1px solid #eee; text-align: center; padding: 10px 5px; font-size: 13px; }
         th { background: var(--primary); color: white; }
         .best-hit { background-color: #fff3cd !important; border: 2px solid #f1c40f !important; }
-        .good-hit { background-color: #e8f5e9 !important; border: 2px solid var(--success) !important; }
         .hit-count { font-weight: bold; color: var(--success); font-size: 1.3rem; }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v70 三元集彈版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v71 三元共振版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 集彈預測 (目標：擊穿命中 3)</h3>
+            <h3 class="panel-title">2. AI 共振預測 (目標：40% 命中 3)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 滾動回測 (衝刺 40% 命中 3 覆蓋率)</h3>
+            <h3 class="panel-title">3. 滾動回測 (高壓集彈檢驗)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v70)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v71)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -62,11 +61,11 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getSynergyPick(history) {
+        function getResonancePick(history) {
             let scores = Array(40).fill(0);
             let missArr = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            const recentNums = history.slice(-10).flatMap(h => h.nums);
+            const recentNums = history.slice(-5).flatMap(h => h.nums);
             let tailFreq = Array(10).fill(0);
             recentNums.forEach(n => tailFreq[n % 10]++);
 
@@ -76,43 +75,42 @@
                     if (!history[j].nums.includes(i)) m++; else break;
                 }
                 missArr[i] = m;
+                // v71 高壓評分體系
+                if (m === 1) scores[i] += 1000;      // 絕對熱區
+                else if (m >= 5 && m <= 9) scores[i] += 800; // 黃金反彈
+                else if (m === 0) scores[i] += 400;  // 連莊
+                else if (m >= 13) scores[i] = 0;     // 排除極冷
+                else scores[i] += 100;
 
-                // v70 強壓評分：極度偏好熱號連動
-                if (m === 1) scores[i] += 900;       
-                else if (m === 0) scores[i] += 500;
-                else if (m >= 5 && m <= 9) scores[i] += 700; 
-                else if (m >= 12) scores[i] = 0;
-                else scores[i] += 50;
-
-                scores[i] += tailFreq[i % 10] * 50; 
-                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 300; 
+                scores[i] += tailFreq[i % 10] * 60; // 強化同尾
+                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 300; // 強化鄰號
             }
 
             let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             let final = [];
 
-            // 1. 建立「三元核心群」(目標是命中 3 的基石)
+            // 1. 強力核心 (集彈點 A)
             let core = sorted[0];
             final.push(core);
 
-            // 尋找最強同尾
-            let bestTail = sorted.find(n => !final.includes(n) && (n % 10 === core % 10));
-            if (bestTail) final.push(bestTail);
+            // 2. 同尾共振 (集彈點 B)
+            let tailMate = sorted.find(n => !final.includes(n) && (n % 10 === core % 10));
+            if (tailMate) final.push(tailMate);
 
-            // 尋找最強連號
-            let bestNeighbor = sorted.find(n => !final.includes(n) && Math.abs(n - core) === 1);
-            if (bestNeighbor) final.push(bestNeighbor);
+            // 3. 鄰號連鎖 (集彈點 C)
+            let neighborMate = sorted.find(n => !final.includes(n) && Math.abs(n - core) === 1);
+            if (neighborMate) final.push(neighborMate);
 
-            // 2. 建立「二元備援群」(尋找反彈金區)
-            let backLead = sorted.find(n => !final.includes(n) && missArr[n] >= 5 && missArr[n] <= 9);
-            if (backLead) {
-                final.push(backLead);
-                // 嘗試為反彈號再配一顆同尾或連號，增加集彈力
-                let backLink = sorted.find(n => !final.includes(n) && (n % 10 === backLead % 10 || Math.abs(n - backLead) === 1));
-                if (backLink) final.push(backLink);
+            // 4. 反彈區域鎖定 (集彈點 D) - 尋找冷區評分最高號
+            let coldCore = sorted.find(n => !final.includes(n) && missArr[n] >= 5 && missArr[n] <= 9);
+            if (coldCore) {
+                final.push(coldCore);
+                // 5. 反彈號的共振號
+                let coldMate = sorted.find(n => !final.includes(n) && (n % 10 === coldCore % 10 || Math.abs(n - coldCore) === 1));
+                if (coldMate) final.push(coldMate);
             }
 
-            // 3. 補齊剩餘位
+            // 補齊位
             for (let n of sorted) {
                 if (final.length >= 5) break;
                 if (!final.includes(n)) final.push(n);
@@ -125,15 +123,14 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getSynergyPick(data.slice(0, i));
+                const pred = getResonancePick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
-                else if (hits.length >= 2) tr.className = 'good-hit';
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getSynergyPick(data);
+            const nextP = getResonancePick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
