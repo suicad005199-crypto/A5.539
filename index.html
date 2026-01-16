@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 三維熵值複合系統 - 優化 v60</title>
+    <title>AI 雙軌共振系統 - 優化 v61</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -22,21 +22,21 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v60 複合強化版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v61 雙軌共振版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 複合預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 預測 (下一期建議)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 滾動回測 (目標：找回命中 3)</h3>
+            <h3 class="panel-title">3. 滾動回測 (目標：重啟 v48 級別穩定度)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v60)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v61)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -62,14 +62,15 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getHybridPick(history) {
+        function getDualTrackPick(history) {
             let scores = Array(40).fill(0);
             let missArr = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            const recentNums = history.slice(-5).flatMap(h => h.nums);
+            const recentHistory = history.slice(-5).flatMap(h => h.nums);
             
+            // 尾數熱度統計
             let tailFreq = Array(10).fill(0);
-            recentNums.forEach(n => tailFreq[n % 10]++);
+            recentHistory.forEach(n => tailFreq[n % 10]++);
 
             for (let i = 1; i <= 39; i++) {
                 let m = 0;
@@ -78,37 +79,33 @@
                 }
                 missArr[i] = m;
 
-                // 核心評分 (融合 v48+v57)
-                if (m === 1) scores[i] += 580;       
-                else if (m >= 5 && m <= 9) scores[i] += 470; 
-                else if (m === 0) scores[i] += 300;  
+                // 核心權重分配
+                if (m === 1) scores[i] += 550;       // 熱軌
+                else if (m >= 5 && m <= 9) scores[i] += 500; // 冷軌
+                else if (m === 0) scores[i] += 250;  // 連莊
                 else if (m >= 13) scores[i] = 0;
-                else scores[i] += 120;
+                else scores[i] += 100;
 
-                // 鄰號加成
-                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 160;
-                // 尾數熱點加成
-                scores[i] += tailFreq[i % 10] * 35;
+                // 尾數熱度與連動
+                scores[i] += tailFreq[i % 10] * 30;
+                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 150;
             }
 
             let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             let final = [];
 
-            // 1. 鎖定熱區核心 (L0-L1)
-            let coreHot = sorted.filter(n => missArr[n] <= 1);
-            for(let i=0; i<2 && i<coreHot.length; i++) final.push(coreHot[i]);
+            // 1. 強制軌道選號
+            let trackHot = sorted.filter(n => missArr[n] === 1).slice(0, 2);
+            trackHot.forEach(n => final.push(n));
 
-            // 2. 鎖定反彈核心 (L5-L9)
-            let coreBack = sorted.filter(n => !final.includes(n) && missArr[n] >= 5 && missArr[n] <= 9);
-            for(let i=0; i<2 && i<coreBack.length; i++) final.push(coreBack[i]);
+            let trackCold = sorted.filter(n => !final.includes(n) && missArr[n] >= 5 && missArr[n] <= 9).slice(0, 2);
+            trackCold.forEach(n => final.push(n));
 
-            // 3. 垂直共振補位 (尋找同尾或連號)
+            // 2. 補足第 5 顆 (找最強共振)
             for (let n of sorted) {
                 if (final.length >= 5) break;
                 if (final.includes(n)) continue;
-                
-                let resonance = final.some(f => (f % 10 === n % 10) || (Math.abs(f - n) === 1));
-                if (resonance || final.length >= 4) final.push(n);
+                final.push(n);
             }
 
             return final.sort((a, b) => a - b);
@@ -118,7 +115,7 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getHybridPick(data.slice(0, i));
+                const pred = getDualTrackPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
@@ -126,7 +123,7 @@
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getHybridPick(data);
+            const nextP = getDualTrackPick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
