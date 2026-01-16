@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 尾數斷層聚類系統 - 優化 v18</title>
+    <title>AI 同尾斷層共振系統 - 優化 v19</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -23,28 +23,28 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v18 尾數斷層版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v19 同尾共振版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 尾數聚類預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 同尾共振預測 (下一期建議)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 連號分布圖 (最新 10 期)</h3>
+            <h3 class="panel-title">3. 連號分布圖 (含熱度分析)</h3>
             <div class="table-container">
-                <table><thead><tr id="chartHeader"></tr></thead><tbody id="chartBody"></tbody></table>
+                <table id="distTable"><thead><tr id="chartHeader"></tr></thead><tbody id="chartBody"></tbody></table>
             </div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">4. 滾動回測 (目標：重回 3 號命中)</h3>
+            <h3 class="panel-title">4. 滾動回測 (集彈性衝刺)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v18)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v19)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -70,15 +70,14 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getTailClusterPick(history) {
+        function getResonancePick(history) {
             const scores = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            const recentNums = history.slice(-5).flatMap(r => r.nums);
+            const recentNums = history.slice(-8).flatMap(r => r.nums);
             
-            // 尾數熱度矩陣
-            const tailMap = Array(10).fill(0);
-            recentNums.forEach(n => tailMap[n % 10]++);
-            const topTails = tailMap.map((v, i) => ({t: i, v})).sort((a, b) => b.v - a.v).slice(0, 2).map(x => x.t);
+            // 尾數動能計算
+            const tailScores = Array(10).fill(0);
+            recentNums.forEach(n => tailScores[n % 10]++);
 
             for (let i = 1; i <= 39; i++) {
                 let miss = 0;
@@ -86,45 +85,48 @@
                     if (!history[j].nums.includes(i)) miss++; else break;
                 }
 
-                // A. 深度遺漏區 (5-8期) 給予最高權重
-                if (miss >= 5 && miss <= 8) scores[i] += 160;
-                
-                // B. 尾數熱點加權
-                if (topTails.includes(i % 10)) scores[i] += 90;
+                // A. 斷層權重：強化 5-9 期 (中溫) 與 0-1 期 (極熱)
+                if (miss >= 5 && miss <= 9) scores[i] += 180;
+                else if (miss <= 1) scores[i] += 100;
+                else scores[i] += 30; // 壓低平庸區
 
-                // C. 鄰號誘發 (N±1)
-                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 70;
+                // B. 鄰號 (N±1) 強化
+                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 80;
 
-                // D. 隔期跳號 (N±2)
-                if (lastNums.some(n => Math.abs(n - i) === 2)) scores[i] += 40;
+                // C. 同尾加成
+                scores[i] += tailScores[i % 10] * 15;
             }
 
             const sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             
             let final = [];
-            // 選取邏輯：強制嵌入一組同尾號 + 一組連號
+            // 聚類選號：強制先選出最高分的尾數對子
+            const mainTail = sorted[0] % 10;
             final.push(sorted[0]);
 
+            // 尋找第一個同尾
             for (let n of sorted.slice(1)) {
-                if (final.length >= 5) break;
-                
-                const hasTailMatch = final.some(f => f % 10 === n % 10);
-                const hasNeighborMatch = final.some(f => Math.abs(f - n) === 1);
-                
-                // 限制連號數量，避免過度擁擠
-                const neighborCount = final.filter(f => Math.abs(f - n) === 1).length;
-
-                if ((hasTailMatch && final.length < 3) || (hasNeighborMatch && neighborCount < 2) || final.length < 2) {
+                if (n % 10 === mainTail) {
                     final.push(n);
+                    break;
                 }
             }
 
-            // 補齊剩餘號碼 (避免太擠)
+            // 補齊剩餘號碼，優先考慮鄰號
             for (let n of sorted) {
                 if (final.length >= 5) break;
-                if (!final.includes(n) && !final.some(f => Math.abs(f - n) === 1 && final.filter(x => Math.abs(x - n) === 1).length >= 2)) {
+                if (final.includes(n)) continue;
+                
+                // 增加命中 3 號機會：優先選取與已選號碼「相鄰」或「跳號」的號碼
+                if (final.some(f => Math.abs(f - n) <= 2)) {
                     final.push(n);
                 }
+            }
+            
+            // 最終兜底
+            for (let n of sorted) {
+                if (final.length >= 5) break;
+                if (!final.includes(n)) final.push(n);
             }
 
             return final.sort((a, b) => a - b);
@@ -135,7 +137,7 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getTailClusterPick(data.slice(0, i));
+                const pred = getResonancePick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
@@ -143,7 +145,7 @@
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getTailClusterPick(data);
+            const nextP = getResonancePick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
