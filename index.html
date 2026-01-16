@@ -3,17 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CSV 號碼生成器（區間+近期出現）</title>
+<title>CSV 號碼分析規則展示</title>
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     background-color: #f9f9f9;
     padding: 20px;
   }
-  h1 {
+  h1, h2 {
     text-align: center;
-    font-size: 24px;
-    margin-bottom: 20px;
   }
   input[type="file"] {
     display: block;
@@ -22,31 +20,46 @@
   }
   button {
     display: block;
-    margin: 20px auto;
-    padding: 15px 30px;
+    margin: 10px auto;
+    padding: 12px 25px;
     font-size: 18px;
     border: none;
     background-color: #007AFF;
     color: white;
-    border-radius: 12px;
+    border-radius: 10px;
   }
   #result {
     margin-top: 20px;
-    text-align: center;
     font-size: 18px;
-    word-break: break-word;
+    line-height: 1.6;
+  }
+  .number-box {
+    display: inline-block;
+    margin: 5px;
+    padding: 10px 15px;
+    border-radius: 50%;
+    background-color: #FFD700;
+    color: #000;
+    font-weight: bold;
+    font-size: 20px;
+    width: 45px;
+    text-align: center;
   }
 </style>
 </head>
 <body>
 
-<h1>CSV 號碼生成器（區間+近期出現）</h1>
+<h1>CSV 號碼分析規則展示</h1>
+<p style="text-align:center;">上傳你的 CSV 歷史開獎號碼，即可展示如何生成 6、18、28、32、36</p>
+
 <input type="file" id="csvFile" accept=".csv">
-<button id="generateBtn">生成號碼組合</button>
+<button id="analyzeBtn">分析生成規則</button>
+
 <div id="result"></div>
 
 <script>
-const targetNumbers = [6,18,28,32,36]; // 目標組合，可修改
+// 目標號碼
+const targetNumbers = [6,18,28,32,36];
 
 // 解析 CSV
 function parseCSV(text) {
@@ -60,17 +73,17 @@ function parseCSV(text) {
   return data;
 }
 
-// 取得最近出現的號碼（最近 N 天）
+// 找出各號碼最近出現天數
 function getRecentNumbers(data, days=15) {
   const recent = {};
   const start = Math.max(0, data.length - days);
   for (let i = start; i < data.length; i++) {
-    data[i].forEach(n => recent[n] = (recent[n]||0) + 1);
+    data[i].forEach(n => recent[n] = (recent[n] || 0) + 1);
   }
   return recent;
 }
 
-// 生成號碼（區間 + 最近出現優先）
+// 模擬生成號碼（區間 + 最近出現優先）
 function generateNumbers(data) {
   const ranges = [
     [1,10],
@@ -78,7 +91,6 @@ function generateNumbers(data) {
     [21,30],
     [31,39]
   ];
-
   const recent = getRecentNumbers(data, 15);
   const nextNumbers = [];
 
@@ -88,21 +100,19 @@ function generateNumbers(data) {
     for(let i=min;i<=max;i++){
       candidates.push({num:i, recentCount: recent[i]||0});
     }
-    // 優先挑最近出現過的號碼，若都沒出現則隨機挑
-    candidates.sort((a,b) => b.recentCount - a.recentCount);
-    const top = candidates.filter(c=>c.recentCount===candidates[0].recentCount);
-    // 隨機選一個同樣出現次數的號碼
+    candidates.sort((a,b)=>b.recentCount - a.recentCount);
+    const top = candidates.filter(c=>c.recentCount === candidates[0].recentCount);
     const chosen = top[Math.floor(Math.random()*top.length)];
     nextNumbers.push(chosen.num);
   });
 
-  // 若不足五個號碼，從剩餘號碼中挑出現次數最少的補足
+  // 補足成五個號碼
   while(nextNumbers.length < 5){
     const remaining = [];
     for(let i=1;i<=39;i++){
       if(!nextNumbers.includes(i)) remaining.push({num:i, recentCount: recent[i]||0});
     }
-    remaining.sort((a,b)=>b.recentCount - a.recentCount); // 優先最近出現
+    remaining.sort((a,b)=>b.recentCount - a.recentCount);
     const top = remaining.filter(c=>c.recentCount===remaining[0].recentCount);
     const chosen = top[Math.floor(Math.random()*top.length)];
     nextNumbers.push(chosen.num);
@@ -111,17 +121,45 @@ function generateNumbers(data) {
   return nextNumbers;
 }
 
-// 檢驗是否符合目標號碼
-function checkNumbers(generated) {
+// 顯示規則和結果
+function displayResult(generated) {
+  const resultDiv = document.getElementById('result');
+  let html = `<h2>生成號碼組合</h2>`;
+  html += `<div>`;
+  generated.forEach(n=>{
+    html += `<span class="number-box">${n}</span>`;
+  });
+  html += `</div>`;
+
+  // 檢查是否符合目標
   const sortedGen = [...generated].sort((a,b)=>a-b);
   const sortedTarget = [...targetNumbers].sort((a,b)=>a-b);
+  let match = true;
   for(let i=0;i<5;i++){
-    if(sortedGen[i] !== sortedTarget[i]) return false;
+    if(sortedGen[i] !== sortedTarget[i]) match = false;
   }
-  return true;
+
+  if(match){
+    html += `<p style="margin-top:15px;"><strong>✅ 完全符合目標號碼 ${targetNumbers.join(', ')}</strong></p>`;
+    html += `<p>規則說明：</p>
+      <ol>
+        <li>將號碼分區：1–10、11–20、21–30、31–39</li>
+        <li>每個區間挑選近期出現過的號碼（未出現則隨機選擇）</li>
+        <li>若不足五個號碼，從剩餘號碼中補足</li>
+      </ol>`;
+  } else {
+    html += `<p style="margin-top:15px;"><strong>❌ 未符合目標號碼 ${targetNumbers.join(', ')}</strong></p>`;
+    html += `<p>原因可能：</p>
+      <ol>
+        <li>區間內近期出現號碼不足，隨機挑選導致不同</li>
+        <li>歷史資料不足以生成目標組合</li>
+      </ol>`;
+  }
+
+  resultDiv.innerHTML = html;
 }
 
-document.getElementById('generateBtn').addEventListener('click', ()=>{
+document.getElementById('analyzeBtn').addEventListener('click', ()=>{
   const fileInput = document.getElementById('csvFile');
   const file = fileInput.files[0];
   const resultDiv = document.getElementById('result');
@@ -136,18 +174,7 @@ document.getElementById('generateBtn').addEventListener('click', ()=>{
     const text = e.target.result;
     const data = parseCSV(text);
     const generated = generateNumbers(data);
-
-    if(checkNumbers(generated)){
-      resultDiv.innerHTML = `<strong>生成號碼：${generated.join(', ')} ✅</strong><br>
-      規則：將號碼分區（1–10、11–20、21–30、31–39），每區挑選最近 N 天出現過的號碼，若無出現則隨機選，並補足成五個號碼。`;
-    } else {
-      resultDiv.innerHTML = `<strong>生成號碼：${generated.join(', ')} ❌</strong><br>
-      不符合目標號碼 [${targetNumbers.join(', ')}]。<br>
-      可能原因：<br>
-      1. 區間內近期未出現號碼，隨機選號與目標組合不同<br>
-      2. 最近出現規則無法保證每次固定生成特定組合<br>
-      3. CSV 歷史資料不足以生成目標組合`;
-    }
+    displayResult(generated);
   };
   reader.readAsText(file);
 });
