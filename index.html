@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 尾數共振矩陣系統 - 優化 v40</title>
+    <title>AI 雙核心螺旋系統 - 優化 v41</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -18,48 +18,29 @@
         .good-hit { background-color: #e8f5e9 !important; border: 2px solid var(--success) !important; }
         .best-hit { background-color: #fff3cd !important; border: 2px solid #f1c40f !important; }
         .hit-count { font-weight: bold; color: var(--success); font-size: 1.3rem; }
-        .collapsible-content { display: none; padding-top: 10px; font-size: 14px; line-height: 1.6; color: #555; border-top: 1px solid #eee; }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v40 尾數矩陣版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v41 雙核心版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 尾數矩陣預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 螺旋預測 (下一期建議)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 連號分布圖 (動態重心)</h3>
-            <div class="table-container">
-                <table id="distTable"><thead><tr id="chartHeader"></tr></thead><tbody id="chartBody"></tbody></table>
-            </div>
-        </div>
-
-        <div class="panel">
-            <h3 class="panel-title">4. 滾動回測 (衝刺命中 3 號)</h3>
+            <h3 class="panel-title">3. 滾動回測 (目標：重啟集彈爆發)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v40)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v41)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
-        </div>
-    </div>
-
-    <div class="panel">
-        <h3 class="panel-title" onclick="toggleStrategy()">5. 策略邏輯說明 <span>▼</span></h3>
-        <div id="strategyContent" class="collapsible-content">
-            <strong>v40 核心優化：</strong><br>
-            * <strong>尾數矩陣 (Tail Resonance)：</strong>強制核心號碼與其同尾號進行「矩陣式選號」。當鎖定某尾數時，系統會優先檢查該尾數的完整分佈。<br>
-            * <strong>斜連加權升級：</strong>大幅強化遺漏 1 期的號碼。539 的集彈爆發多半伴隨斜連發生。<br>
-            * <strong>重心聚攏：</strong>移除強制的區域分散，容許號碼在熱點區間（近 5 期高頻區）密集出現，模擬真實的獎號群聚。<br>
-            * <strong>冷號過濾：</strong>嚴格剔除遺漏 13 期以上的號碼，將所有評分資源轉向熱號與黃金回補號（5-9期）。
         </div>
     </div>
 
@@ -70,11 +51,6 @@
             reader.onload = e => parseCSV(e.target.result);
             reader.readAsText(file);
         });
-
-        function toggleStrategy() {
-            const content = document.getElementById('strategyContent');
-            content.style.display = content.style.display === 'block' ? 'none' : 'block';
-        }
 
         function parseCSV(text) {
             const lines = text.trim().split(/\r?\n/);
@@ -87,43 +63,56 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getTailMatrixPick(history) {
+        function getHelixPick(history) {
             let scores = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            const recentNums = history.slice(-5).flatMap(r => r.nums);
+            const recentNums = history.slice(-10).flatMap(r => r.nums);
             
+            // 統計熱門尾數
+            let tailFreq = {};
+            recentNums.forEach(n => { let t = n % 10; tailFreq[t] = (tailFreq[t] || 0) + 1; });
+
             for (let i = 1; i <= 39; i++) {
                 let miss = 0;
                 for (let j = history.length - 1; j >= 0; j--) {
                     if (!history[j].nums.includes(i)) miss++; else break;
                 }
                 
-                // 遺漏動能分配
-                if (miss === 1) scores[i] += 350;       // 最強斜連
-                else if (miss >= 5 && miss <= 9) scores[i] += 280; // 黃金反彈
-                else if (miss === 0) scores[i] += 200;  // 連莊
-                else if (miss >= 13) scores[i] = 0;     // 徹底過濾冷號
-                else scores[i] += 60;
+                // 遺漏動能
+                if (miss === 1) scores[i] += 380;       // 強斜連
+                else if (miss >= 5 && miss <= 9) scores[i] += 300; // 黃金反彈
+                else if (miss === 0) scores[i] += 220;  // 連莊
+                else if (miss >= 12) scores[i] = 0;     // 剔除長冷
+                else scores[i] += 50;
 
-                // 鄰號加成
-                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 120;
+                // 熱門尾數補償
+                if (tailFreq[i % 10] >= 5) scores[i] += 100;
             }
 
             let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             let final = [];
             
-            // 1. 選取第一核心
-            let seed = sorted[0];
-            final.push(seed);
+            // --- 螺旋選號邏輯 ---
+            // 1. 群聚 A (熱區螺旋)
+            let coreA = sorted.find(n => history[history.length-1].nums.some(ln => Math.abs(ln-n) === 1));
+            if (!coreA) coreA = sorted[0];
+            final.push(coreA);
             
-            // 2. 尾數矩陣強化：對同尾號進行大幅二次加成
-            for(let i=1; i<=39; i++) {
-                if (i !== seed && i % 10 === seed % 10) scores[i] += 180;
-            }
-            
-            // 3. 重新選號 (容許群聚，不強制分散)
-            let reSorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
-            for (let n of reSorted) {
+            // A 的鄰號
+            let neighborA = sorted.find(n => !final.includes(n) && Math.abs(n - coreA) === 1);
+            if (neighborA) final.push(neighborA);
+
+            // 2. 群聚 B (反彈螺旋)
+            let coreB = sorted.find(n => !final.includes(n) && (n % 10 === coreA % 10)); // 優先找同尾
+            if (!coreB) coreB = sorted.find(n => !final.includes(n));
+            final.push(coreB);
+
+            // B 的相關號 (同尾或鄰號)
+            let relB = sorted.find(n => !final.includes(n) && (n % 10 === coreB % 10 || Math.abs(n-coreB) === 1));
+            if (relB) final.push(relB);
+
+            // 3. 補齊最高分
+            for (let n of sorted) {
                 if (final.length >= 5) break;
                 if (!final.includes(n)) final.push(n);
             }
@@ -132,11 +121,10 @@
         }
 
         function processSystem(data) {
-            renderChart([...data].slice(-10).reverse());
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getTailMatrixPick(data.slice(0, i));
+                const pred = getHelixPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
@@ -144,16 +132,9 @@
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getTailMatrixPick(data);
+            const nextP = getHelixPick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
-        }
-
-        function renderChart(data) {
-            const header = document.getElementById('chartHeader');
-            const body = document.getElementById('chartBody');
-            header.innerHTML = '<th>日期</th>' + Array.from({length:39}, (_, i)=>`<th>${i+1}</th>`).join('');
-            body.innerHTML = data.map(row => `<tr><td>${row.date}</td>${Array.from({length:39}, (_, i)=>`<td>${row.nums.includes(i+1)?`<span class="dot">${i+1}</span>`:''}</td>`).join('')}</tr>`).join('');
         }
     </script>
 </body>
