@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>高階 AI 數據預測系統 - 優化策略版</title>
+    <title>AI 遺漏區間預測系統</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -23,12 +23,11 @@
         .dot { background: var(--accent); color: white; border-radius: 50%; display: inline-block; width: 22px; height: 22px; line-height: 22px; font-weight: bold; }
 
         /* 回測樣式 */
-        .good-hit { background-color: #d4edda !important; }
+        .good-hit { background-color: #d4edda !important; font-weight: bold; }
         .hit-count { font-weight: bold; font-size: 1.1rem; color: var(--success); }
 
         /* 收合面板樣式 */
-        .accordion-header { cursor: pointer; background: #eee; padding: 12px; border-radius: 6px; font-weight: bold; text-align: center; margin-top: 10px; transition: 0.3s; }
-        .accordion-header:hover { background: #ddd; }
+        .accordion-header { cursor: pointer; background: #eee; padding: 12px; border-radius: 6px; font-weight: bold; text-align: center; margin-top: 10px; }
         .accordion-content { display: none; padding: 20px; line-height: 1.8; background: #fff; border: 1px solid #eee; border-radius: 0 0 6px 6px; font-size: 14px; }
     </style>
 </head>
@@ -42,7 +41,7 @@
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. 核心演算法預測 (下一期)</h3>
+            <h3 class="panel-title">2. 動態遺漏策略預測 (下一期)</h3>
             <div class="grid-container" id="predictionResults"></div>
         </div>
 
@@ -54,11 +53,11 @@
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">4. 滾動回測紀錄 (顯示最近 10 期)</h3>
+            <h3 class="panel-title">4. 滾動回測紀錄 (固定顯示 10 期)</h3>
             <div class="table-container">
                 <table>
                     <thead>
-                        <tr><th>日期</th><th>真實獎號</th><th>預測組 (AI 綜合加權)</th><th>命中數</th></tr>
+                        <tr><th>日期</th><th>真實獎號</th><th>預測組 (遺漏觸發策略)</th><th>命中數</th></tr>
                     </thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
@@ -69,18 +68,16 @@
     <div class="panel">
         <div class="accordion-header" onclick="toggleAccordion()">💡 策略邏輯說明 (點擊展開/收合)</div>
         <div id="accContent" class="accordion-content">
-            <strong>1. 多維度評分系統：</strong><br>
-            每個號碼起始 0 分，依據以下指標加權：<br>
-            - <b>總頻率權重：</b> 出現次數佔總期數比例。<br>
-            - <b>近期熱度：</b> 最近 5 期內出現過的號碼獲得 2 倍額外加成。<br>
-            - <b>遺漏補償：</b> 計算該號碼已連續幾期未開，遺漏期數越高則加分越多。<br>
-            - <b>鄰近帶動：</b> 若上期開出鄰近號（N±1），則該號碼加分。<br>
+            <strong>1. 遺漏區間觸發 (Interval Trigger)：</strong><br>
+            計算每個號碼的「當前遺漏期數」，若符合以下條件則加分：<br>
+            - <b>黃金回歸：</b> 遺漏 3-6 期，賦予基礎加權。<br>
+            - <b>極限回補：</b> 遺漏超過 12 期，模擬機率性反彈。<br>
             <br>
-            <strong>2. 回測機制：</strong><br>
-            針對最近 10 期進行「盲測」，即每一期預測時，系統會自動切斷該期及之後的資料，僅以前置數據進行計算，確保回測具備實戰參考價值。<br>
+            <strong>2. 熱號降溫邏輯：</strong><br>
+            若號碼連續出現 2 期以上，系統會微調降其分數，避免過度追逐短期巧合。<br>
             <br>
-            <strong>3. UI 標示：</strong><br>
-            若單期命中數達到 2 個（含）以上，該列將以綠色高亮標示。
+            <strong>3. 尾數平衡：</strong><br>
+            預測組合中會自動檢查尾數，避免 5 個號碼全集中在同一個尾數（如 1, 11, 21, 31）。
         </div>
     </div>
 
@@ -114,42 +111,57 @@
             document.getElementById('analysisSection').style.display = 'block';
         }
 
-        // --- 進化版策略演算法 ---
-        function getSmartPick(history) {
-            if (history.length === 0) return [1, 2, 3, 4, 5];
+        // --- 優化演算法：動態遺漏觸發 ---
+        function getSkipPick(history) {
+            if (history.length < 5) return [1, 2, 3, 4, 5];
             
             const scores = Array(40).fill(0);
-            const totalPeriods = history.length;
-            const recentHistory = history.slice(-5);
-            
-            // 基礎統計
-            const freq = {};
-            history.forEach(row => row.nums.forEach(n => freq[n] = (freq[n] || 0) + 1));
+            const lastRow = history[history.length - 1].nums;
 
             for (let i = 1; i <= 39; i++) {
-                // 1. 總頻率加權
-                scores[i] += ((freq[i] || 0) / totalPeriods) * 50;
-                
-                // 2. 近期熱度加權 (最近 5 期)
-                const recentCount = recentHistory.filter(row => row.nums.includes(i)).length;
-                scores[i] += recentCount * 15;
-
-                // 3. 遺漏深度加權
-                let miss = 0;
+                // A. 計算當前遺漏期數
+                let currentMiss = 0;
+                let streak = 0;
                 for (let j = history.length - 1; j >= 0; j--) {
-                    if (!history[j].nums.includes(i)) miss++; else break;
+                    if (!history[j].nums.includes(i)) currentMiss++; else break;
                 }
-                scores[i] += (miss * 2.5);
+                // B. 計算連開期數
+                for (let j = history.length - 1; j >= 0; j--) {
+                    if (history[j].nums.includes(i)) streak++; else break;
+                }
 
-                // 4. 上期鄰近帶動
-                const lastNums = history[history.length - 1].nums;
-                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 8;
+                // 核心規則 1：黃金遺漏區間 (3-6期最容易回歸)
+                if (currentMiss >= 3 && currentMiss <= 6) scores[i] += 40;
+                
+                // 核心規則 2：長期遺漏補償 (10期以上)
+                if (currentMiss >= 10) scores[i] += (currentMiss * 3);
+
+                // 核心規則 3：熱號降溫 (連開3期以上大幅扣分)
+                if (streak >= 3) scores[i] -= 20;
+                if (streak === 1) scores[i] += 15; // 剛開 1 期容易連開
+
+                // 核心規則 4：歷史總頻率
+                const totalFreq = history.filter(row => row.nums.includes(i)).length;
+                scores[i] += (totalFreq / history.length) * 20;
             }
 
-            // 取得最高分前 5 名
-            return Array.from({length: 39}, (_, i) => i + 1)
-                        .sort((a, b) => scores[b] - scores[a])
-                        .slice(0, 5).sort((a, b) => a - b);
+            // 取得排序
+            const result = Array.from({length: 39}, (_, i) => i + 1)
+                        .sort((a, b) => scores[b] - scores[a]);
+
+            // 增加尾數多樣性檢查 (不選超過 2 個相同尾數)
+            const finalPick = [];
+            const tails = {};
+            for (let num of result) {
+                let t = num % 10;
+                if ((tails[t] || 0) < 2) {
+                    finalPick.push(num);
+                    tails[t] = (tails[t] || 0) + 1;
+                }
+                if (finalPick.length === 5) break;
+            }
+
+            return finalPick.sort((a, b) => a - b);
         }
 
         function runBacktest(allData) {
@@ -161,7 +173,7 @@
             for (let i = startIdx; i > startIdx - testCount && i >= 0; i--) {
                 const historyBefore = allData.slice(0, i);
                 const actual = allData[i].nums;
-                const pred = getSmartPick(historyBefore);
+                const pred = getSkipPick(historyBefore);
                 const hits = pred.filter(n => actual.includes(n));
 
                 const tr = document.createElement('tr');
@@ -182,9 +194,7 @@
             header.innerHTML = '<th>日期</th>' + Array.from({length: 39}, (_, i) => `<th>${i+1}</th>`).join('');
             body.innerHTML = data.map(row => {
                 let tr = `<td>${row.date}</td>`;
-                for (let i = 1; i <= 39; i++) {
-                    tr += `<td>${row.nums.includes(i) ? `<span class="dot">${i}</span>` : ''}</td>`;
-                }
+                for (let i = 1; i <= 39; i++) tr += `<td>${row.nums.includes(i) ? `<span class="dot">${i}</span>` : ''}</td>`;
                 return `<tr>${tr}</tr>`;
             }).join('');
         }
@@ -204,10 +214,9 @@
 
         function generateNext(allData) {
             const res = document.getElementById('predictionResults');
-            const p = getSmartPick(allData);
+            const p = getSkipPick(allData);
             res.innerHTML = `
-                <div class="card"><h4>🎯 AI 優化預測</h4>${p.map(n => `<span class="num-badge" style="font-size:1.2rem; padding:5px 15px;">${n}</span>`).join('')}</div>
-                <div class="card"><h4>💡 狀態</h4>系統已根據目前 ${allData.length} 期數據進行動態加權。</div>
+                <div class="card"><h4>🎯 AI 遺漏策略預測</h4>${p.map(n => `<span class="num-badge" style="font-size:1.2rem; padding:5px 15px;">${n}</span>`).join('')}</div>
             `;
         }
 
