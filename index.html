@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 三元連鎖系統 - 優化 v96</title>
+    <title>AI 雙子星系統 - 優化 v97</title>
     <style>
         :root { --p: #2c3e50; --s: #27ae60; --b: #f4f7f6; }
         body { font-family: sans-serif; background: var(--b); padding: 20px; }
@@ -19,17 +19,17 @@
 <body>
 
     <div class="panel">
-        <h3>1. 數據解析 (v96 三元連鎖版)</h3>
+        <h3>1. 數據解析 (v97 雙子星坍縮版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="resSection" style="display:none;">
         <div class="panel">
-            <h3>2. AI 核心預測 (目標：40% 命中 3)</h3>
+            <h3>2. AI 飽和預測 (目標：40% 命中 3)</h3>
             <div id="predResult"></div>
         </div>
         <div class="panel">
-            <h3>3. 滾動回測 (集彈力極限檢驗)</h3>
+            <h3>3. 滾動回測 (極限集彈檢驗)</h3>
             <table>
                 <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合</th><th>命中</th></tr></thead>
                 <tbody id="btBody"></tbody>
@@ -51,18 +51,18 @@
             tbody.innerHTML = '';
             
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getTriLinkCore(data.slice(0, i));
+                const pred = getTwinStarPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            document.getElementById('predResult').innerHTML = getTriLinkCore(data).map(n=>`<span class="num-badge" style="font-size:1.4rem">${n}</span>`).join('');
+            document.getElementById('predResult').innerHTML = getTwinStarPick(data).map(n=>`<span class="num-badge" style="font-size:1.4rem">${n}</span>`).join('');
             document.getElementById('resSection').style.display = 'block';
         }
 
-        function getTriLinkCore(hist) {
+        function getTwinStarPick(hist) {
             let sc = Array(40).fill(0), ms = Array(40).fill(0);
             const last = hist[hist.length-1].nums, recent = hist.slice(-8).flatMap(h=>h.nums);
             let tf = Array(10).fill(0); recent.forEach(n=>tf[n%10]++);
@@ -70,31 +70,35 @@
             for (let i=1; i<=39; i++) {
                 let m = 0; for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) m++; else break; }
                 ms[i] = m;
-                // v96 核心集彈權重
-                if(m===1) sc[i]+=1850; 
+                // v97 暴力坍縮權重
+                if(m===1) sc[i]+=1900; 
                 else if(m>=5 && m<=9) sc[i]+=1750; 
-                else if(m===0) sc[i]+=600; 
-                else if(m>=10 && m<=14) sc[i]=0; // 封鎖深水區
-                else sc[i]+=150;
+                else if(m===0) sc[i]+=500; 
+                else if((m>=2 && m<=4) || m>=11) sc[i]=0; 
+                else sc[i]+=100;
 
-                sc[i] += tf[i%10]*350; 
+                sc[i] += tf[i%10]*320; 
                 if(last.some(ln=>Math.abs(ln-i)===1)) sc[i]+=500;
             }
 
             let sorted = Array.from({length:39},(_,i)=>i+1).sort((a,b)=>sc[b]-sc[a]);
             let res = [];
 
-            // 1. 三元核心 (核心+同尾+鄰號) - 物理連動組
-            let core = sorted[0]; res.push(core);
-            let tailMate = sorted.find(n => !res.includes(n) && n%10 === core%10);
-            if(tailMate) res.push(tailMate);
-            let neighborMate = sorted.find(n => !res.includes(n) && Math.abs(n-core)===1);
-            if(neighborMate) res.push(neighborMate);
+            // 1. 雙子星 A (最強尾數 2 顆)
+            let topTail = sorted[0] % 10;
+            let tailGroup = sorted.filter(n => n % 10 === topTail).slice(0, 2);
+            tailGroup.forEach(n => res.push(n));
 
-            // 2. 機動側翼 (2 顆) - 尋找與核心不同區間的高分號
+            // 2. 雙子星 B (最強鄰號/連號 2 顆)
+            let remain = sorted.filter(n => !res.includes(n));
+            let coreB = remain[0];
+            res.push(coreB);
+            let linkB = remain.find(n => !res.includes(n) && Math.abs(n - coreB) === 1);
+            if (linkB) res.push(linkB);
+
+            // 3. 終極坍縮補位
             while (res.length < 5) {
-                let next = sorted.find(n => !res.includes(n) && (res.length >= 4 || Math.abs(Math.floor(n/10)-Math.floor(core/10)) >= 1));
-                if(!next) next = sorted.find(n => !res.includes(n));
+                let next = sorted.find(n => !res.includes(n));
                 res.push(next);
             }
 
