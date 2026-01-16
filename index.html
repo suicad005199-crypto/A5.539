@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 共振強化系統 - 優化 v52</title>
+    <title>AI 動態重心補償系統 - 優化 v53</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -22,21 +22,21 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v52 強化共振版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v53 重心補償版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 矩陣預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 重心預測 (下一期建議)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 滾動回測 (目標：衝刺命中 3 號)</h3>
+            <h3 class="panel-title">3. 滾動回測 (目標：找回命中 2 以上)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v52)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v53)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -62,15 +62,15 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getResonanceV52(history) {
+        function getGravityCompPick(history) {
             let scores = Array(40).fill(0);
             let missArr = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            const recentHistory = history.slice(-7).flatMap(h => h.nums);
+            const recentHistory = history.slice(-5);
             
-            // 尾數頻次
-            let tailCount = Array(10).fill(0);
-            recentHistory.forEach(n => tailCount[n % 10]++);
+            // 1. 區間密度統計 (0-9, 10-19, 20-29, 30-39)
+            let zoneCounts = [0, 0, 0, 0];
+            recentHistory.forEach(h => h.nums.forEach(n => zoneCounts[Math.floor(n/10)]++));
 
             for (let i = 1; i <= 39; i++) {
                 let m = 0;
@@ -79,38 +79,52 @@
                 }
                 missArr[i] = m;
 
-                // 權重體系
-                if (m === 1) scores[i] += 550;       // 強斜連
-                else if (m === 0) scores[i] += 320;  // 連莊
-                else if (m >= 5 && m <= 9) scores[i] += 450; // 黃金反彈
-                else if (m >= 13) scores[i] = 0;     // 排除長冷
-                else scores[i] += 80;
+                // 核心分佈評分
+                if (m === 1) scores[i] += 480;       
+                else if (m === 0) scores[i] += 250;  
+                else if (m >= 5 && m <= 9) scores[i] += 400; 
+                else if (m >= 2 && m <= 4) scores[i] += 150; // 放寬溫區
+                else if (m >= 13) scores[i] = 0;
 
-                // 鄰號滑動動力
-                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 180;
-                scores[i] += tailCount[i % 10] * 30;
+                // 2. 區間補償加成 (若該區近期冷門則加分)
+                if (zoneCounts[Math.floor(i/10)] <= 3) scores[i] += 100;
+                
+                // 3. 連鎖動力
+                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 150;
             }
 
             let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             let final = [];
             
-            // 1. 強制分層選號
-            // 層級 A: 最強斜連/連莊 (選 2)
-            let layerA = sorted.filter(n => missArr[n] <= 1);
-            for(let i=0; i<2 && i<layerA.length; i++) final.push(layerA[i]);
+            // 種子球 A
+            final.push(sorted[0]);
 
-            // 層級 B: 最強黃金反彈 (選 2)
-            let layerB = sorted.filter(n => !final.includes(n) && missArr[n] >= 5 && missArr[n] <= 9);
-            for(let i=0; i<2 && i<layerB.length; i++) final.push(layerB[i]);
-
-            // 2. 飽和共振填充 (選 1)
+            // 二次連鎖邏輯
             for (let n of sorted) {
                 if (final.length >= 5) break;
                 if (final.includes(n)) continue;
 
-                // 檢查是否與已有號碼同尾或連號
-                let hasRes = final.some(f => (f % 10 === n % 10) || (Math.abs(f - n) === 1));
-                if (hasRes || final.length >= 4) final.push(n);
+                // 計算與已選號碼群的共振程度
+                let clusterScore = final.reduce((acc, f) => {
+                    if (f % 10 === n % 10) return acc + 2;
+                    if (Math.abs(f - n) === 1) return acc + 1;
+                    return acc;
+                }, 0);
+
+                // 策略：前三顆要強共振，後二顆保證區間跨度
+                if (final.length < 3) {
+                    if (clusterScore >= 1) final.push(n);
+                } else {
+                    // 檢查區間是否有重疊，強制位移
+                    let zoneMatch = final.some(f => Math.floor(f/10) === Math.floor(n/10));
+                    if (!zoneMatch || clusterScore >= 2) final.push(n);
+                }
+            }
+
+            // 補足位數
+            for (let n of sorted) {
+                if (final.length >= 5) break;
+                if (!final.includes(n)) final.push(n);
             }
 
             return final.sort((a, b) => a - b);
@@ -120,7 +134,7 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getResonanceV52(data.slice(0, i));
+                const pred = getGravityCompPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
@@ -128,7 +142,7 @@
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getResonanceV52(data);
+            const nextP = getGravityCompPick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
