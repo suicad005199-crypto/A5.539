@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 三維坍塌鎖定系統 - 優化 v73</title>
+    <title>AI 雙軌共振系統 - 優化 v74</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -22,21 +22,21 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v73 三維坍塌版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v74 雙軌共振版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 鎖定預測 (目標：40% 命中 3)</h3>
+            <h3 class="panel-title">2. AI 雙軌預測 (目標：40% 命中 3)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 滾動回測 (集彈力檢驗)</h3>
+            <h3 class="panel-title">3. 滾動回測 (集彈力與覆蓋率平衡)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v73)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v74)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -62,13 +62,13 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getCollapsePick(history) {
+        function getDualTrackPick(history) {
             let scores = Array(40).fill(0);
             let missArr = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            const recentHistory = history.slice(-5).flatMap(h => h.nums);
+            const recentNums = history.slice(-7).flatMap(h => h.nums);
             let tailFreq = Array(10).fill(0);
-            recentHistory.forEach(n => tailFreq[n % 10]++);
+            recentNums.forEach(n => tailFreq[n % 10]++);
 
             for (let i = 1; i <= 39; i++) {
                 let m = 0;
@@ -76,45 +76,41 @@
                     if (!history[j].nums.includes(i)) m++; else break;
                 }
                 missArr[i] = m;
-                // v73 極化權重：強制集彈
-                if (m === 1) scores[i] += 1500;       
-                else if (m >= 5 && m <= 9) scores[i] += 1000; 
-                else if (m === 0) scores[i] += 600;
+                // v74 權重分配
+                if (m === 1) scores[i] += 800;
+                else if (m >= 5 && m <= 9) scores[i] += 1000; // 強化反彈
+                else if (m === 0) scores[i] += 400;
                 else if (m >= 13) scores[i] = 0;
-                else scores[i] += 50;
+                else scores[i] += 120;
 
-                scores[i] += tailFreq[i % 10] * 80;
-                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 400;
+                scores[i] += tailFreq[i % 10] * 75;
+                if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 350;
             }
 
             let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             let final = [];
 
-            // 1. 選取絕對核心
-            let core = sorted[0];
-            final.push(core);
+            // 軌道 A：熱區連動組 (2 顆)
+            let coreA = sorted.find(n => missArr[n] <= 1);
+            final.push(coreA);
+            let mateA = sorted.find(n => !final.includes(n) && Math.abs(n - coreA) === 1);
+            if (mateA) final.push(mateA);
 
-            // 2. 坍塌鎖定：強迫同尾
-            let tailMate = sorted.find(n => !final.includes(n) && (n % 10 === core % 10));
-            if (tailMate) final.push(tailMate);
-
-            // 3. 坍塌鎖定：強迫連號
-            let neighborMate = sorted.find(n => !final.includes(n) && Math.abs(n - core) === 1);
-            if (neighborMate) final.push(neighborMate);
-
-            // 4. 次核心區域坍塌 (確保 3+2 結構)
-            let secondCore = sorted.find(n => !final.includes(n) && Math.abs(Math.floor(n/10) - Math.floor(core/10)) >= 1);
-            if (secondCore) {
-                final.push(secondCore);
-                // 次核心的連鎖號
-                let secondMate = sorted.find(n => !final.includes(n) && (n % 10 === secondCore % 10 || Math.abs(n - secondCore) === 1));
-                if (secondMate) final.push(secondMate);
+            // 軌道 B：冷區共振組 (3 顆)
+            let coreB = sorted.find(n => !final.includes(n) && missArr[n] >= 5 && missArr[n] <= 9);
+            if (coreB) {
+                final.push(coreB);
+                // 尋找同尾
+                let tailB = sorted.find(n => !final.includes(n) && (n % 10 === coreB % 10));
+                if (tailB) final.push(tailB);
+                // 尋找鄰號或異區補位
+                let lastB = sorted.find(n => !final.includes(n) && (Math.abs(n - coreB) === 1 || Math.abs(n - coreA) > 10));
+                if (lastB) final.push(lastB);
             }
 
-            // 補齊位
-            for (let n of sorted) {
-                if (final.length >= 5) break;
-                if (!final.includes(n)) final.push(n);
+            while (final.length < 5) {
+                let next = sorted.find(n => !final.includes(n));
+                final.push(next);
             }
 
             return final.sort((a, b) => a - b);
@@ -124,7 +120,7 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getCollapsePick(data.slice(0, i));
+                const pred = getDualTrackPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
@@ -132,7 +128,7 @@
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getCollapsePick(data);
+            const nextP = getDualTrackPick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
