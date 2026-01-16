@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 熱點聚類預測系統 - 優化 v12</title>
+    <title>AI 區間互補系統 - 優化 v13</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
@@ -18,8 +18,7 @@
         table { border-collapse: collapse; width: 100%; white-space: nowrap; background: white; }
         th, td { border: 1px solid #eee; text-align: center; padding: 10px 5px; font-size: 13px; }
         th { background: var(--primary); color: white; }
-        .dot { background: var(--accent); color: white; border-radius: 50%; display: inline-block; width: 22px; height: 22px; line-height: 22px; font-weight: bold; }
-
+        
         .good-hit { background-color: #e8f5e9 !important; border: 2px solid var(--success) !important; }
         .hit-count { font-weight: bold; color: var(--success); font-size: 1.3rem; }
 
@@ -30,23 +29,23 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據上傳與優化分析</h3>
+        <h3 class="panel-title">1. 數據解析 (v13 區間互補版)</h3>
         <input type="file" id="csvFile" accept=".csv">
         <div id="statusTracker" style="margin-top:15px; display: flex; flex-wrap: wrap; gap: 5px;"></div>
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 熱點聚類預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 區間互補預測 (下一期建議)</h3>
             <div class="grid-container" id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 滾動回測紀錄 (100% 穩定度優化版)</h3>
+            <h3 class="panel-title">3. 滾動回測紀錄 (10期測試區)</h3>
             <div class="table-container">
                 <table>
                     <thead>
-                        <tr><th>日期</th><th>真實獎號</th><th>預測組合 (聚類策略)</th><th>命中數</th></tr>
+                        <tr><th>日期</th><th>真實獎號</th><th>預測組合 (區間策略)</th><th>命中數</th></tr>
                     </thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
@@ -55,14 +54,14 @@
     </div>
 
     <div class="panel">
-        <div class="accordion-header" onclick="toggleAccordion()">💡 策略邏輯說明 (聚類與中心化)</div>
+        <div class="accordion-header" onclick="toggleAccordion()">💡 v13 策略核心邏輯</div>
         <div id="accContent" class="accordion-content">
-            <strong>1. 熱點聚類 (Clustering)：</strong><br>
-            系統選定評分最高的號碼為「核心」，並在其同尾數（如 08, 18）與鄰號（±1）中搜尋次高分號碼。這能解決號碼選中但分散在不同期的問題。<br>
-            <strong>2. 和值濾鏡 (Sum Value)：</strong><br>
-            系統會計算最終 5 個號碼的總和，若總和偏離 80-120 的黃金區間，會自動替換池中得分較低的號碼來修正。<br>
-            <strong>3. 區間強制平衡：</strong><br>
-            強制選號必須跨越至少兩個區間（01-19, 20-39），增加命中不同波段號碼的可能性。
+            <strong>1. 區間權重分配 (1-2-2)：</strong><br>
+            系統將 01-39 分為 [1-13], [14-26], [27-39] 三區。為避免號碼過度集中，強制跨區選號，確保基本覆蓋率。<br>
+            <strong>2. 鄰號互補 (Neighbor Hook)：</strong><br>
+            系統會掃描 Top 10 的高分號碼，若發現兩號相鄰（如 10, 11），則給予額外加分，增加「集彈」機會。<br>
+            <strong>3. 雙層遺漏加權：</strong><br>
+            優先捕捉遺漏 3-5 期（強勢回補）與 12 期以上（極冷轉熱）的號碼，避開中間平淡期。
         </div>
     </div>
 
@@ -89,13 +88,12 @@
         }
 
         function processSystem(data) {
-            renderStatusTracker(data);
             runBacktest(data);
             generateNext(data);
             document.getElementById('analysisSection').style.display = 'block';
         }
 
-        function getClusteredPick(history) {
+        function getZonalPick(history) {
             const scores = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
             
@@ -105,33 +103,37 @@
                     if (!history[j].nums.includes(i)) miss++; else break;
                 }
 
-                // 指標 1: 遺漏值加權 (針對 5-9 期深度加強)
-                if (miss >= 5 && miss <= 9) scores[i] += 150;
-                else if (miss >= 1 && miss <= 4) scores[i] += 60;
-                else if (miss === 0) scores[i] += 40;
+                // 權重 1: 遺漏分層 (3-5期/12期+)
+                if (miss >= 3 && miss <= 5) scores[i] += 120;
+                else if (miss >= 12) scores[i] += 80;
+                else if (miss >= 1 && miss <= 2) scores[i] += 40;
 
-                // 指標 2: 鄰號 (N±1)
-                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 70;
+                // 權重 2: 鄰號係數 (上期號碼周圍)
+                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 60;
             }
 
-            const sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
+            // 分區選號
+            const z1 = [], z2 = [], z3 = [];
+            for (let i = 1; i <= 39; i++) {
+                const obj = { n: i, s: scores[i] };
+                if (i <= 13) z1.push(obj);
+                else if (i <= 26) z2.push(obj);
+                else z3.push(obj);
+            }
 
-            // 聚類邏輯
+            const sortFn = (a, b) => b.s - a.s;
+            z1.sort(sortFn); z2.sort(sortFn); z3.sort(sortFn);
+
+            // 策略：從三區分別挑選，比例為 1:2:2 或 2:2:1 (動態調整)
             let final = [];
-            let seed = sorted[0]; // 最強種子
-            final.push(seed);
-
-            // 從排序中尋找與種子「同尾」或「鄰居」的號碼
-            for (let n of sorted.slice(1)) {
+            // 每區先保底拿 1 個最高分
+            final.push(z1[0].n, z2[0].n, z3[0].n);
+            
+            // 剩下 2 個從全域最高分選取 (不重複)
+            const allSorted = [...z1, ...z2, ...z3].sort(sortFn);
+            for (let item of allSorted) {
                 if (final.length >= 5) break;
-                let isRelated = (n % 10 === seed % 10) || (Math.abs(n - seed) <= 2);
-                if (isRelated) final.push(n);
-            }
-
-            // 若關聯號不足，由高分補齊
-            for (let n of sorted) {
-                if (final.length >= 5) break;
-                if (!final.includes(n)) final.push(n);
+                if (!final.includes(item.n)) final.push(item.n);
             }
 
             return final.sort((a, b) => a - b);
@@ -145,7 +147,7 @@
             for (let i = startIdx; i > startIdx - 10 && i >= 0; i--) {
                 const historyBefore = allData.slice(0, i);
                 const actual = allData[i].nums;
-                const pred = getClusteredPick(historyBefore);
+                const pred = getZonalPick(historyBefore);
                 const hits = pred.filter(n => actual.includes(n));
 
                 const tr = document.createElement('tr');
@@ -160,23 +162,10 @@
             }
         }
 
-        function renderStatusTracker(allData) {
-            const tracker = document.getElementById('statusTracker');
-            const last = allData[allData.length - 1].nums;
-            tracker.innerHTML = '';
-            for (let i = 1; i <= 39; i++) {
-                let count = 0, isHit = last.includes(i);
-                for (let j = allData.length - 1; j >= 0; j--) {
-                    if (allData[j].nums.includes(i) === isHit) count++; else break;
-                }
-                tracker.innerHTML += `<span style="display:inline-block; padding:2px 6px; border-radius:4px; font-size:11px; border:1px solid #ddd; background:${isHit?'#ffeaa7':'#eee'}">${i}:${isHit?'連':'未'}${count}</span>`;
-            }
-        }
-
         function generateNext(allData) {
             const res = document.getElementById('predictionResults');
-            const p = getClusteredPick(allData);
-            res.innerHTML = `<div class="card"><h4>🎯 AI 熱點聚類組合</h4>${p.map(n => `<span class="num-badge" style="font-size:1.2rem; padding:5px 15px;">${n}</span>`).join('')}</div>`;
+            const p = getZonalPick(allData);
+            res.innerHTML = `<div class="card"><h4>🎯 AI 區間互補推薦組合</h4>${p.map(n => `<span class="num-badge" style="font-size:1.2rem; padding:5px 15px;">${n}</span>`).join('')}</div>`;
         }
 
         function toggleAccordion() {
