@@ -3,141 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSV 數據連號分布系統</title>
+    <title>CSV 智能數據分析系統 v3</title>
     <style>
         :root {
-            --primary-color: #2c3e50;
-            --accent-color: #e74c3c;
-            --bg-color: #f0f2f5;
-            --panel-bg: #ffffff;
+            --primary: #2c3e50;
+            --accent: #e74c3c;
+            --secondary: #3498db;
+            --success: #27ae60;
+            --bg: #f4f7f6;
         }
 
-        body {
-            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
-            background-color: var(--bg-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .panel { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; width: 100%; max-width: 1200px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+        .panel-title { margin-top: 0; color: var(--primary); border-left: 5px solid var(--primary); padding-left: 12px; font-size: 1.2rem; margin-bottom: 15px; }
 
-        /* Panel 通用樣式 */
-        .panel {
-            background: var(--panel-bg);
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-            padding: 25px;
-            margin-bottom: 20px;
-            width: 100%;
-            max-width: 1200px;
-            box-sizing: border-box;
-        }
+        /* 預測與統計卡片 */
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .card { background: #f8f9fa; padding: 15px; border-radius: 8px; border-top: 4px solid var(--secondary); }
+        .card h4 { margin: 0 0 10px 0; color: var(--primary); }
+        .num-badge { display: inline-block; background: var(--primary); color: white; border-radius: 4px; padding: 4px 10px; margin: 3px; font-weight: bold; font-size: 0.9rem; }
+        
+        /* 狀態標籤 */
+        .status-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+        .status-streak { background: #ffeaa7; color: #d35400; font-weight: bold; } /* 連開 */
+        .status-miss { background: #dfe6e9; color: #636e72; } /* 未開 */
 
-        .panel-title {
-            margin-top: 0;
-            margin-bottom: 20px;
-            color: var(--primary-color);
-            font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            border-left: 5px solid var(--primary-color);
-            padding-left: 15px;
-        }
+        /* 表格樣式 */
+        .table-container { overflow-x: auto; max-height: 500px; }
+        table { border-collapse: collapse; width: 100%; white-space: nowrap; }
+        th, td { border: 1px solid #eee; text-align: center; padding: 8px; font-size: 13px; }
+        th { background: var(--primary); color: white; position: sticky; top: 0; }
+        .hit { background: var(--accent); color: white; border-radius: 50%; display: inline-block; width: 22px; height: 22px; line-height: 22px; font-weight: bold; }
 
-        /* 上傳區優化 */
-        .upload-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        input[type="file"] {
-            padding: 10px;
-            border: 2px dashed #ccc;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-        }
-
-        /* 表格樣式優化 */
-        .table-container {
-            overflow-x: auto;
-            border-radius: 8px;
-            border: 1px solid #eee;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            white-space: nowrap;
-            background-color: white;
-        }
-
-        th, td {
-            border: 1px solid #edf2f7;
-            text-align: center;
-            padding: 10px 5px;
-            font-size: 13px;
-        }
-
-        th {
-            background-color: var(--primary-color);
-            color: white;
-            font-weight: 500;
-            position: sticky;
-            top: 0;
-        }
-
-        /* 日期列寬度 */
-        td:first-child, th:first-child {
-            background-color: #f8f9fa;
-            font-weight: bold;
-            min-width: 100px;
-        }
-
-        /* 命中數字樣式 */
-        .hit {
-            background-color: var(--accent-color);
-            color: white;
-            border-radius: 50%;
-            display: inline-block;
-            width: 24px;
-            height: 24px;
-            line-height: 24px;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(231, 76, 60, 0.3);
-        }
-
-        tr:hover {
-            background-color: #f1f4f8;
-        }
-
-        .empty-hint {
-            text-align: center;
-            color: #999;
-            padding: 40px;
-        }
+        /* 收合面板 */
+        .accordion-header { cursor: pointer; background: #eee; padding: 10px 15px; border-radius: 6px; display: flex; justify-content: space-between; }
+        .accordion-content { display: none; padding: 15px; border: 1px solid #eee; border-top: none; line-height: 1.6; }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">數據上傳面板</h3>
-        <div class="upload-wrapper">
-            <input type="file" id="csvFile" accept=".csv">
+        <h3 class="panel-title">1. 數據上傳</h3>
+        <input type="file" id="csvFile" accept=".csv">
+    </div>
+
+    <div id="analysisSection" style="display:none;">
+        <div class="panel">
+            <h3 class="panel-title">2. 智能預測下一期</h3>
+            <div class="grid-container" id="predictionResults"></div>
+        </div>
+
+        <div class="panel">
+            <h3 class="panel-title">3. 號碼當前狀態追蹤 (連開 / 遺漏)</h3>
+            <div id="statusTracker" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                </div>
         </div>
     </div>
 
     <div class="panel">
-        <h3 class="panel-title">1-39 連號分布圖 (最新 10 期)</h3>
+        <h3 class="panel-title">4. 連號分布圖 (最新 10 期)</h3>
         <div class="table-container">
-            <table id="distributionChart">
+            <table id="distributionTable">
                 <thead><tr id="chartHeader"></tr></thead>
-                <tbody id="chartBody">
-                    <tr><td colspan="40" class="empty-hint">請上傳 CSV 檔案以產生報表</td></tr>
-                </tbody>
+                <tbody id="chartBody"><tr><td colspan="40">請上傳資料以進行分析...</td></tr></tbody>
             </table>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="accordion-header" onclick="toggleAccordion()">
+            <strong>策略邏輯與狀態說明 (點擊展開)</strong>
+            <span id="accIcon">▼</span>
+        </div>
+        <div id="accContent" class="accordion-content">
+            <p><strong>● 連開期數：</strong> 該號碼從最新一期開始，連續出現的次數。</p>
+            <p><strong>● 未開期數：</strong> 該號碼至今已連續幾期沒有出現。</p>
+            <p><strong>● 預測邏輯：</strong> 綜合歷史熱點、近期鄰近號碼規律、以及冷門號回歸機率進行計算。</p>
         </div>
     </div>
 
@@ -145,55 +86,96 @@
         document.getElementById('csvFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = function(event) {
-                const text = event.target.result;
-                processData(text);
-            };
+            reader.onload = e => processData(e.target.result);
             reader.readAsText(file);
         });
 
         function processData(csvText) {
-            // 解析 CSV，過濾空行並移除標題列(若有)
-            const rows = csvText.split('\n')
-                .map(row => row.split(','))
-                .filter(row => row.length > 1 && row[0].trim() !== "");
-
-            // 邏輯優化：取最末端 10 筆，並反轉順序(最新在上)
-            const latestData = rows.slice(-10).reverse();
-
-            renderChart(latestData);
+            const rows = csvText.split('\n').map(r => r.split(',')).filter(r => r.length > 1 && r[0].trim());
+            const sortedRows = rows; // 假設原始資料末端為最新
+            const latest10 = [...sortedRows].slice(-10).reverse();
+            
+            renderChart(latest10);
+            renderStatusTracker(sortedRows);
+            generatePredictions(sortedRows);
+            document.getElementById('analysisSection').style.display = 'block';
         }
 
         function renderChart(data) {
             const header = document.getElementById('chartHeader');
             const body = document.getElementById('chartBody');
+            header.innerHTML = '<th>日期</th>' + Array.from({length: 39}, (_, i) => `<th>${i+1}</th>`).join('');
             
-            // 1. 生成標頭 (日期 + 1~39)
-            let headerHtml = '<th>日期</th>';
-            for (let i = 1; i <= 39; i++) {
-                headerHtml += `<th>${i}</th>`;
-            }
-            header.innerHTML = headerHtml;
-
-            // 2. 生成內容
-            body.innerHTML = '';
-            data.forEach(row => {
-                const date = row[0].trim();
-                // 取得該行除了日期以外的所有數字
-                const luckyNumbers = row.slice(1).map(n => n.trim());
-
-                let rowHtml = `<td>${date}</td>`;
+            body.innerHTML = data.map(row => {
+                const nums = row.slice(1).map(n => n.trim());
+                let cells = `<td>${row[0]}</td>`;
                 for (let i = 1; i <= 39; i++) {
-                    const isHit = luckyNumbers.includes(i.toString());
-                    rowHtml += `<td>${isHit ? `<span class="hit">${i}</span>` : ''}</td>`;
+                    cells += `<td>${nums.includes(i.toString()) ? `<span class="hit">${i}</span>` : ''}</td>`;
                 }
-                
-                const tr = document.createElement('tr');
-                tr.innerHTML = rowHtml;
-                body.appendChild(tr);
-            });
+                return `<tr>${cells}</tr>`;
+            }).join('');
+        }
+
+        function renderStatusTracker(allRows) {
+            const tracker = document.getElementById('statusTracker');
+            const reversedRows = [...allRows].reverse(); // 從最新往回找
+            let html = '';
+
+            for (let i = 1; i <= 39; i++) {
+                const numStr = i.toString();
+                let streak = 0;
+                let miss = 0;
+                let foundLatest = false;
+
+                // 計算狀態
+                for (let j = 0; j < reversedRows.length; j++) {
+                    const rowNums = reversedRows[j].slice(1).map(n => n.trim());
+                    const isPresent = rowNums.includes(numStr);
+
+                    if (j === 0) foundLatest = isPresent;
+
+                    if (foundLatest) {
+                        if (isPresent) streak++; else break;
+                    } else {
+                        if (!isPresent) miss++; else break;
+                    }
+                }
+
+                if (foundLatest) {
+                    html += `<div class="status-tag status-streak">${i} 號: 連開 ${streak} 期</div>`;
+                } else {
+                    html += `<div class="status-tag status-miss">${i} 號: 未開 ${miss} 期</div>`;
+                }
+            }
+            tracker.innerHTML = html;
+        }
+
+        function generatePredictions(allRows) {
+            const container = document.getElementById('predictionResults');
+            const allNums = allRows.flatMap(r => r.slice(1)).map(n => n.trim());
+            const lastRowNums = allRows[allRows.length - 1].slice(1).map(n => parseInt(n.trim()));
+
+            const freq = {};
+            allNums.forEach(n => freq[n] = (freq[n] || 0) + 1);
+
+            const hotNums = Object.keys(freq).sort((a,b) => freq[b] - freq[a]).slice(0, 6);
+            const neighborNums = [...new Set(lastRowNums.flatMap(n => [n-1, n+1]))].filter(n => n > 0 && n <= 39).slice(0, 6);
+            const coldNums = Array.from({length: 39}, (_, i) => (i+1).toString()).sort((a,b) => (freq[a]||0) - (freq[b]||0)).slice(0, 6);
+
+            container.innerHTML = `
+                <div class="card"><h4>🔥 熱門機率</h4>${hotNums.map(n => `<span class="num-badge">${n}</span>`).join('')}</div>
+                <div class="card"><h4>波動鄰近</h4>${neighborNums.map(n => `<span class="num-badge">${n}</span>`).join('')}</div>
+                <div class="card"><h4>❄️ 冷門回歸</h4>${coldNums.map(n => `<span class="num-badge">${n}</span>`).join('')}</div>
+            `;
+        }
+
+        function toggleAccordion() {
+            const content = document.getElementById('accContent');
+            const icon = document.getElementById('accIcon');
+            const isOpen = content.style.display === 'block';
+            content.style.display = isOpen ? 'none' : 'block';
+            icon.innerText = isOpen ? '▼' : '▲';
         }
     </script>
 </body>
