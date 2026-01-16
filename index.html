@@ -2,19 +2,18 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>AI 雙核心螺旋系統 - 優化 v41</title>
+    <title>AI 金字塔聯動系統 - 優化 v42</title>
     <style>
         :root { --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60; --bg: #f4f7f6; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; }
         .panel { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; max-width: 1200px; margin: 0 auto; }
-        .panel-title { margin: 0 0 15px 0; color: var(--primary); border-left: 5px solid var(--primary); padding-left: 12px; font-size: 1.1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .panel-title { margin: 0 0 15px 0; color: var(--primary); border-left: 5px solid var(--primary); padding-left: 12px; font-size: 1.1rem; }
         .num-badge { display: inline-block; background: var(--primary); color: white; border-radius: 4px; padding: 4px 12px; margin: 2px; font-weight: bold; }
         .hit-badge { background: var(--success) !important; box-shadow: 0 0 5px var(--success); }
         .table-container { overflow-x: auto; margin-top: 10px; }
         table { border-collapse: collapse; width: 100%; white-space: nowrap; background: white; }
         th, td { border: 1px solid #eee; text-align: center; padding: 8px 4px; font-size: 12px; }
         th { background: var(--primary); color: white; }
-        .dot { background: var(--accent); color: white; border-radius: 50%; display: inline-block; width: 20px; height: 20px; line-height: 20px; font-weight: bold; }
         .good-hit { background-color: #e8f5e9 !important; border: 2px solid var(--success) !important; }
         .best-hit { background-color: #fff3cd !important; border: 2px solid #f1c40f !important; }
         .hit-count { font-weight: bold; color: var(--success); font-size: 1.3rem; }
@@ -23,21 +22,21 @@
 <body>
 
     <div class="panel">
-        <h3 class="panel-title">1. 數據解析 (v41 雙核心版)</h3>
+        <h3 class="panel-title">1. 數據解析 (v42 金字塔版)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="analysisSection" style="display:none;">
         <div class="panel">
-            <h3 class="panel-title">2. AI 螺旋預測 (下一期建議)</h3>
+            <h3 class="panel-title">2. AI 金字塔預測 (下一期建議)</h3>
             <div id="predictionResults"></div>
         </div>
 
         <div class="panel">
-            <h3 class="panel-title">3. 滾動回測 (目標：重啟集彈爆發)</h3>
+            <h3 class="panel-title">3. 滾動回測 (衝刺命中 3 號)</h3>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v41)</th><th>命中</th></tr></thead>
+                    <thead><tr><th>日期</th><th>真實獎號</th><th>預測組合 (v42)</th><th>命中</th></tr></thead>
                     <tbody id="backtestBody"></tbody>
                 </table>
             </div>
@@ -63,14 +62,14 @@
             if (data.length > 0) processSystem(data);
         }
 
-        function getHelixPick(history) {
+        function getPyramidPick(history) {
             let scores = Array(40).fill(0);
             const lastNums = history[history.length - 1].nums;
-            const recentNums = history.slice(-10).flatMap(r => r.nums);
+            const recentHistory = history.slice(-3);
             
-            // 統計熱門尾數
-            let tailFreq = {};
-            recentNums.forEach(n => { let t = n % 10; tailFreq[t] = (tailFreq[t] || 0) + 1; });
+            // 區間斷點分析 (0-9, 10-19, 20-29, 30-39)
+            let zoneCounts = [0, 0, 0, 0];
+            recentHistory.forEach(h => h.nums.forEach(n => zoneCounts[Math.floor(n/10)]++));
 
             for (let i = 1; i <= 39; i++) {
                 let miss = 0;
@@ -78,43 +77,44 @@
                     if (!history[j].nums.includes(i)) miss++; else break;
                 }
                 
-                // 遺漏動能
-                if (miss === 1) scores[i] += 380;       // 強斜連
-                else if (miss >= 5 && miss <= 9) scores[i] += 300; // 黃金反彈
-                else if (miss === 0) scores[i] += 220;  // 連莊
-                else if (miss >= 12) scores[i] = 0;     // 剔除長冷
-                else scores[i] += 50;
+                // 1. 基礎遺漏分
+                if (miss === 1) scores[i] += 400;       // 極強斜連
+                else if (miss === 6) scores[i] += 320;  // 關鍵反彈點
+                else if (miss >= 5 && miss <= 9) scores[i] += 280;
+                else if (miss === 0) scores[i] += 200;  // 連莊
+                else if (miss >= 12) scores[i] = 0;     // 剔除極冷
+                else scores[i] += 60;
 
-                // 熱門尾數補償
-                if (tailFreq[i % 10] >= 5) scores[i] += 100;
+                // 2. 區間補償
+                if (zoneCounts[Math.floor(i/10)] === 0) scores[i] += 80;
+
+                // 3. 鄰域動力
+                if (lastNums.some(n => Math.abs(n - i) === 1)) scores[i] += 120;
             }
 
             let sorted = Array.from({length: 39}, (_, i) => i + 1).sort((a, b) => scores[b] - scores[a]);
             let final = [];
             
-            // --- 螺旋選號邏輯 ---
-            // 1. 群聚 A (熱區螺旋)
-            let coreA = sorted.find(n => history[history.length-1].nums.some(ln => Math.abs(ln-n) === 1));
-            if (!coreA) coreA = sorted[0];
-            final.push(coreA);
+            // --- 金字塔聯動結構 ---
+            // 頂層: 全域種子
+            let seed = sorted[0];
+            final.push(seed);
+
+            // 中層: 強斜連 + 強同尾 (繞著 Seed 轉)
+            let mid1 = sorted.find(n => !final.includes(n) && Math.abs(n - seed) === 1); // 鄰號
+            if (mid1) final.push(mid1);
             
-            // A 的鄰號
-            let neighborA = sorted.find(n => !final.includes(n) && Math.abs(n - coreA) === 1);
-            if (neighborA) final.push(neighborA);
+            let mid2 = sorted.find(n => !final.includes(n) && (n % 10 === seed % 10)); // 同尾
+            if (mid2) final.push(mid2);
 
-            // 2. 群聚 B (反彈螺旋)
-            let coreB = sorted.find(n => !final.includes(n) && (n % 10 === coreA % 10)); // 優先找同尾
-            if (!coreB) coreB = sorted.find(n => !final.includes(n));
-            final.push(coreB);
-
-            // B 的相關號 (同尾或鄰號)
-            let relB = sorted.find(n => !final.includes(n) && (n % 10 === coreB % 10 || Math.abs(n-coreB) === 1));
-            if (relB) final.push(relB);
-
-            // 3. 補齊最高分
+            // 底層: 補足高分且具備位移跨度的號碼
             for (let n of sorted) {
                 if (final.length >= 5) break;
-                if (!final.includes(n)) final.push(n);
+                if (!final.includes(n)) {
+                    // 確保與現有號碼有一定距離，增加覆蓋
+                    let minDist = Math.min(...final.map(f => Math.abs(f - n)));
+                    if (minDist > 5 || final.length >= 4) final.push(n);
+                }
             }
 
             return final.sort((a, b) => a - b);
@@ -124,7 +124,7 @@
             const tbody = document.getElementById('backtestBody');
             tbody.innerHTML = '';
             for (let i = data.length - 1; i > data.length - 11; i--) {
-                const pred = getHelixPick(data.slice(0, i));
+                const pred = getPyramidPick(data.slice(0, i));
                 const hits = pred.filter(n => data[i].nums.includes(n));
                 const tr = document.createElement('tr');
                 if (hits.length >= 3) tr.className = 'best-hit';
@@ -132,7 +132,7 @@
                 tr.innerHTML = `<td>${data[i].date}</td><td>${data[i].nums}</td><td>${pred.map(n=>`<span class="num-badge ${data[i].nums.includes(n)?'hit-badge':''}">${n}</span>`).join('')}</td><td class="hit-count">${hits.length}</td>`;
                 tbody.appendChild(tr);
             }
-            const nextP = getHelixPick(data);
+            const nextP = getPyramidPick(data);
             document.getElementById('predictionResults').innerHTML = nextP.map(n=>`<span class="num-badge" style="font-size:1.2rem">${n}</span>`).join('');
             document.getElementById('analysisSection').style.display = 'block';
         }
