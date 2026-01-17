@@ -2,77 +2,70 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v111</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>AI 539 基因重組 v112</title>
     <style>
-        :root { --bg: #000000; --card: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #ffffff; --sub: #8e8e93; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 12px; line-height: 1.4; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
-        .card { background: var(--card); border-radius: 12px; padding: 16px; border: 1px solid var(--border); }
-        h3 { color: var(--primary); font-size: 0.9rem; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 1px; }
+        :root { --bg: #000; --card: #111; --primary: #ffd60a; --success: #32d74b; --border: #222; --text: #eee; --sub: #666; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; }
+        .container { max-width: 1300px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+        .grid-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 10px; }
+        .card { background: var(--card); border-radius: 10px; padding: 15px; border: 1px solid var(--border); }
+        h3 { color: var(--primary); font-size: 0.85rem; margin: 0 0 10px 0; font-weight: 600; text-transform: uppercase; }
         
-        /* 號碼顯示 */
-        .num-box { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-        .ball { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 1px solid var(--border); font-size: 1rem; }
-        .ball.best { background: var(--primary); color: #000; border: none; box-shadow: 0 0 10px rgba(255,214,10,0.5); }
+        /* 號碼球 */
+        .ball-group { display: flex; flex-wrap: wrap; gap: 6px; }
+        .ball { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: #222; border-radius: 8px; font-weight: 700; font-size: 1rem; border: 1px solid var(--border); }
+        .ball.best { background: var(--primary); color: #000; border: none; }
         .ball.hit { background: var(--success); color: #000; border: none; }
 
-        /* 分佈矩陣 */
-        .scroll-area { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; margin-top: 8px; background: #000; }
-        table { width: 100%; border-collapse: collapse; min-width: 850px; }
-        th, td { border: 1px solid var(--border); padding: 6px 0; text-align: center; font-size: 0.7rem; width: 22px; }
-        th { background: #2c2c2e; color: var(--sub); font-weight: normal; }
-        .date-cell { width: 80px; color: var(--sub); font-size: 0.65rem; }
-        .active-dot { background: var(--primary); color: #000; font-weight: bold; border-radius: 2px; }
-        .pred-dot { background: rgba(255, 214, 10, 0.2); color: var(--primary); }
+        /* 矩陣圖表 */
+        .scroll { overflow-x: auto; border-radius: 6px; background: #000; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        th, td { border: 1px solid #222; padding: 5px 0; text-align: center; font-size: 0.7rem; width: 22px; }
+        th { background: #1a1a1a; color: var(--sub); font-weight: 400; }
+        .date-cell { width: 75px; color: var(--sub); font-size: 0.6rem; }
+        .dot { background: var(--primary); color: #000; font-weight: 800; border-radius: 2px; }
 
-        /* 回測表 */
-        .bt-table { width: 100%; font-size: 0.75rem; color: var(--sub); }
-        .bt-table tr { border-bottom: 1px solid var(--border); }
-        .bt-table td { padding: 8px 4px; }
-        .hit-count { color: var(--success); font-weight: bold; font-size: 1rem; }
+        /* 回測紀錄 */
+        .bt-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; font-size: 0.75rem; align-items: center; }
+        .bt-res { color: var(--success); font-weight: bold; font-size: 1rem; width: 25px; text-align: right; }
 
-        input[type="file"] { width: 100%; color: var(--sub); font-size: 0.8rem; }
-        @media (max-width: 600px) { .ball { width: 34px; height: 34px; font-size: 0.9rem; } }
+        input[type="file"] { width: 100%; color: var(--sub); padding: 10px 0; }
+        @media (max-width: 600px) { .ball { width: 32px; height: 32px; font-size: 0.9rem; } }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="card" style="margin-bottom:12px;">
-        <h3>1. 數據注入</h3>
+    <div class="card">
+        <h3>1. DATA INJECT (CSV)</h3>
         <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <div id="mainUI" style="display:none;">
-        <div class="grid">
+        <div class="grid-main">
             <div class="card">
-                <h3>2. AI 核心預測 (下期衝刺)</h3>
-                <div style="font-size:0.75rem; color:var(--sub)">★ 最優建議號碼：</div>
-                <div id="bestOne" class="num-box"></div>
-                <div style="font-size:0.75rem; color:var(--sub); margin-top:15px;">核心共振組合：</div>
-                <div id="predResult" class="num-box"></div>
+                <h3>2. NEXT PREDICTION (V112)</h3>
+                <div style="font-size:0.65rem; color:var(--sub); margin-bottom:5px;">STRATEGIC ANCHOR:</div>
+                <div id="bestOne" class="ball-group"></div>
+                <div style="font-size:0.65rem; color:var(--sub); margin:15px 0 5px;">COLLAPSE COMBO:</div>
+                <div id="predResult" class="ball-group"></div>
             </div>
 
             <div class="card">
-                <h3>3. 滾動回測紀錄 (10期)</h3>
-                <table class="bt-table">
-                    <thead><tr><th>日期</th><th>獎號</th><th>預測</th><th>命中</th></tr></thead>
-                    <tbody id="btBody"></tbody>
-                </table>
+                <h3>3. BACKTEST (LAST 10)</h3>
+                <div id="btBody"></div>
             </div>
         </div>
 
-        <div class="card" style="margin-top:12px;">
-            <h3>4. 歷史連號分布圖 (CSV 真實獎號)</h3>
-            <div class="scroll-area">
+        <div class="card">
+            <h3>4. HISTORICAL DISTRIBUTION (1-39 MATRIX)</h3>
+            <div class="scroll">
                 <table>
                     <thead><tr id="matrixHead"></tr></thead>
                     <tbody id="matrixBody"></tbody>
                 </table>
             </div>
-            <p style="font-size:0.65rem; color:var(--sub); margin-top:8px;">* 標記點位為該期 CSV 開出之真實獎號位置</p>
         </div>
     </div>
 </div>
@@ -94,78 +87,76 @@
     });
 
     function render() {
-        initMatrixHeader();
         const btBody = document.getElementById('btBody');
         const mBody = document.getElementById('matrixBody');
+        const mHead = document.getElementById('matrixHead');
+        
+        mHead.innerHTML = '<th>DATE</th>';
+        for(let i=1; i<=39; i++) mHead.innerHTML += `<th>${i}</th>`;
+        
         btBody.innerHTML = ''; mBody.innerHTML = '';
 
-        // 滾動回測與矩陣填充 (最近10期)
         for (let i = state.data.length - 1; i >= state.data.length - 10; i--) {
             if (i < 0) break;
-            const predObj = getV111Pick(state.data.slice(0, i));
+            const pred = getV112Pick(state.data.slice(0, i));
             const real = state.data[i].nums;
-            const hits = predObj.res.filter(n => real.includes(n));
+            const hits = pred.res.filter(n => real.includes(n));
 
-            // 回測表
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${state.data[i].date.slice(5)}</td>
-                            <td>${real.join(',')}</td>
-                            <td style="font-size:0.65rem">${predObj.res.join(' ')}</td>
-                            <td class="hit-count">${hits.length}</td>`;
-            btBody.appendChild(tr);
+            // Backtest list
+            const row = document.createElement('div');
+            row.className = 'bt-row';
+            row.innerHTML = `<span>${state.data[i].date.slice(5)} [${real}]</span>
+                             <span style="color:#555">${pred.res.join(' ')}</span>
+                             <span class="bt-res">${hits.length}</span>`;
+            btBody.appendChild(row);
 
-            // 分佈矩陣 (顯示真實獎號)
+            // Matrix list
             const mTr = document.createElement('tr');
             let mHtml = `<td class="date-cell">${state.data[i].date.slice(5)}</td>`;
             for(let n=1; n<=39; n++) {
-                const isReal = real.includes(n);
-                mHtml += `<td class="${isReal?'active-dot':''}">${isReal?n:''}</td>`;
+                const isR = real.includes(n);
+                mHtml += `<td class="${isR?'dot':''}">${isR?n:''}</td>`;
             }
             mTr.innerHTML = mHtml;
             mBody.appendChild(mTr);
         }
 
-        // 下期預測
-        const final = getV111Pick(state.data);
+        const final = getV112Pick(state.data);
         document.getElementById('bestOne').innerHTML = `<div class="ball best">${final.one}</div>`;
         document.getElementById('predResult').innerHTML = final.res.map(n => `<div class="ball ${n===final.one?'best':''}">${n}</div>`).join('');
-        
         document.getElementById('mainUI').style.display = 'block';
     }
 
-    function initMatrixHeader() {
-        const head = document.getElementById('matrixHead');
-        head.innerHTML = '<th class="date-cell">日期\\號碼</th>';
-        for(let i=1; i<=39; i++) head.innerHTML += `<th>${i}</th>`;
-    }
-
-    function getV111Pick(hist) {
+    function getV112Pick(hist) {
         let sc = Array(40).fill(0);
         const last = hist[hist.length-1].nums;
-        const recent = hist.slice(-10).flatMap(h => h.nums);
-        let tailFreq = Array(10).fill(0);
-        recent.forEach(n => tailFreq[n%10]++);
+        const recent = hist.slice(-12).flatMap(h => h.nums);
+        let tailF = Array(10).fill(0);
+        recent.forEach(n => tailF[n%10]++);
 
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             
-            if(gap === 1) sc[i] += 2500; // 斜連加強
-            else if(gap >= 5 && gap <= 9) sc[i] += 2200; // 黃金反彈
-            else if(gap === 0) sc[i] += 600; // 連莊
+            // v112 基因重組權重
+            if(gap === 1) sc[i] += 2600; // 斜連 (參考 v107)
+            else if(gap >= 5 && gap <= 9) sc[i] += 2800; // 黃金反彈 (參考 v93)
+            else if(gap === 0) sc[i] += 700; // 連莊 (參考 v55)
             
-            sc[i] += tailFreq[i%10] * 400; // 尾數共振
-            if(last.some(ln => Math.abs(ln-i) === 1)) sc[i] += 900; // 鄰號引力
+            sc[i] += tailF[i%10] * 450; // 同尾效應
+            if(last.some(ln => Math.abs(ln-i) === 1)) sc[i] += 950; // 鄰號引力 (參考 v11)
         }
 
         let sorted = Array.from({length:39},(_,i)=>i+1).sort((a,b)=>sc[b]-sc[a]);
         let res = [], one = sorted[0];
         res.push(one);
         
-        // 核心集彈：尋找最優號碼周邊的最高分號
-        let neighbors = sorted.filter(n => n !== one && Math.abs(n-one) <= 3);
-        if(neighbors.length > 0) res.push(neighbors[0]);
-        if(neighbors.length > 1) res.push(neighbors[1]);
+        // 核心坍縮邏輯：強迫在同區間與同尾進行集彈
+        let tailMate = sorted.find(n => !res.includes(n) && n%10 === one%10);
+        if(tailMate) res.push(tailMate);
+        
+        let zoneMate = sorted.find(n => !res.includes(n) && Math.floor((n-1)/10) === Math.floor((one-1)/10));
+        if(zoneMate) res.push(zoneMate);
 
         while(res.length < 5) {
             let next = sorted.find(n => !res.includes(n));
