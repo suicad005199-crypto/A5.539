@@ -3,65 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 v114 - 共振雙核</title>
+    <title>AI 539 數據中心 v114</title>
     <style>
-        :root { --bg: #000; --panel: #121214; --primary: #ffd60a; --success: #32d74b; --border: #2c2c2e; --text: #f2f2f7; --sub: #8e8e93; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 12px; }
-        .container { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+        .container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         
-        /* 獨立模組區域 */
-        .panel { background: var(--panel); border-radius: 18px; padding: 20px; border: 1px solid var(--border); box-shadow: 0 8px 32px rgba(0,0,0,0.6); }
-        .panel-header { font-size: 0.8rem; font-weight: 700; color: var(--primary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; letter-spacing: 1px; }
+        /* 獨立面板樣式 */
+        .panel { background: var(--panel); border-radius: 16px; padding: 18px; border: 1px solid var(--border); }
+        .panel-header { color: var(--primary); font-size: 0.9rem; font-weight: bold; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
         .panel-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
         
-        /* 號碼球 */
-        .ball-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
-        .ball { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #242426; border-radius: 12px; font-weight: 700; font-size: 1.1rem; border: 1px solid var(--border); }
-        .ball.core { background: var(--primary); color: #000; border: none; box-shadow: 0 0 15px rgba(255,214,10,0.4); }
+        /* 號碼球樣式 */
+        .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+        .ball { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 12px; font-weight: bold; font-size: 1.1rem; border: 1px solid var(--border); }
+        .ball.anchor { background: var(--primary); color: #000; border: none; }
         
-        /* 回測清單 */
-        .bt-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1c1c1e; }
-        .bt-date { font-size: 0.75rem; color: var(--sub); width: 50px; }
-        .bt-res { flex: 1; text-align: center; color: #aaa; font-size: 0.85rem; letter-spacing: 1px; }
-        .bt-hit { width: 40px; text-align: right; font-weight: 800; font-size: 1.2rem; }
-        .hit-high { color: var(--success); text-shadow: 0 0 10px rgba(50,215,75,0.5); }
+        /* 表格與矩陣 */
+        .scroll-box { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; background: #000; }
+        table { width: 100%; border-collapse: collapse; min-width: 850px; }
+        th, td { border: 1px solid #2c2c2e; padding: 6px 0; text-align: center; font-size: 0.75rem; }
+        th { background: #1c1c1e; color: var(--sub); }
+        .date-col { width: 80px; color: var(--sub); font-size: 0.7rem; background: #1c1c1e; position: sticky; left: 0; }
+        .hit-dot { background: var(--primary); color: #000; font-weight: 800; border-radius: 4px; }
 
-        /* 分佈矩陣 */
-        .matrix-wrapper { overflow-x: auto; border-radius: 10px; background: #080808; }
-        table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        th, td { border: 1px solid #1a1a1c; padding: 8px 0; text-align: center; font-size: 0.75rem; }
-        th { background: #121214; color: var(--sub); font-weight: 400; }
-        .sticky-col { position: sticky; left: 0; background: #121214; z-index: 5; width: 70px; color: var(--sub); }
-        .active-dot { background: var(--primary); color: #000; font-weight: 900; border-radius: 4px; }
+        /* 回測列表 */
+        .bt-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2c2c2e; }
+        .hit-count { color: var(--success); font-weight: bold; font-size: 1.2rem; width: 30px; text-align: right; }
 
-        input[type="file"] { width: 100%; color: var(--sub); font-size: 0.85rem; }
+        @media (min-width: 800px) { .grid-split { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; } }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">DATA CENTER</div>
-        <input type="file" id="csvFile" accept=".csv">
+        <div class="panel-header">數據上傳中心</div>
+        <input type="file" id="csvFile" style="width:100%; color:var(--sub);" accept=".csv">
     </div>
 
-    <div id="dashboard" style="display:none;">
-        <div class="panel">
-            <div class="panel-header">V114 BINARY RESONANCE PREDICTION</div>
-            <div style="font-size:0.7rem; color:var(--sub);">PRIMARY CORE (共振雙核心)</div>
-            <div id="coreBalls" class="ball-row"></div>
-            <div style="font-size:0.7rem; color:var(--sub); margin-top:15px;">SUPPORTING SATELLITES (衛星連動)</div>
-            <div id="satBalls" class="ball-row"></div>
+    <div id="mainDisplay" style="display:none;">
+        <div class="grid-split">
+            <div class="panel">
+                <div class="panel-header">下期預測組合 (v114 區間坍縮)</div>
+                <p style="font-size:0.7rem; color:var(--sub);">核心引力錨點：</p>
+                <div id="anchorBall" class="ball-row"></div>
+                <p style="font-size:0.7rem; color:var(--sub); margin-top:15px;">預計集彈組合：</p>
+                <div id="finalCombo" class="ball-row"></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">滾動回測效能 (前 10 期)</div>
+                <div id="btContainer"></div>
+            </div>
         </div>
 
         <div class="panel">
-            <div class="panel-header">ROLLING BACKTEST (FOCUS ON HIT:2)</div>
-            <div id="btList"></div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-header">HISTORICAL DISTRIBUTION (1-39)</div>
-            <div class="matrix-wrapper">
+            <div class="panel-header">歷史獎號分布矩陣 (CSV 真實數據)</div>
+            <div class="scroll-box">
                 <table>
                     <thead><tr id="mHead"></tr></thead>
                     <tbody id="mBody"></tbody>
@@ -77,61 +76,58 @@
     document.getElementById('csvFile').addEventListener('change', e => {
         const reader = new FileReader();
         reader.onload = () => {
-            const lines = reader.result.trim().split('\n');
-            state.data = lines.filter(l => l.split(',')[1] && !isNaN(l.split(',')[1])).map(l => {
-                const parts = l.split(',');
-                return { date: parts[0], nums: parts.slice(1, 6).map(Number).sort((a,b)=>a-b) };
-            });
+            const rows = reader.result.trim().split('\n').map(r => r.split(','));
+            state.data = rows.filter(r => !isNaN(r[1])).map(r => ({
+                date: r[0],
+                nums: r.slice(1, 6).map(Number).sort((a,b)=>a-b)
+            }));
             render();
         };
         reader.readAsText(e.target.files[0]);
     });
 
     function render() {
-        const btList = document.getElementById('btList');
-        const mBody = document.getElementById('mBody');
         const mHead = document.getElementById('mHead');
+        const mBody = document.getElementById('mBody');
+        const btContainer = document.getElementById('btContainer');
         
-        mHead.innerHTML = '<th class="sticky-col">DATE</th>';
+        mHead.innerHTML = '<th class="date-col">日期</th>';
         for(let i=1; i<=39; i++) mHead.innerHTML += `<th>${i}</th>`;
         
-        btList.innerHTML = ''; mBody.innerHTML = '';
+        mBody.innerHTML = ''; btContainer.innerHTML = '';
 
         for (let i = state.data.length - 1; i >= Math.max(0, state.data.length - 10); i--) {
             const pred = getV114Pick(state.data.slice(0, i));
             const real = state.data[i].nums;
             const hits = pred.res.filter(n => real.includes(n));
 
-            // Backtest
-            const div = document.createElement('div');
-            div.className = 'bt-item';
-            div.innerHTML = `<span class="bt-date">${state.data[i].date.slice(5)}</span>
-                             <span class="bt-res">${real.join(' ')}</span>
-                             <span class="bt-hit ${hits.length>=2?'hit-high':''}">${hits.length}</span>`;
-            btList.appendChild(div);
+            // 回測 Panel
+            const item = document.createElement('div');
+            item.className = 'bt-item';
+            item.innerHTML = `<div><span style="color:var(--sub)">${state.data[i].date.slice(5)}</span><br><span style="font-size:0.8rem">${real.join(' ')}</span></div>
+                              <div style="font-size:0.7rem; color:#555">預測: ${pred.res.join(',')}</div>
+                              <div class="hit-count">${hits.length}</div>`;
+            btContainer.appendChild(item);
 
-            // Matrix
+            // 矩陣 Panel
             const tr = document.createElement('tr');
-            let trHtml = `<td class="sticky-col">${state.data[i].date.slice(5)}</td>`;
+            let trHtml = `<td class="date-col">${state.data[i].date.slice(5)}</td>`;
             for(let n=1; n<=39; n++) {
                 const isH = real.includes(n);
-                trHtml += `<td class="${isH?'active-dot':''}">${isH?n:''}</td>`;
+                trHtml += `<td class="${isH?'hit-dot':''}">${isH?n:''}</td>`;
             }
             tr.innerHTML = trHtml;
             mBody.appendChild(tr);
         }
 
         const final = getV114Pick(state.data);
-        const corePair = final.res.slice(0, 2);
-        const sats = final.res.slice(2);
-        
-        document.getElementById('coreBalls').innerHTML = corePair.map(n => `<div class="ball core">${n}</div>`).join('');
-        document.getElementById('satBalls').innerHTML = sats.map(n => `<div class="ball">${n}</div>`).join('');
-        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('anchorBall').innerHTML = `<div class="ball anchor">${final.one}</div>`;
+        document.getElementById('finalCombo').innerHTML = final.res.map(n => `<div class="ball ${n===final.one?'anchor':''}">${n}</div>`).join('');
+        document.getElementById('mainDisplay').style.display = 'block';
     }
 
     function getV114Pick(hist) {
-        if(hist.length === 0) return {res:[]};
+        if(hist.length === 0) return {res:[], one:0};
         let sc = Array(40).fill(0);
         const last = hist[hist.length-1].nums;
         const recent = hist.slice(-15).flatMap(h => h.nums);
@@ -142,33 +138,32 @@
             let gap = 0;
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             
-            // v114 雙星共振權重: 融合 v93, v107
-            if(gap === 1) sc[i] += 2800; 
-            else if(gap >= 5 && gap <= 9) sc[i] += 3000; // 核心冷熱動能
+            if(gap === 1) sc[i] += 2600; 
+            else if(gap >= 5 && gap <= 9) sc[i] += 3000; // v114 強化反彈
             else if(gap === 0) sc[i] += 800; 
             
             sc[i] += tailF[i%10] * 550; 
-            if(last.some(ln => Math.abs(ln-i) === 1)) sc[i] += 1050; // 強鄰號引力
+            if(last.some(ln => Math.abs(ln-i) === 1)) sc[i] += 1000; // 強化鄰號引力
         }
 
         let sorted = Array.from({length:39},(_,i)=>i+1).sort((a,b)=>sc[b]-sc[a]);
-        
-        // 尋找雙星核心：最優號碼 + 其最強共振號碼
-        let res = [];
-        let one = sorted[0];
+        let res = [], one = sorted[0];
         res.push(one);
+        
+        // v114 命中 2 攻堅核心：強制執行「鄰域坍縮」
+        // 在最優號碼附近的 4 個號碼內尋找評分最高者
+        let clusters = sorted.filter(n => n !== one && Math.abs(n-one) <= 4);
+        if(clusters.length > 0) res.push(clusters[0]); 
 
-        // 尋找與 one 最具共振潛力的第二顆球 (同尾或連號優先)
-        let two = sorted.find(n => n !== one && (n%10 === one%10 || Math.abs(n-one) === 1));
-        if(!two) two = sorted[1];
-        res.push(two);
+        // 輔助：同尾號碼鎖定
+        let tailMate = sorted.find(n => !res.includes(n) && n%10 === one%10);
+        if(tailMate) res.push(tailMate);
 
-        // 補全衛星
         while(res.length < 5) {
             let next = sorted.find(n => !res.includes(n));
             res.push(next);
         }
-        return { res: res.sort((a,b)=>a-b) };
+        return { res: res.sort((a,b)=>a-b), one: one };
     }
 </script>
 </body>
