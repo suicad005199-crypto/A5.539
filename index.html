@@ -3,23 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v180</title>
+    <title>AI 539 數據中心 v181</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --neighbor: #5856d6; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --span: #5ac8fa; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
-        .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
+        .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.neighbor-node { border: 2px solid var(--neighbor); color: var(--neighbor); box-shadow: 0 0 10px rgba(88,86,214,0.4); }
-        .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
-        table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
-        th, td { border: 1px solid #38383a; padding: 6px 2px; }
-        th { background: #2c2c2e; color: var(--sub); }
-        .is-hit { background: var(--hit); color: #fff; font-weight: bold; }
-        .bt-row { border-bottom: 1px solid #38383a; padding: 8px 0; display: grid; grid-template-columns: 80px 1.2fr 1.2fr 40px; align-items: center; gap: 10px; font-size: 11px; }
+        .ball.span-node { border: 2px solid var(--span); color: var(--span); box-shadow: 0 0 10px rgba(90,200,250,0.3); }
+        
+        /* Panel 4 矩陣修正 */
+        .matrix-wrapper { width: 100%; overflow-x: auto; }
+        .matrix-table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; min-width: 800px; }
+        .matrix-table th, .matrix-table td { border: 1px solid var(--border); padding: 8px 0; width: 2.4%; font-size: 11px; }
+        .matrix-table th:first-child, .matrix-table td:first-child { width: 70px; font-size: 10px; color: var(--sub); }
+        .pred-mark { background: rgba(255, 214, 10, 0.2); color: var(--primary); font-weight: bold; }
+        .is-hit { background: var(--hit); color: #fff; font-weight: bold; border-radius: 0; }
+
+        .bt-row { border-bottom: 1px solid #38383a; padding: 10px 0; display: grid; grid-template-columns: 85px 1.2fr 1.2fr 40px; align-items: center; gap: 10px; font-size: 11px; }
         .hit-count { color: var(--success); font-weight: bold; text-align: right; font-size: 14px; }
     </style>
 </head>
@@ -27,26 +31,26 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v180)</div>
+        <div class="panel-header">數據注入 (v181)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (鄰里壓縮版)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (動態跨度修正)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">紫框: 鄰里共振碼 | 策略: 局部空間壓縮，強制命中 2 轉 4</p>
+                <p style="font-size:0.7rem; color:var(--sub);">藍框: 跨度修正碼 | 策略: 平衡連號與區間跨度，優化轉化率</p>
             </div>
             <div class="panel" id="panel3">
-                <div class="panel-header">Panel 3: 滾動回測 (新至舊)</div>
+                <div class="panel-header">Panel 3: 滾動回測 (最新在上)</div>
                 <div id="btContainer"></div>
             </div>
         </div>
 
         <div class="panel" id="panel4">
-            <div class="panel-header">Panel 4: 全號碼分布矩陣</div>
-            <div id="matrixContainer"></div>
+            <div class="panel-header">Panel 4: 全號碼分布矩陣 (UI 修正版)</div>
+            <div class="matrix-wrapper" id="matrixContainer"></div>
         </div>
     </div>
 </div>
@@ -67,8 +71,8 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV180Pick(hist) {
-        if(hist.length < 5) return {res:[], neighborNodes:[]};
+    function getV181Pick(hist) {
+        if(hist.length < 5) return {res:[], spanNodes:[]};
         const last = hist[hist.length-1].nums;
         
         let pool = [];
@@ -76,61 +80,57 @@
             let gap = 0;
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
-            if(gap >= 3 && gap <= 10) score += 12000; // 核心溫碼
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 15000; // 斜連加權
-            pool.push({n: i, gap: gap, sc: score});
+            if(gap >= 3 && gap <= 8) score += 12000;
+            if(last.some(ln => Math.abs(ln-i) === 1)) score += 14000;
+            pool.push({n: i, gap: gap, sc: score, z: Math.floor((i-1)/10)});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let neighborNodes = [];
+        let spanNodes = [];
 
-        // 1. 選取 4 顆高分種子
+        // 1. 選取不同區間的種子碼 (防止過度擁擠)
+        let usedZones = new Set();
         for(let p of sorted) {
-            if(res.length < 4) res.push(p.n);
-        }
-
-        // 2. 鄰里壓縮邏輯：偵測種子間的空隙並填補
-        res.sort((a,b)=>a-b);
-        for(let i=0; i<res.length-1; i++) {
-            let diff = res[i+1] - res[i];
-            if(diff === 2) { // 如 12, 14 填補 13
-                let mid = res[i] + 1;
-                if(!res.includes(mid) && res.length < 8) {
-                    res.push(mid);
-                    neighborNodes.push(mid);
-                }
-            } else if(diff === 1) { // 如 12, 13 擴張 11 或 14
-                [res[i]-1, res[i+1]+1].forEach(side => {
-                    if(side >= 1 && side <= 39 && !res.includes(side) && res.length < 8) {
-                        res.push(side);
-                        neighborNodes.push(side);
-                    }
-                });
+            if(res.length < 5 && !usedZones.has(p.z)) {
+                res.push(p.n);
+                usedZones.add(p.z);
             }
         }
 
-        // 3. 補齊剩餘名額
+        // 2. 針對高分種子進行「鄰里引力」
+        for(let p of sorted) {
+            if(res.length < 8 && !res.includes(p.n)) {
+                if(res.some(rn => Math.abs(rn - p.n) === 1)) {
+                    res.push(p.n);
+                    spanNodes.push(p.n);
+                }
+            }
+        }
+
+        // 3. 補齊
         for(let p of sorted) {
             if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
         }
 
-        return { res: res.slice(0, 8).sort((a,b)=>a-b), neighborNodes };
+        return { res: res.slice(0, 8).sort((a,b)=>a-b), spanNodes };
     }
 
     function render() {
-        const finalPred = getV180Pick(state.data);
-        
-        // Panel 3: Reverse the data for New to Old display
-        const bt = document.getElementById('btContainer');
-        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
-        
-        // Ensure reverse chronological order
+        const finalPred = getV181Pick(state.data);
         const recentData = [...state.data].reverse().slice(0, 10);
         
+        // Render Panel 2
+        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
+            `<div class="ball ${finalPred.spanNodes.includes(n)?'span-node':'active'}">${n}</div>`
+        ).join('');
+
+        // Render Panel 3
+        const bt = document.getElementById('btContainer');
+        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
         recentData.forEach((row) => {
             const idx = state.data.findIndex(d => d.date === row.date);
-            const pred = getV180Pick(state.data.slice(0, idx));
+            const pred = getV181Pick(state.data.slice(0, idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `
                 <div class="bt-row">
@@ -141,19 +141,21 @@
                 </div>`;
         });
 
-        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
-            `<div class="ball ${finalPred.neighborNodes.includes(n)?'neighbor-node':'active'}">${n}</div>`
-        ).join('');
-
-        // Panel 4 Matrix
-        let tableHtml = `<table><thead><tr><th>日期</th>`;
+        // Render Panel 4 (Table Fix)
+        let tableHtml = `<table class="matrix-table"><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
-        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>預測</td>`;
-        for(let i=1; i<=39; i++) tableHtml += `<td class="${finalPred.res.includes(i)?'pred-mark':''}" style="color:var(--primary)">${finalPred.res.includes(i)?'●':''}</td>`;
+        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>下期預測</td>`;
+        for(let i=1; i<=39; i++) {
+            let isP = finalPred.res.includes(i);
+            tableHtml += `<td class="${isP?'pred-mark':''}">${isP?'●':''}</td>`;
+        }
         tableHtml += `</tr>`;
         recentData.forEach(row => {
             tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
-            for(let i=1; i<=39; i++) tableHtml += `<td class="${row.nums.includes(i)?'is-hit':''}">${row.nums.includes(i)?i:''}</td>`;
+            for(let i=1; i<=39; i++) {
+                let isH = row.nums.includes(i);
+                tableHtml += `<td class="${isH?'is-hit':''}">${isH ? i : ''}</td>`;
+            }
             tableHtml += `</tr>`;
         });
         document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
