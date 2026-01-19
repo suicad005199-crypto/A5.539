@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v171</title>
+    <title>AI 539 數據中心 v172</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --lock: #007aff; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --cloud: #ac8eff; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
@@ -13,7 +13,7 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.lock-node { border: 2px solid var(--lock); color: var(--lock); box-shadow: 0 0 8px rgba(0,122,255,0.4); }
+        .ball.cloud-node { border: 2px solid var(--cloud); color: var(--cloud); box-shadow: 0 0 10px rgba(172,142,255,0.3); }
         .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 6px 2px; }
@@ -27,16 +27,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v171)</div>
+        <div class="panel-header">數據注入 (v172)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (三元相位鎖定)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (機率雲擴散版)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">藍框: 相位鎖定碼 | 策略: 強制三元聯動結構，衝擊命中 4</p>
+                <p style="font-size:0.7rem; color:var(--sub);">紫框: 機率雲擴散碼 | 策略: 同尾共振 + 彈性擴散結構</p>
             </div>
             <div class="panel" id="panel3">
                 <div class="panel-header">Panel 3: 滾動回測紀錄</div>
@@ -67,8 +67,8 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV171Pick(hist) {
-        if(hist.length < 5) return {res:[], lockNodes:[]};
+    function getV172Pick(hist) {
+        if(hist.length < 5) return {res:[], cloudNodes:[]};
         const last = hist[hist.length-1].nums;
         
         let pool = [];
@@ -77,37 +77,42 @@
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
             if(gap <= 2) score += 9000;
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 13000;
-            pool.push({n: i, gap: gap, sc: score});
+            if(last.some(ln => Math.abs(ln-i) === 1)) score += 14000;
+            pool.push({n: i, gap: gap, sc: score, t: i%10});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let lockNodes = [];
+        let cloudNodes = [];
 
-        // 三元聯動邏輯：選取 2 個核心並帶動結構
+        // 1. 核心與擴散邏輯
         for(let p of sorted) {
             if(res.length >= 8) break;
             if(!res.includes(p.n)) {
-                // 核心節點
                 res.push(p.n);
-                lockNodes.push(p.n);
+                
+                // 動態擴散：根據核心分值與同尾潛力拉入擴散碼
+                let diffuser = pool.filter(x => 
+                    !res.includes(x.n) && 
+                    (Math.abs(x.n - p.n) <= 2 || x.t === p.t) && 
+                    x.sc > 5000
+                ).sort((a,b) => b.sc - a.sc);
 
-                // 結構聯動 (優先選取共振結構：連號或等距)
-                let structure = [p.n-1, p.n+1, p.n-2, p.n+2].filter(n => n>=1 && n<=39 && !res.includes(n));
-                for(let sn of structure) {
-                    if(res.length < 8) res.push(sn);
-                    else break;
+                if(diffuser.length > 0 && res.length < 8) {
+                    let d = diffuser[0];
+                    res.push(d.n);
+                    cloudNodes.push(d.n);
                 }
             }
         }
 
-        return { res: res.slice(0, 8).sort((a,b)=>a-b), lockNodes };
+        return { res: res.slice(0, 8).sort((a,b)=>a-b), cloudNodes };
     }
 
     function render() {
-        const finalPred = getV171Pick(state.data);
+        const finalPred = getV172Pick(state.data);
         
+        // Panel 4 Table
         let tableHtml = `<table><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
         tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>預測</td>`;
@@ -127,11 +132,12 @@
         tableHtml += `</tbody></table>`;
         document.getElementById('matrixContainer').innerHTML = tableHtml;
 
+        // Panel 3 BT
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
         state.data.slice(-10).reverse().forEach((row) => {
             const idx = state.data.findIndex(d => d.date === row.date);
-            const pred = getV171Pick(state.data.slice(0, idx));
+            const pred = getV172Pick(state.data.slice(0, idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `
                 <div class="bt-row">
@@ -142,8 +148,9 @@
                 </div>`;
         });
 
+        // Panel 2
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
-            let cls = finalPred.lockNodes.includes(n) ? 'lock-node' : 'active';
+            let cls = finalPred.cloudNodes.includes(n) ? 'cloud-node' : 'active';
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
         document.getElementById('mainDisplay').style.display = 'block';
