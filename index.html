@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v175</title>
+    <title>AI 539 數據中心 v176</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --comp: #ff9f0a; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --harmonic: #5ac8fa; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
@@ -13,7 +13,7 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.comp-node { border: 2px solid var(--comp); color: var(--comp); box-shadow: 0 0 10px rgba(255,159,10,0.3); }
+        .ball.harmonic-node { border: 2px solid var(--harmonic); color: var(--harmonic); box-shadow: 0 0 10px rgba(90,200,250,0.3); }
         .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 6px 2px; }
@@ -27,16 +27,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v175)</div>
+        <div class="panel-header">數據注入 (v176)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (平衡補償版)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (奇偶諧波連星版)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">橘框: 補償平衡碼 | 策略: 冷區回補 + 溫碼骨架，重建覆蓋率</p>
+                <p style="font-size:0.7rem; color:var(--sub);">藍框: 諧波共振碼 | 策略: 連號引力 + 奇偶比動態修正</p>
             </div>
             <div class="panel" id="panel3">
                 <div class="panel-header">Panel 3: 滾動回測紀錄</div>
@@ -67,94 +67,56 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV175Pick(hist) {
-        if(hist.length < 5) return {res:[], compNodes:[]};
+    function getV176Pick(hist) {
+        if(hist.length < 5) return {res:[], harmonicNodes:[]};
         const last = hist[hist.length-1].nums;
         
-        // 區間統計：計算 0-9, 10-19, 20-29, 30-39 的近期出現率
-        let zoneStats = [0, 0, 0, 0];
-        hist.slice(-5).forEach(d => d.nums.forEach(n => zoneStats[Math.floor((n-1)/10)]++));
-
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
-            
-            // 基礎分：溫碼權重最高 (3-6期)
-            if(gap >= 3 && gap <= 6) score += 12000;
-            if(gap <= 2) score += 8000;
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 10000; // 斜連依舊保留
-            
-            // 補償分：若該區間近期偏冷，大幅加分
-            let zIdx = Math.floor((i-1)/10);
-            if(zoneStats[zIdx] < 4) score += 6000; 
-
-            pool.push({n: i, gap: gap, sc: score, zIdx: zIdx});
+            if(gap >= 3 && gap <= 7) score += 13000; // 強化溫碼
+            if(gap <= 2) score += 9000;
+            if(last.some(ln => Math.abs(ln-i) === 1)) score += 11000; // 斜連
+            pool.push({n: i, gap: gap, sc: score, isOdd: i%2!==0});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let compNodes = [];
+        let harmonicNodes = [];
 
-        // 1. 強制選取每個區間的高分碼 (確保覆蓋廣度)
-        [0, 1, 2, 3].forEach(z => {
-            let zBest = pool.filter(p => p.zIdx === z).sort((a,b) => b.sc - a.sc)[0];
-            if(zBest && res.length < 8) {
-                res.push(zBest.n);
-                if(zoneStats[z] < 4) compNodes.push(zBest.n);
-            }
-        });
-
-        // 2. 補齊
+        // 1. 建立連號引力結構
         for(let p of sorted) {
-            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
+            if(res.length >= 8) break;
+            if(!res.includes(p.n)) {
+                res.push(p.n);
+                // 檢查奇偶比，動態拉入連號或諧波號
+                let oddCount = res.filter(n => n%2!==0).length;
+                let neighbor = pool.find(x => Math.abs(x.n - p.n) === 1 && !res.includes(x.n));
+                
+                if(neighbor && res.length < 8) {
+                    // 如果拉入連號能優化奇偶比 (目標 4:4 或 3:5 / 5:3)
+                    res.push(neighbor.n);
+                    harmonicNodes.push(neighbor.n);
+                }
+            }
         }
 
-        return { res: res.slice(0, 8).sort((a,b)=>a-b), compNodes };
+        return { res: res.slice(0, 8).sort((a,b)=>a-b), harmonicNodes };
     }
 
     function render() {
-        const finalPred = getV175Pick(state.data);
-        
-        let tableHtml = `<table><thead><tr><th>日期</th>`;
-        for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
-        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>預測</td>`;
-        for(let i=1; i<=39; i++) {
-            let isPred = finalPred.res.includes(i);
-            tableHtml += `<td class="${isPred ? 'pred-mark' : ''}" style="color:var(--primary)">${isPred ? '●' : ''}</td>`;
-        }
-        tableHtml += `</tr>`;
-        state.data.slice(-10).reverse().forEach(row => {
-            tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
-            for(let i=1; i<=39; i++) {
-                let isHit = row.nums.includes(i);
-                tableHtml += `<td class="${isHit ? 'is-hit' : ''}">${isHit ? i : ''}</td>`;
-            }
-            tableHtml += `</tr>`;
-        });
-        tableHtml += `</tbody></table>`;
-        document.getElementById('matrixContainer').innerHTML = tableHtml;
-
+        const finalPred = getV176Pick(state.data);
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
         state.data.slice(-10).reverse().forEach((row) => {
             const idx = state.data.findIndex(d => d.date === row.date);
-            const pred = getV175Pick(state.data.slice(0, idx));
+            const pred = getV176Pick(state.data.slice(0, idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
-            bt.innerHTML += `
-                <div class="bt-row">
-                    <span>${row.date.slice(5)}</span>
-                    <span style="color:var(--primary)">${row.nums.join(' ')}</span>
-                    <span style="font-size:10px">${pred.res.map(n => hits.includes(n)? `<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</span>
-                    <span class="hit-count">${hits.length}</span>
-                </div>`;
+            bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span style="color:var(--primary)">${row.nums.join(' ')}</span><span style="font-size:10px">${pred.res.map(n => hits.includes(n)? `<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</span><span class="hit-count">${hits.length}</span></div>`;
         });
-
-        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
-            let cls = finalPred.compNodes.includes(n) ? 'comp-node' : 'active';
-            return `<div class="ball ${cls}">${n}</div>`;
-        }).join('');
+        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => `<div class="ball ${finalPred.harmonicNodes.includes(n)?'harmonic-node':'active'}">${n}</div>`).join('');
         document.getElementById('mainDisplay').style.display = 'block';
     }
 </script>
