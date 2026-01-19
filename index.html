@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v156</title>
+    <title>AI 539 數據中心 v157</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --cold: #0a84ff; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --link: #bf5af2; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; border: 1px solid var(--border); }
-        .ball.hot { background: var(--primary); color: #000; border: none; }
-        .ball.cold { background: var(--cold); color: #fff; border: none; }
+        .ball.active { background: var(--primary); color: #000; border: none; }
+        .ball.linked { border: 2px solid var(--link); color: var(--link); }
+        .pred-mark { background: rgba(255, 214, 10, 0.2); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 4px 2px; }
         th { background: #2c2c2e; color: var(--sub); }
@@ -27,16 +28,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v156)</div>
+        <div class="panel-header">數據注入 (v157)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">下期精準 8 碼 (冷熱夾擊)</div>
+                <div class="panel-header">下期精準 8 碼 (同尾鏈結)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">黃色:熱區核心 | 藍色:冷區防禦 (4-4 對稱策略)</p>
+                <p style="font-size:0.7rem; color:var(--sub);">紫框: 同尾鏈結對 | 策略: 提高命中 2 聚攏度</p>
             </div>
             <div class="panel">
                 <div class="panel-header">滾動回測 (前 10 期)</div>
@@ -45,7 +46,7 @@
         </div>
 
         <div class="panel">
-            <div class="panel-header">Panel 4: 全號碼連號分布矩陣</div>
+            <div class="panel-header">Panel 4: 全號碼連號分布矩陣 (標註預測位)</div>
             <div id="matrixContainer"></div>
         </div>
     </div>
@@ -67,10 +68,9 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV156Pick(hist) {
-        if(hist.length < 5) return {res:[], hot:[], cold:[]};
+    function getV157Pick(hist) {
+        if(hist.length < 5) return {res:[], links:[]};
         const last = hist[hist.length-1].nums;
-        
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
@@ -78,30 +78,52 @@
             let score = 0;
             if(gap <= 2) score += 5000;
             if(last.some(ln => Math.abs(ln-i) === 1)) score += 8000;
-            pool.push({n: i, gap: gap, sc: score});
+            pool.push({n: i, gap: gap, sc: score, t: i%10});
         }
 
-        // 1. 篩選熱攻 (Hot 4) - 選取高權重 L0-L3
-        let hP = pool.filter(p => p.gap <= 3).sort((a,b)=>b.sc - a.sc).slice(0, 4).map(p => p.n);
-        
-        // 2. 篩選冷守 (Cold 4) - 選取 L10+ 權重最高號
-        let cP = pool.filter(p => p.gap >= 10).sort((a,b)=>b.sc - a.sc).slice(0, 4).map(p => p.n);
+        let sorted = pool.sort((a,b) => b.sc - a.sc);
+        let res = [];
+        let links = [];
 
-        // 3. 組合與補位
-        let res = [...hP, ...cP];
-        let fillers = pool.filter(p => !res.includes(p.n)).sort((a,b)=>b.sc - a.sc);
-        while(res.length < 8) res.push(fillers.shift().n);
+        // 1. 核心與同尾鏈結
+        let top3 = sorted.slice(0, 3);
+        top3.forEach(core => {
+            if(res.length < 8) {
+                res.push(core.n);
+                let tailMatch = pool.find(p => p.n%10 === core.t && p.n !== core.n && !res.includes(p.n) && p.gap < 15);
+                if(tailMatch && res.length < 8) {
+                    res.push(tailMatch.n);
+                    links.push(core.n, tailMatch.n);
+                }
+            }
+        });
 
-        return { res: res.sort((a,b)=>a-b), hot: hP, cold: cP };
+        // 2. 補齊
+        for(let p of sorted) {
+            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
+        }
+
+        return { res: res.sort((a,b)=>a-b), links };
     }
 
     function render() {
-        // Panel 4 Table
+        const finalPred = getV157Pick(state.data);
+        
+        // Panel 4 with Prediction Marks
         let tableHtml = `<table><thead><tr><th>日期</th>`;
-        for(let i=1; i<=39; i++) tableHtml += `<th>${i < 10 ? '0'+i : i}</th>`;
+        for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
         tableHtml += `</tr></thead><tbody>`;
+        
+        // 預測列
+        tableHtml += `<tr style="background:#2c2c2e"><td>下期預測</td>`;
+        for(let i=1; i<=39; i++) {
+            let isPred = finalPred.res.includes(i);
+            tableHtml += `<td class="${isPred ? 'pred-mark' : ''}" style="color:var(--primary)">${isPred ? '●' : ''}</td>`;
+        }
+        tableHtml += `</tr>`;
+
         state.data.slice(-10).reverse().forEach(row => {
-            tableHtml += `<tr><td style="white-space:nowrap">${row.date.slice(5)}</td>`;
+            tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
             for(let i=1; i<=39; i++) {
                 let isHit = row.nums.includes(i);
                 let isSerial = isHit && (row.nums.includes(i-1) || row.nums.includes(i+1));
@@ -112,18 +134,17 @@
         tableHtml += `</tbody></table>`;
         document.getElementById('matrixContainer').innerHTML = tableHtml;
 
-        // BT & Forecast
+        // Results
         const bt = document.getElementById('btContainer');
         bt.innerHTML = '';
         state.data.slice(-10).forEach((row, idx) => {
-            const pred = getV156Pick(state.data.slice(0, state.data.length - 10 + idx));
+            const pred = getV157Pick(state.data.slice(0, state.data.length - 10 + idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-item"><span>${row.date.slice(5)}</span><span class="hit-count">中 ${hits.length}</span></div>`;
         });
 
-        const final = getV156Pick(state.data);
-        document.getElementById('finalCombo').innerHTML = final.res.map(n => {
-            let cls = final.hot.includes(n) ? 'hot' : (final.cold.includes(n) ? 'cold' : 'active');
+        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
+            let cls = finalPred.links.includes(n) ? 'linked' : 'active';
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
         document.getElementById('mainDisplay').style.display = 'block';
