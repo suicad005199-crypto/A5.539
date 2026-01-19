@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v230</title>
+    <title>AI 539 數據中心 v231</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --triple: #af52de; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
@@ -26,16 +26,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v230 - 衝擊 3 星強化版)</div>
+        <div class="panel-header">數據注入 (v231 - 7 碼衝擊 3 星)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 結構預測 (斜連+同尾+區塊地毯)</div>
+                <div class="panel-header">Panel 2: 精選 7 碼 (鄰區包圍邏輯)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">策略：融合 v182 耦合邏輯，強制區塊地毯式分布，鎖定 3 星咬合。</p>
+                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">策略：強制「鄰碼+同尾」咬合結構，減少分布點，提高三星重疊率。</p>
             </div>
             <div class="panel">
                 <div class="panel-header">Panel 3: 10 期滾動回測</div>
@@ -43,7 +43,7 @@
             </div>
         </div>
         <div class="panel">
-            <div class="panel-header">Panel 4: 分區走勢矩陣 (熱區重心分析)</div>
+            <div class="panel-header">Panel 4: 共振矩陣</div>
             <div class="matrix-wrapper" id="matrixContainer"></div>
         </div>
     </div>
@@ -64,19 +64,14 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV230Pick(hist) {
+    function getV231Pick(hist) {
         if(hist.length < 5) return {res:[], tripleNodes:[]};
         const last = hist[hist.length-1].nums;
         
-        // 1. 找出最熱尾數 (近5期)
+        // 1. 偵測最強勢尾數 (權重 50%)
         const tails = {};
-        hist.slice(-5).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
+        hist.slice(-7).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
         const topTail = Number(Object.entries(tails).sort((a,b)=>b[1]-a[1])[0][0]);
-
-        // 2. 找出最熱區塊 (10號為一單位)
-        const zones = [0,0,0,0];
-        hist.slice(-3).forEach(d => d.nums.forEach(n => zones[Math.floor((n-1)/10)]++));
-        const topZone = zones.indexOf(Math.max(...zones));
 
         let pool = [];
         for (let i=1; i<=39; i++) {
@@ -84,11 +79,15 @@
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             
             let sc = 0;
-            if(last.some(ln => Math.abs(ln-i) === 1)) sc += 25000; // 斜連核心 (最高權重)
-            if(i%10 === topTail) sc += 15000; // 同尾耦合
-            if(Math.floor((i-1)/10) === topZone) sc += 10000; // 區塊地毯
-            if(gap >= 4 && gap <= 9) sc += 5000; // 溫碼銜接
-            
+            // 斜連種子 (40%)
+            if(last.some(ln => Math.abs(ln-i) === 1)) sc += 30000;
+            // 同尾共振 (30%)
+            if(i%10 === topTail) sc += 20000;
+            // 熱區銜接 (20%)
+            if(gap <= 3) sc += 10000;
+            // 鄰碼包圍額外權重
+            if(last.includes(i)) sc += 5000;
+
             pool.push({n: i, gap, sc, t: i%10});
         }
 
@@ -96,28 +95,31 @@
         let res = [];
         let tripleNodes = [];
 
-        // 強制：2顆斜連種子
-        sorted.filter(p => last.some(ln => Math.abs(ln-p.n) === 1)).slice(0, 2).forEach(p => res.push(p.n));
+        // 第一步：選定 1 顆最高分種子
+        let seed = sorted[0];
+        res.push(seed.n);
 
-        // 強制：2顆熱尾耦合 (標記為三元)
-        sorted.filter(p => !res.includes(p.n) && p.t === topTail).slice(0, 2).forEach(p => {
+        // 第二步：強制包圍種子的鄰號 (衝擊連號 3 星)
+        let neighbors = sorted.filter(p => Math.abs(p.n - seed.n) === 1).slice(0, 1);
+        neighbors.forEach(p => res.push(p.n));
+
+        // 第三步：同尾填充 (三元約束)
+        let tailPicks = sorted.filter(p => !res.includes(p.n) && p.t === topTail).slice(0, 2);
+        tailPicks.forEach(p => {
             res.push(p.n);
             tripleNodes.push(p.n);
         });
 
-        // 強制：2顆熱區地毯碼
-        sorted.filter(p => !res.includes(p.n) && Math.floor((p.n-1)/10) === topZone).slice(0, 2).forEach(p => res.push(p.n));
-
-        // 補齊至 8 碼
+        // 第四步：補齊至 7 碼 (鎖定斜連與高分碼)
         for(let p of sorted) {
-            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
+            if(res.length < 7 && !res.includes(p.n)) res.push(p.n);
         }
 
         return { res: res.sort((a,b)=>a-b), tripleNodes };
     }
 
     function render() {
-        const fullData = [...state.data], finalPred = getV230Pick(fullData), recentForBT = fullData.slice(-12).reverse();
+        const fullData = [...state.data], finalPred = getV231Pick(fullData), recentForBT = fullData.slice(-12).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
             `<div class="ball ${finalPred.tripleNodes.includes(n)?'triple-node':'active'}">${n}</div>`).join('');
 
@@ -125,7 +127,7 @@
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測</span><span>星</span></div>`;
         recentForBT.slice(0, 10).forEach(row => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV230Pick(histUntil);
+            const pred = getV229Pick_v231(histUntil); // 使用新策略
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:10px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
@@ -143,6 +145,9 @@
         document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
         document.getElementById('mainDisplay').style.display = 'block';
     }
+
+    // 內部封裝 v231 邏輯供回測呼叫
+    function getV229Pick_v231(h) { return getV231Pick(h); }
 </script>
 </body>
 </html>
