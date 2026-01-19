@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v155</title>
+    <title>AI 539 數據中心 v156</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --cold: #0a84ff; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; border: 1px solid var(--border); }
-        .ball.active { background: var(--primary); color: #000; border: none; }
+        .ball.hot { background: var(--primary); color: #000; border: none; }
+        .ball.cold { background: var(--cold); color: #fff; border: none; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 4px 2px; }
         th { background: #2c2c2e; color: var(--sub); }
@@ -26,16 +27,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v155)</div>
+        <div class="panel-header">數據注入 (v156)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">下期精準 8 碼 (彈力擴散)</div>
+                <div class="panel-header">下期精準 8 碼 (冷熱夾擊)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">策略：核心波峰擴散 + 隔期斜連加壓</p>
+                <p style="font-size:0.7rem; color:var(--sub);">黃色:熱區核心 | 藍色:冷區防禦 (4-4 對稱策略)</p>
             </div>
             <div class="panel">
                 <div class="panel-header">滾動回測 (前 10 期)</div>
@@ -66,10 +67,9 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV155Pick(hist) {
-        if(hist.length < 5) return {res:[]};
+    function getV156Pick(hist) {
+        if(hist.length < 5) return {res:[], hot:[], cold:[]};
         const last = hist[hist.length-1].nums;
-        const last2 = hist[hist.length-2].nums;
         
         let pool = [];
         for (let i=1; i<=39; i++) {
@@ -77,39 +77,26 @@
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
             if(gap <= 2) score += 5000;
-            // 強化斜連：包含隔期斜連
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 7500;
-            if(last2.some(ln => Math.abs(ln-i) === 2)) score += 3000;
-            pool.push({n: i, gap: gap, sc: score, tail: i%10});
+            if(last.some(ln => Math.abs(ln-i) === 1)) score += 8000;
+            pool.push({n: i, gap: gap, sc: score});
         }
 
-        let sorted = pool.sort((a,b) => b.sc - a.sc);
-        let res = [];
+        // 1. 篩選熱攻 (Hot 4) - 選取高權重 L0-L3
+        let hP = pool.filter(p => p.gap <= 3).sort((a,b)=>b.sc - a.sc).slice(0, 4).map(p => p.n);
+        
+        // 2. 篩選冷守 (Cold 4) - 選取 L10+ 權重最高號
+        let cP = pool.filter(p => p.gap >= 10).sort((a,b)=>b.sc - a.sc).slice(0, 4).map(p => p.n);
 
-        // 1. 核心 3 碼
-        let core = sorted.slice(0, 3);
-        core.forEach(p => res.push(p.n));
+        // 3. 組合與補位
+        let res = [...hP, ...cP];
+        let fillers = pool.filter(p => !res.includes(p.n)).sort((a,b)=>b.sc - a.sc);
+        while(res.length < 8) res.push(fillers.shift().n);
 
-        // 2. 擴散捕捉 (鄰號或同尾)
-        core.forEach(p => {
-            if(res.length < 8) {
-                let neighbor = p.n + 1 > 39 ? p.n - 1 : p.n + 1;
-                if(!res.includes(neighbor)) res.push(neighbor);
-                
-                let sameTail = pool.find(x => x.n % 10 === p.tail && !res.includes(x.n) && x.gap < 10);
-                if(sameTail && res.length < 8) res.push(sameTail.n);
-            }
-        });
-
-        // 3. 補齊至 8 碼 (選取遺漏溫區)
-        for(let p of sorted) {
-            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
-        }
-
-        return { res: res.sort((a,b)=>a-b) };
+        return { res: res.sort((a,b)=>a-b), hot: hP, cold: cP };
     }
 
     function render() {
+        // Panel 4 Table
         let tableHtml = `<table><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i < 10 ? '0'+i : i}</th>`;
         tableHtml += `</tr></thead><tbody>`;
@@ -125,16 +112,20 @@
         tableHtml += `</tbody></table>`;
         document.getElementById('matrixContainer').innerHTML = tableHtml;
 
+        // BT & Forecast
         const bt = document.getElementById('btContainer');
         bt.innerHTML = '';
         state.data.slice(-10).forEach((row, idx) => {
-            const pred = getV155Pick(state.data.slice(0, state.data.length - 10 + idx));
+            const pred = getV156Pick(state.data.slice(0, state.data.length - 10 + idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-item"><span>${row.date.slice(5)}</span><span class="hit-count">中 ${hits.length}</span></div>`;
         });
 
-        const final = getV155Pick(state.data);
-        document.getElementById('finalCombo').innerHTML = final.res.map(n => `<div class="ball active">${n}</div>`).join('');
+        const final = getV156Pick(state.data);
+        document.getElementById('finalCombo').innerHTML = final.res.map(n => {
+            let cls = final.hot.includes(n) ? 'hot' : (final.cold.includes(n) ? 'cold' : 'active');
+            return `<div class="ball ${cls}">${n}</div>`;
+        }).join('');
         document.getElementById('mainDisplay').style.display = 'block';
     }
 </script>
