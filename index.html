@@ -3,50 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v159</title>
+    <title>AI 539 數據中心 v160</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --grid: #0a84ff; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --comp: #ff9f0a; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-        .ball { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; border: 1px solid var(--border); }
+        .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.grid { border: 2px solid var(--grid); color: var(--grid); } /* 網格修正碼 */
+        .ball.comp { border: 2px solid var(--comp); color: var(--comp); }
         .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
-        th, td { border: 1px solid #38383a; padding: 4px 2px; }
+        th, td { border: 1px solid #38383a; padding: 6px 2px; }
         th { background: #2c2c2e; color: var(--sub); }
         .is-hit { background: var(--hit); color: #fff; font-weight: bold; }
         .is-serial { background: var(--success); color: #000; font-weight: bold; }
-        .bt-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2c2c2e; }
-        .hit-count { color: var(--success); font-weight: bold; }
+        .bt-row { border-bottom: 1px solid #2c2c2e; padding: 8px 0; display: grid; grid-template-columns: 60px 1fr 1fr 40px; align-items: center; gap: 10px; font-size: 11px; }
+        .hit-count { color: var(--success); font-weight: bold; text-align: right; font-size: 14px; }
+        .small-label { color: var(--sub); font-size: 9px; display: block; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v159)</div>
+        <div class="panel-header">數據注入 (v160)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:15px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">下期精準 8 碼 (餘數網格版)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (位移補償)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">藍框: 餘數平衡修正 | 策略: 提高 4 星離散捕捉力</p>
+                <p style="font-size:0.7rem; color:var(--sub);">橘框: 位移補償碼 | 策略: 修正「差一號」誤差</p>
             </div>
             <div class="panel">
-                <div class="panel-header">滾動回測 (前 10 期)</div>
+                <div class="panel-header">滾動回測 (前 10 期詳細比對)</div>
                 <div id="btContainer"></div>
             </div>
         </div>
 
         <div class="panel">
-            <div class="panel-header">Panel 4: 全號碼連號分布矩陣 (標註下期預測)</div>
+            <div class="panel-header">Panel 4: 全號碼連號分布矩陣</div>
             <div id="matrixContainer"></div>
         </div>
     </div>
@@ -68,8 +69,8 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV159Pick(hist) {
-        if(hist.length < 5) return {res:[], gridCodes:[]};
+    function getV160Pick(hist) {
+        if(hist.length < 5) return {res:[], compCodes:[]};
         const last = hist[hist.length-1].nums;
         let pool = [];
         for (let i=1; i<=39; i++) {
@@ -78,54 +79,50 @@
             let score = 0;
             if(gap <= 2) score += 5000;
             if(last.some(ln => Math.abs(ln-i) === 1)) score += 8000;
-            pool.push({n: i, gap: gap, sc: score, mod: i % 5});
+            pool.push({n: i, gap: gap, sc: score});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let gridCodes = [];
-        let modCount = [0,0,0,0,0];
+        let compCodes = [];
 
-        // 1. 核心高分選取 (前 4 碼)
-        for(let p of sorted) {
-            if(res.length < 4) {
-                res.push(p.n);
-                modCount[p.mod]++;
-            }
-        }
+        // 1. 核心 3 碼
+        let core = sorted.slice(0, 3);
+        core.forEach(p => res.push(p.n));
 
-        // 2. 餘數網格修正 (補齊 2 碼，優先選取尚未涵蓋的餘數)
-        let neededMods = modCount.map((v, i) => ({m:i, v})).filter(x => x.v === 0).map(x => x.m);
-        for(let m of neededMods) {
-            if(res.length < 6) {
-                let match = pool.find(p => p.mod === m && !res.includes(p.n) && p.gap < 10);
-                if(match) {
-                    res.push(match.n);
-                    gridCodes.push(match.n);
+        // 2. 位移補償邏輯
+        core.forEach(p => {
+            [p.n-1, p.n+1].forEach(nb => {
+                if(nb >= 1 && nb <= 39 && !res.includes(nb)) {
+                    let nbData = pool.find(x => x.n === nb);
+                    if(nbData && nbData.gap > 12 && res.length < 8) {
+                        res.push(nb);
+                        compCodes.push(nb);
+                    }
                 }
-            }
-        }
+            });
+        });
 
-        // 3. 全域補位 (剩餘 2 碼)
+        // 3. 補齊 (斜連與同尾)
         for(let p of sorted) {
             if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
         }
 
-        return { res: res.sort((a,b)=>a-b), gridCodes };
+        return { res: res.sort((a,b)=>a-b), compCodes };
     }
 
     function render() {
-        const finalPred = getV159Pick(state.data);
+        const finalPred = getV160Pick(state.data);
         
+        // Panel 4
         let tableHtml = `<table><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
-        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>下期預測</td>`;
+        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>預測</td>`;
         for(let i=1; i<=39; i++) {
             let isPred = finalPred.res.includes(i);
             tableHtml += `<td class="${isPred ? 'pred-mark' : ''}" style="color:var(--primary)">${isPred ? '●' : ''}</td>`;
         }
         tableHtml += `</tr>`;
-
         state.data.slice(-10).reverse().forEach(row => {
             tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
             for(let i=1; i<=39; i++) {
@@ -138,16 +135,26 @@
         tableHtml += `</tbody></table>`;
         document.getElementById('matrixContainer').innerHTML = tableHtml;
 
+        // 回測恢復與增強
         const bt = document.getElementById('btContainer');
-        bt.innerHTML = '';
-        state.data.slice(-10).forEach((row, idx) => {
-            const pred = getV159Pick(state.data.slice(0, state.data.length - 10 + idx));
+        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎號碼</span><span>AI 預測號碼</span><span>命中</span></div>`;
+        state.data.slice(-10).reverse().forEach((row, idx) => {
+            // 注意：回測需要抓取開獎那一期之前的數據來做預測
+            const currentDataIdx = state.data.findIndex(d => d.date === row.date);
+            const pred = getV160Pick(state.data.slice(0, currentDataIdx));
             const hits = pred.res.filter(n => row.nums.includes(n));
-            bt.innerHTML += `<div class="bt-item"><span>${row.date.slice(5)}</span><span class="hit-count">中 ${hits.length}</span></div>`;
+            
+            bt.innerHTML += `
+                <div class="bt-row">
+                    <span>${row.date.slice(5)}</span>
+                    <span style="color:var(--primary)">${row.nums.map(n => n<10?'0'+n:n).join(' ')}</span>
+                    <span style="font-size:10px">${pred.res.map(n => hits.includes(n)? `<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</span>
+                    <span class="hit-count">${hits.length}</span>
+                </div>`;
         });
 
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
-            let cls = finalPred.gridCodes.includes(n) ? 'grid' : 'active';
+            let cls = finalPred.compCodes.includes(n) ? 'comp' : 'active';
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
         document.getElementById('mainDisplay').style.display = 'block';
