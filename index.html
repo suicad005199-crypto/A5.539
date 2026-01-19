@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v168</title>
+    <title>AI 539 數據中心 v169</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --fuse: #ff9f0a; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --mirror: #00f2ff; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
@@ -13,7 +13,7 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.fuse-node { border: 2px solid var(--fuse); color: var(--fuse); }
+        .ball.mirror-node { border: 2px solid var(--mirror); color: var(--mirror); }
         .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 6px 2px; }
@@ -27,16 +27,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v168)</div>
+        <div class="panel-header">數據注入 (v169)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (連鎖引信)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (鏡像拓撲)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">橘框: 耦合引信碼 | 策略: 熱碼拖帶同尾冷碼，衝擊 4 星</p>
+                <p style="font-size:0.7rem; color:var(--sub);">青框: 鏡像對稱碼 | 策略: 區間聚類 + 鏡像催化，衝擊 4-5 星</p>
             </div>
             <div class="panel" id="panel3">
                 <div class="panel-header">Panel 3: 滾動回測紀錄</div>
@@ -67,8 +67,8 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV168Pick(hist) {
-        if(hist.length < 5) return {res:[], fuseNodes:[]};
+    function getV169Pick(hist) {
+        if(hist.length < 5) return {res:[], mirrorNodes:[]};
         const last = hist[hist.length-1].nums;
         
         let pool = [];
@@ -78,48 +78,52 @@
             let score = 0;
             if(gap <= 2) score += 8000;
             if(last.some(ln => Math.abs(ln-i) === 1)) score += 11000;
-            pool.push({n: i, gap: gap, sc: score, t: i%10});
+            pool.push({n: i, gap: gap, sc: score, t: i%10, z: Math.floor((i-1)/10)});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let fuseNodes = [];
+        let mirrorNodes = [];
 
-        // 1. 選取 3 顆最強熱核
-        let core = [];
+        // 1. 鏡像對稱偵測函數
+        const getMirror = (n) => {
+            let s = n.toString();
+            if(s.length === 1) s = '0' + s;
+            let m = parseInt(s.split('').reverse().join(''));
+            return (m >= 1 && m <= 39 && m !== n) ? m : null;
+        };
+
+        // 2. 選取高分碼並觸發鏡像
         for(let p of sorted) {
-            if(core.length < 3) {
+            if(res.length >= 8) break;
+            if(!res.includes(p.n)) {
                 res.push(p.n);
-                core.push(p);
+                
+                let m = getMirror(p.n);
+                if(m && !res.includes(m) && res.length < 8) {
+                    let mData = pool.find(x => x.n === m);
+                    if(mData && mData.gap < 12) { // 鏡像碼不能太冷
+                        res.push(m);
+                        mirrorNodes.push(m);
+                    }
+                }
             }
         }
 
-        // 2. 連鎖引信：為熱核尋找同尾冷碼
-        core.forEach(c => {
-            let tailCold = pool.find(p => p.t === c.t && p.n !== c.n && p.gap >= 10 && !res.includes(p.n));
-            if(tailCold && res.length < 8) {
-                res.push(tailCold.n);
-                fuseNodes.push(tailCold.n);
-            }
-        });
-
-        // 3. 補齊 (斜連優先)
+        // 3. 補齊 (維持區間紮堆權重)
         for(let p of sorted) {
-            if(res.length < 8 && !res.includes(p.n)) {
-                res.push(p.n);
-            }
+            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
         }
 
-        return { res: res.sort((a,b)=>a-b), fuseNodes };
+        return { res: res.sort((a,b)=>a-b), mirrorNodes };
     }
 
     function render() {
-        const finalPred = getV168Pick(state.data);
+        const finalPred = getV169Pick(state.data);
         
-        // Panel 4 Table
         let tableHtml = `<table><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
-        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>下期預測</td>`;
+        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>預測</td>`;
         for(let i=1; i<=39; i++) {
             let isPred = finalPred.res.includes(i);
             tableHtml += `<td class="${isPred ? 'pred-mark' : ''}" style="color:var(--primary)">${isPred ? '●' : ''}</td>`;
@@ -136,12 +140,11 @@
         tableHtml += `</tbody></table>`;
         document.getElementById('matrixContainer').innerHTML = tableHtml;
 
-        // Panel 3 BT
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎號碼</span><span>AI 預測號碼</span><span>命中</span></div>`;
         state.data.slice(-10).reverse().forEach((row) => {
             const currentIdx = state.data.findIndex(d => d.date === row.date);
-            const pred = getV168Pick(state.data.slice(0, currentIdx));
+            const pred = getV169Pick(state.data.slice(0, currentIdx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `
                 <div class="bt-row">
@@ -152,9 +155,8 @@
                 </div>`;
         });
 
-        // Panel 2
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
-            let cls = finalPred.fuseNodes.includes(n) ? 'fuse-node' : 'active';
+            let cls = finalPred.mirrorNodes.includes(n) ? 'mirror-node' : 'active';
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
         document.getElementById('mainDisplay').style.display = 'block';
