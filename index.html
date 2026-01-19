@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v188</title>
+    <title>AI 539 數據中心 v189</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --expect: #ff2d55; --thermal: #32d74b; --binary: #ffd60a; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --expect: #ff2d55; --thermal: #32d74b; --comp: #af52de; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
@@ -15,7 +15,7 @@
         .ball.active { background: var(--primary); color: #000; border: none; }
         .ball.expect-node { border: 2px solid var(--expect); color: var(--expect); }
         .ball.thermal-node { border: 2px solid var(--thermal); color: var(--thermal); }
-        .ball.binary-node { border: 2px solid var(--binary); color: var(--binary); box-shadow: 0 0 8px rgba(255,214,10,0.4); }
+        .ball.comp-node { border: 2px solid var(--comp); color: var(--comp); box-shadow: 0 0 8px rgba(175,82,222,0.5); }
         
         .matrix-wrapper { width: 100%; overflow-x: auto; }
         .matrix-table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; min-width: 850px; }
@@ -33,19 +33,19 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v188)</div>
+        <div class="panel-header">數據注入 (v189)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (雙子星連號版)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (鄰里壓縮版)</div>
                 <div id="finalCombo" class="ball-row"></div>
                 <p style="font-size:0.7rem; color:var(--sub);">
                     <span style="color:var(--thermal)">綠框: 熱核</span> | 
                     <span style="color:var(--expect)">紅框: 期望</span> | 
-                    <span style="color:var(--binary)">金框: 連號引力</span>
+                    <span style="color:var(--comp)">紫框: 壓縮碼</span>
                 </p>
             </div>
             <div class="panel" id="panel3">
@@ -77,8 +77,8 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV188Pick(hist) {
-        if(hist.length < 5) return {res:[], expectNodes:[], thermalNodes:[], binaryNodes:[]};
+    function getV189Pick(hist) {
+        if(hist.length < 5) return {res:[], expectNodes:[], thermalNodes:[], compNodes:[]};
         const last = hist[hist.length-1].nums;
         
         let pool = [];
@@ -88,7 +88,7 @@
             let score = 0;
             if(gap <= 2) score += 20000; 
             if(gap >= 3 && gap <= 7) score += 12000;
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 18000; // 斜連
+            if(last.some(ln => Math.abs(ln-i) === 1)) score += 18000;
             pool.push({n: i, gap: gap, sc: score});
         }
 
@@ -96,24 +96,32 @@
         let res = [];
         let thermalNodes = [];
         let expectNodes = [];
-        let binaryNodes = [];
+        let compNodes = [];
 
-        // 1. 選取 3 顆最高分核心碼
+        // 1. 選取 3 顆核心碼
         sorted.slice(0, 3).forEach(p => {
             res.push(p.n);
             if(p.gap <= 2) thermalNodes.push(p.n);
         });
 
-        // 2. 連號引力邏輯：針對已選號碼尋找鄰居
+        // 2. 鄰里壓縮邏輯：尋找距離 <= 3 的第三者
         for(let i=0; i<res.length; i++) {
-            let neighbor = res[i] + 1;
-            if(neighbor <= 39 && !res.includes(neighbor) && res.length < 8) {
-                res.push(neighbor);
-                binaryNodes.push(neighbor);
+            for(let j=i+1; j<res.length; j++) {
+                let dist = Math.abs(res[i] - res[j]);
+                if(dist <= 3 && res.length < 8) {
+                    let mid = Math.floor((res[i] + res[j]) / 2);
+                    let side = res[i] > res[j] ? res[i]+1 : res[j]+1;
+                    [mid, side].forEach(n => {
+                        if(n >= 1 && n <= 39 && !res.includes(n) && res.length < 8) {
+                            res.push(n);
+                            compNodes.push(n);
+                        }
+                    });
+                }
             }
         }
 
-        // 3. 期望冷碼 (紅)：補位
+        // 3. 期望冷碼 (紅)
         sorted.filter(p => p.gap >= 10 && !res.includes(p.n)).slice(0, 2).forEach(p => {
             res.push(p.n);
             expectNodes.push(p.n);
@@ -124,19 +132,19 @@
             if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
         }
 
-        return { res: res.sort((a,b)=>a-b), expectNodes, thermalNodes, binaryNodes };
+        return { res: res.sort((a,b)=>a-b), expectNodes, thermalNodes, compNodes };
     }
 
     function render() {
         const fullData = [...state.data];
-        const finalPred = getV188Pick(fullData);
+        const finalPred = getV189Pick(fullData);
         const recentForBT = fullData.slice(-10).reverse();
         
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
             let cls = 'active';
             if(finalPred.thermalNodes.includes(n)) cls = 'thermal-node';
             if(finalPred.expectNodes.includes(n)) cls = 'expect-node';
-            if(finalPred.binaryNodes.includes(n)) cls = 'binary-node';
+            if(finalPred.compNodes.includes(n)) cls = 'comp-node';
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
 
@@ -145,36 +153,19 @@
         
         recentForBT.forEach((row) => {
             const historyUntilPoint = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV188Pick(historyUntilPoint);
+            const pred = getV189Pick(historyUntilPoint);
             const hits = pred.res.filter(n => row.nums.includes(n));
-            bt.innerHTML += `
-                <div class="bt-row">
-                    <span>${row.date}</span>
-                    <span style="color:var(--primary)">${row.nums.map(n => String(n).padStart(2,'0')).join(' ')}</span>
-                    <div class="bt-pred-nums">
-                        ${pred.res.map(n => {
-                            let isHit = row.nums.includes(n);
-                            return `<span style="color:${isHit ? 'var(--hit)' : 'inherit'}; font-weight:${isHit ? 'bold' : 'normal'}">${String(n).padStart(2,'0')}</span>`;
-                        }).join(' ')}
-                    </div>
-                    <span class="hit-count">${hits.length}</span>
-                </div>`;
+            bt.innerHTML += `<div class="bt-row"><span>${row.date}</span><span style="color:var(--primary)">${row.nums.map(n => String(n).padStart(2,'0')).join(' ')}</span><div class="bt-pred-nums">${pred.res.map(n => { let isHit = row.nums.includes(n); return `<span style="color:${isHit ? 'var(--hit)' : 'inherit'}; font-weight:${isHit ? 'bold' : 'normal'}">${String(n).padStart(2,'0')}</span>`; }).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
 
         let tableHtml = `<table class="matrix-table"><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
         tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>下期預測</td>`;
-        for(let i=1; i<=39; i++) {
-            let isP = finalPred.res.includes(i);
-            tableHtml += `<td class="${isP?'pred-mark':''}">${isP?'●':''}</td>`;
-        }
+        for(let i=1; i<=39; i++) tableHtml += `<td class="${finalPred.res.includes(i)?'pred-mark':''}">${finalPred.res.includes(i)?'●':''}</td>`;
         tableHtml += `</tr>`;
         recentForBT.forEach(row => {
             tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
-            for(let i=1; i<=39; i++) {
-                let isH = row.nums.includes(i);
-                tableHtml += `<td class="${isH?'is-hit':''}">${isH ? i : ''}</td>`;
-            }
+            for(let i=1; i<=39; i++) tableHtml += `<td class="${row.nums.includes(i)?'is-hit':''}">${row.nums.includes(i)?i:''}</td>`;
             tableHtml += `</tr>`;
         });
         document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
