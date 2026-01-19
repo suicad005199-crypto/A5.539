@@ -5,44 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI 539 數據中心 v201</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --matrix: #ffd60a; --fortress: #30d158; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --twin: #ffd60a; --thermal: #32d74b; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-        .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
+        .ball { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 8px; font-weight: bold; font-size: 13px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.matrix-node { border: 2px solid var(--matrix); color: var(--matrix); box-shadow: 0 0 8px rgba(255,214,10,0.4); }
-        .ball.fortress-node { border: 2px solid var(--fortress); color: var(--fortress); }
+        .ball.twin-node { border: 2px solid var(--twin); color: var(--twin); box-shadow: 0 0 10px rgba(255,214,10,0.4); }
+        .ball.thermal-node { border: 2px solid var(--thermal); color: var(--thermal); }
         .matrix-table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; min-width: 850px; font-size: 11px; }
-        .matrix-table th, .matrix-table td { border: 1px solid var(--border); padding: 8px 0; }
+        .matrix-table td { border: 1px solid var(--border); padding: 8px 0; }
         .is-hit { background: var(--hit); color: #fff; font-weight: bold; }
-        .bt-row { border-bottom: 1px solid #38383a; padding: 10px 0; display: grid; grid-template-columns: 85px 1fr 1fr 40px; align-items: center; gap: 10px; }
-        .hit-count { color: var(--success); font-weight: bold; text-align: right; }
+        .bt-row { border-bottom: 1px solid #38383a; padding: 10px 0; display: grid; grid-template-columns: 85px 1fr 1.2fr 40px; align-items: center; gap: 10px; }
+        .hit-count { color: var(--success); font-weight: bold; text-align: right; font-size: 15px; }
+        .target-bar { height: 4px; background: #38383a; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+        .target-progress { height: 100%; background: var(--success); }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v201 - 二星穩定矩陣)</div>
+        <div class="panel-header">數據注入 (v201 - 雙星骨架鎖定)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 核心 8 碼 (二星強攻版)</div>
+                <div class="panel-header">Panel 2: 核心 8 碼 (命中 2 專優版)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">
-                    <span style="color:var(--matrix)">金: 尾數矩陣</span> | 
-                    <span style="color:var(--fortress)">綠: 堡壘區補位</span>
+                <p style="font-size:0.75rem; color:var(--sub);">
+                    <span style="color:var(--twin)">金框: 雙星骨架單元 (命中 2 關鍵)</span><br>
+                    <span style="color:var(--thermal)">綠色: 補位熱核碼</span>
                 </p>
             </div>
             <div class="panel">
-                <div class="panel-header">Panel 3: 滾動回測 (目標 60% 二星)</div>
+                <div class="panel-header">Panel 3: 10 期滾動回測</div>
                 <div id="btContainer"></div>
+                <div id="statInfo" style="margin-top:10px; font-size:0.8rem;"></div>
             </div>
         </div>
         <div class="panel">
@@ -68,81 +71,96 @@
     });
 
     function getV201Pick(hist) {
-        if(hist.length < 10) return {res:[], matrixNodes:[], fortressNodes:[]};
+        if(hist.length < 5) return {res:[], twinNodes:[], thermalNodes:[]};
+        const last = hist[hist.length-1].nums;
         
-        // 1. 尾數熱度統計
-        let tailStats = {};
-        hist.slice(-10).forEach(d => d.nums.forEach(n => { let t = n % 10; tailStats[t] = (tailStats[t] || 0) + 1; }));
-        let topTails = Object.entries(tailStats).sort((a,b) => b[1] - a[1]).slice(0, 2).map(e => Number(e[0]));
-
-        // 2. 區間熱度統計
-        let zoneStats = {0:0, 1:0, 2:0, 3:0};
-        hist.slice(-5).forEach(d => d.nums.forEach(n => { zoneStats[Math.floor(n/10)]++; }));
-        let hotZone = Number(Object.entries(zoneStats).sort((a,b) => b[1] - a[1])[0][0]);
-
-        let pool = [];
+        // 1. 定義雙星單元評分
+        let pairs = [];
         for (let i=1; i<=39; i++) {
-            let gap = 0;
-            for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
-            let score = 0;
-            if(topTails.includes(i % 10)) score += 50000; // 尾數權重極大化
-            if(Math.floor(i/10) === hotZone) score += 20000;
-            if(gap <= 3) score += 10000;
-            pool.push({n: i, gap: gap, sc: score, t: i % 10, z: Math.floor(i/10)});
+            for (let j=i+1; j<=39; j++) {
+                let score = 0;
+                // 斜連對
+                if(last.includes(i-1) || last.includes(i+1)) score += 100;
+                if(last.includes(j-1) || last.includes(j+1)) score += 100;
+                // 同尾對
+                if(i%10 === j%10) score += 150;
+                // 連號對
+                if(j-i === 1) score += 200;
+                // 遺漏加權 (溫溫結合)
+                let gapI = 0, gapJ = 0;
+                for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gapI++; else break; }
+                for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(j)) gapJ++; else break; }
+                if(gapI <= 3 && gapJ <= 3) score += 300;
+                
+                pairs.push({p: [i, j], sc: score});
+            }
         }
         
-        let sorted = pool.sort((a,b) => b.sc - a.sc);
-        let res = [], matrixNodes = [], fortressNodes = [];
+        let sortedPairs = pairs.sort((a,b) => b.sc - a.sc);
+        let res = new Set(), twinNodes = [];
 
-        // 第一優先：尾數矩陣 (各取前 2 名溫熱號，共 4 碼)
-        topTails.forEach(t => {
-            sorted.filter(p => p.t === t && p.gap <= 10).slice(0, 2).forEach(p => {
-                if(res.length < 4) { res.push(p.n); matrixNodes.push(p.n); }
-            });
+        // 2. 選取前 3 組不重複的強效雙星 (共 6 碼)
+        for(let pair of sortedPairs) {
+            if(res.size >= 6) break;
+            if(!res.has(pair.p[0]) && !res.has(pair.p[1])) {
+                res.add(pair.p[0]); res.add(pair.p[1]);
+                twinNodes.push(pair.p[0], pair.p[1]);
+            }
+        }
+
+        // 3. 補齊至 8 碼 (熱碼補位)
+        let singles = [];
+        for(let i=1; i<=39; i++) {
+            if(res.has(i)) continue;
+            let gap = 0;
+            for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
+            singles.push({n: i, gap: gap});
+        }
+        let thermalNodes = [];
+        singles.sort((a,b) => a.gap - b.gap).slice(0, 2).forEach(s => {
+            res.add(s.n);
+            thermalNodes.push(s.n);
         });
 
-        // 第二優先：堡壘區補位 (取熱區中分數最高者)
-        sorted.filter(p => !res.includes(p.n) && p.z === hotZone).slice(0, 2).forEach(p => {
-            if(res.length < 6) { res.push(p.n); fortressNodes.push(p.n); }
-        });
-
-        // 第三優先：餘額補齊 (選取遺漏 1-2 期熱碼)
-        sorted.filter(p => !res.includes(p.n)).slice(0, 8 - res.length).forEach(p => {
-            res.push(p.n);
-        });
-
-        return { res: res.slice(0, 8).sort((a,b)=>a-b), matrixNodes, fortressNodes };
+        return { res: Array.from(res).sort((a,b)=>a-b), twinNodes, thermalNodes };
     }
 
     function render() {
         const fullData = [...state.data], finalPred = getV201Pick(fullData), recentForBT = fullData.slice(-10).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
             let cls = 'active';
-            if(finalPred.matrixNodes.includes(n)) cls = 'matrix-node';
-            else if(finalPred.fortressNodes.includes(n)) cls = 'fortress-node';
+            if(finalPred.twinNodes.includes(n)) cls = 'twin-node';
+            else if(finalPred.thermalNodes.includes(n)) cls = 'thermal-node';
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
 
         const bt = document.getElementById('btContainer');
-        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
+        let hit2Count = 0;
+        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測擊中</span><span>命中</span></div>`;
+        
         recentForBT.forEach((row) => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV199Pick ? getV199Pick(histUntil) : getV201Pick(histUntil); // 兼容性處理
-            const hits = (pred.res || []).filter(n => row.nums.includes(n));
-            bt.innerHTML += `<div class="bt-row"><span>${row.date}</span><span>${row.nums.join(' ')}</span><div style="display:flex; gap:3px;">${(pred.res || []).map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
+            const pred = getV201Pick(histUntil);
+            const hits = pred.res.filter(n => row.nums.includes(n));
+            if(hits.length >= 2) hit2Count++;
+            bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="display:flex; gap:3px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
 
-        let tableHtml = `<table class="matrix-table"><thead><tr><th>日期</th>`;
-        for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
-        tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>下期</td>`;
-        for(let i=1; i<=39; i++) tableHtml += `<td>${finalPred.res.includes(i)?'●':''}</td>`;
-        tableHtml += `</tr>`;
+        document.getElementById('statInfo').innerHTML = `
+            <div style="display:flex; justify-content:space-between;"><span>命中 ≥ 2 星達成率:</span><span>${hit2Count*10}%</span></div>
+            <div class="target-bar"><div class="target-progress" style="width:${hit2Count*10}%"></div></div>
+            <p style="color:var(--sub); font-size:0.7rem; margin-top:5px;">* 目標 60%，目前透過「雙星單元」強化黏合度。</p>
+        `;
+
+        let tableHtml = `<table class="matrix-table"><tbody><tr>`;
         recentForBT.forEach(row => {
-            tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
-            for(let i=1; i<=39; i++) tableHtml += `<td class="${row.nums.includes(i)?'is-hit':''}">${row.nums.includes(i)?i:''}</td>`;
-            tableHtml += `</tr>`;
+            tableHtml += `<td>${row.date.slice(5)}<br>`;
+            for(let i=1; i<=39; i++) {
+                if(row.nums.includes(i)) tableHtml += `<span style="color:var(--hit)">●</span>`;
+            }
+            tableHtml += `</td>`;
         });
-        document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
+        document.getElementById('matrixContainer').innerHTML = tableHtml + `</tr></tbody></table>`;
         document.getElementById('mainDisplay').style.display = 'block';
     }
 </script>
