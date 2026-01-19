@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v157</title>
+    <title>AI 539 數據中心 v158</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --link: #bf5af2; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
@@ -13,8 +13,9 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
+        .ball.intersect { background: var(--success); color: #000; border: none; } /* 三維交集碼 */
         .ball.linked { border: 2px solid var(--link); color: var(--link); }
-        .pred-mark { background: rgba(255, 214, 10, 0.2); border: 1px inset var(--primary) !important; }
+        .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 4px 2px; }
         th { background: #2c2c2e; color: var(--sub); }
@@ -28,16 +29,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v157)</div>
+        <div class="panel-header">數據注入 (v158)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">下期精準 8 碼 (同尾鏈結)</div>
+                <div class="panel-header">下期精準 8 碼 (三維校準)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">紫框: 同尾鏈結對 | 策略: 提高命中 2 聚攏度</p>
+                <p style="font-size:0.7rem; color:var(--sub);">綠球: 三維交集核心 | 紫框: 同尾鏈結 | 策略: 穩固命中 4 傳奇</p>
             </div>
             <div class="panel">
                 <div class="panel-header">滾動回測 (前 10 期)</div>
@@ -46,7 +47,7 @@
         </div>
 
         <div class="panel">
-            <div class="panel-header">Panel 4: 全號碼連號分布矩陣 (標註預測位)</div>
+            <div class="panel-header">Panel 4: 全號碼連號分布矩陣</div>
             <div id="matrixContainer"></div>
         </div>
     </div>
@@ -68,54 +69,63 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV157Pick(hist) {
-        if(hist.length < 5) return {res:[], links:[]};
+    function getV158Pick(hist) {
+        if(hist.length < 5) return {res:[], links:[], intersects:[]};
         const last = hist[hist.length-1].nums;
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
+            let isSlope = last.some(ln => Math.abs(ln-i) === 1);
             if(gap <= 2) score += 5000;
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 8000;
-            pool.push({n: i, gap: gap, sc: score, t: i%10});
+            if(isSlope) score += 8000;
+            pool.push({n: i, gap: gap, sc: score, t: i%10, isSlope});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
         let links = [];
+        let intersects = [];
 
-        // 1. 核心與同尾鏈結
-        let top3 = sorted.slice(0, 3);
-        top3.forEach(core => {
-            if(res.length < 8) {
+        // 1. 尋找三維交集碼 (核心中的核心)
+        let topCandidates = sorted.slice(0, 5);
+        topCandidates.forEach(p => {
+            // 斜連 + 熱區 + 同尾潛力
+            if(p.isSlope && p.gap <= 2) intersects.push(p.n);
+        });
+
+        // 2. 同尾鏈結 (加固命中 2 以上)
+        let coreIdx = 0;
+        while(res.length < 6 && coreIdx < sorted.length) {
+            let core = sorted[coreIdx++];
+            if(!res.includes(core.n)) {
                 res.push(core.n);
-                let tailMatch = pool.find(p => p.n%10 === core.t && p.n !== core.n && !res.includes(p.n) && p.gap < 15);
+                let tailMatch = pool.find(p => p.n%10 === core.t && p.n !== core.n && !res.includes(p.n) && p.gap < 12);
                 if(tailMatch && res.length < 8) {
                     res.push(tailMatch.n);
                     links.push(core.n, tailMatch.n);
                 }
             }
-        });
+        }
 
-        // 2. 補齊
+        // 3. 補齊至 8 碼
         for(let p of sorted) {
             if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
         }
 
-        return { res: res.sort((a,b)=>a-b), links };
+        return { res: res.sort((a,b)=>a-b), links, intersects };
     }
 
     function render() {
-        const finalPred = getV157Pick(state.data);
+        const finalPred = getV158Pick(state.data);
         
-        // Panel 4 with Prediction Marks
         let tableHtml = `<table><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
         tableHtml += `</tr></thead><tbody>`;
         
         // 預測列
-        tableHtml += `<tr style="background:#2c2c2e"><td>下期預測</td>`;
+        tableHtml += `<tr style="background:#2c2c2e"><td>預測位</td>`;
         for(let i=1; i<=39; i++) {
             let isPred = finalPred.res.includes(i);
             tableHtml += `<td class="${isPred ? 'pred-mark' : ''}" style="color:var(--primary)">${isPred ? '●' : ''}</td>`;
@@ -134,17 +144,16 @@
         tableHtml += `</tbody></table>`;
         document.getElementById('matrixContainer').innerHTML = tableHtml;
 
-        // Results
         const bt = document.getElementById('btContainer');
         bt.innerHTML = '';
         state.data.slice(-10).forEach((row, idx) => {
-            const pred = getV157Pick(state.data.slice(0, state.data.length - 10 + idx));
+            const pred = getV158Pick(state.data.slice(0, state.data.length - 10 + idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-item"><span>${row.date.slice(5)}</span><span class="hit-count">中 ${hits.length}</span></div>`;
         });
 
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
-            let cls = finalPred.links.includes(n) ? 'linked' : 'active';
+            let cls = finalPred.intersects.includes(n) ? 'intersect' : (finalPred.links.includes(n) ? 'linked' : 'active');
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
         document.getElementById('mainDisplay').style.display = 'block';
