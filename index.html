@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v169</title>
+    <title>AI 539 數據中心 v170</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --mirror: #00f2ff; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --gravity: #5e5ce6; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
@@ -13,13 +13,13 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.mirror-node { border: 2px solid var(--mirror); color: var(--mirror); }
+        .ball.gravity-node { border: 2px solid var(--gravity); color: var(--gravity); }
         .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 6px 2px; }
         th { background: #2c2c2e; color: var(--sub); }
         .is-hit { background: var(--hit); color: #fff; font-weight: bold; }
-        .bt-row { border-bottom: 1px solid #2c2c2e; padding: 8px 0; display: grid; grid-template-columns: 60px 1.2fr 1.2fr 40px; align-items: center; gap: 10px; font-size: 11px; }
+        .bt-row { border-bottom: 1px solid #38383a; padding: 8px 0; display: grid; grid-template-columns: 60px 1.2fr 1.2fr 40px; align-items: center; gap: 10px; font-size: 11px; }
         .hit-count { color: var(--success); font-weight: bold; text-align: right; font-size: 14px; }
     </style>
 </head>
@@ -27,16 +27,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v169)</div>
+        <div class="panel-header">數據注入 (v170)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (鏡像拓撲)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (區域引力版)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">青框: 鏡像對稱碼 | 策略: 區間聚類 + 鏡像催化，衝擊 4-5 星</p>
+                <p style="font-size:0.7rem; color:var(--sub);">紫框: 引力重心碼 | 策略: 重心偏移 + 雙星包圍</p>
             </div>
             <div class="panel" id="panel3">
                 <div class="panel-header">Panel 3: 滾動回測紀錄</div>
@@ -45,7 +45,7 @@
         </div>
 
         <div class="panel" id="panel4">
-            <div class="panel-header">Panel 4: 全號碼連號分布矩陣</div>
+            <div class="panel-header">Panel 4: 全號碼分布矩陣</div>
             <div id="matrixContainer"></div>
         </div>
     </div>
@@ -67,59 +67,59 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV169Pick(hist) {
-        if(hist.length < 5) return {res:[], mirrorNodes:[]};
+    function getV170Pick(hist) {
+        if(hist.length < 5) return {res:[], gravNodes:[]};
         const last = hist[hist.length-1].nums;
         
+        // 1. 重心定位：計算近期均值
+        const recentAvg = hist.slice(-3).reduce((acc, cur) => acc + cur.nums.reduce((a,b)=>a+b,0)/5, 0) / 3;
+        const targetZone = recentAvg < 20 ? 'small' : 'large';
+
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
             if(gap <= 2) score += 8000;
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 11000;
-            pool.push({n: i, gap: gap, sc: score, t: i%10, z: Math.floor((i-1)/10)});
+            if(last.some(ln => Math.abs(ln-i) === 1)) score += 12000;
+            
+            // 重心區加成
+            if(targetZone === 'small' && i <= 20) score += 5000;
+            if(targetZone === 'large' && i > 20) score += 5000;
+            
+            pool.push({n: i, gap: gap, sc: score});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let mirrorNodes = [];
+        let gravNodes = [];
 
-        // 1. 鏡像對稱偵測函數
-        const getMirror = (n) => {
-            let s = n.toString();
-            if(s.length === 1) s = '0' + s;
-            let m = parseInt(s.split('').reverse().join(''));
-            return (m >= 1 && m <= 39 && m !== n) ? m : null;
-        };
-
-        // 2. 選取高分碼並觸發鏡像
+        // 2. 選取核心並實施雙星包圍
         for(let p of sorted) {
             if(res.length >= 8) break;
             if(!res.includes(p.n)) {
                 res.push(p.n);
-                
-                let m = getMirror(p.n);
-                if(m && !res.includes(m) && res.length < 8) {
-                    let mData = pool.find(x => x.n === m);
-                    if(mData && mData.gap < 12) { // 鏡像碼不能太冷
-                        res.push(m);
-                        mirrorNodes.push(m);
+                if(p.sc > 15000) gravNodes.push(p.n);
+
+                // 雙星包圍：強制納入鄰碼
+                [p.n-1, p.n+1].forEach(nb => {
+                    if(nb >= 1 && nb <= 39 && !res.includes(nb) && res.length < 8) {
+                        res.push(nb);
                     }
-                }
+                });
             }
         }
 
-        // 3. 補齊 (維持區間紮堆權重)
-        for(let p of sorted) {
-            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
+        while(res.length < 8) {
+            let next = sorted.find(p => !res.includes(p.n));
+            if(next) res.push(next.n); else break;
         }
 
-        return { res: res.sort((a,b)=>a-b), mirrorNodes };
+        return { res: res.sort((a,b)=>a-b), gravNodes };
     }
 
     function render() {
-        const finalPred = getV169Pick(state.data);
+        const finalPred = getV170Pick(state.data);
         
         let tableHtml = `<table><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
@@ -141,10 +141,10 @@
         document.getElementById('matrixContainer').innerHTML = tableHtml;
 
         const bt = document.getElementById('btContainer');
-        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎號碼</span><span>AI 預測號碼</span><span>命中</span></div>`;
+        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
         state.data.slice(-10).reverse().forEach((row) => {
-            const currentIdx = state.data.findIndex(d => d.date === row.date);
-            const pred = getV169Pick(state.data.slice(0, currentIdx));
+            const idx = state.data.findIndex(d => d.date === row.date);
+            const pred = getV170Pick(state.data.slice(0, idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `
                 <div class="bt-row">
@@ -156,7 +156,7 @@
         });
 
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
-            let cls = finalPred.mirrorNodes.includes(n) ? 'mirror-node' : 'active';
+            let cls = finalPred.gravNodes.includes(n) ? 'gravity-node' : 'active';
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
         document.getElementById('mainDisplay').style.display = 'block';
