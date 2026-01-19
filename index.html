@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v206</title>
+    <title>AI 539 數據中心 v207</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --core: #ffd60a; --expand: #af52de; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
@@ -31,16 +31,15 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v206 - 同尾聚變優化)</div>
+        <div class="panel-header">數據注入 (v207 - 連號群集強化)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 結構預測 (5 核心 + 3 擴展)</div>
+                <div class="panel-header">Panel 2: 結構預測 (5+3 策略)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.75rem; color:var(--sub);">核心強化「同尾連動」，擴展鎖定「冷熱跳值」。</p>
             </div>
             <div class="panel">
                 <div class="panel-header">Panel 3: 10 期滾動回測</div>
@@ -48,7 +47,7 @@
             </div>
         </div>
         <div class="panel">
-            <div class="panel-header">Panel 4: 分區分布矩陣 (1-39)</div>
+            <div class="panel-header">Panel 4: 分區分布矩陣 (連號分析)</div>
             <div class="matrix-wrapper" id="matrixContainer"></div>
         </div>
     </div>
@@ -69,30 +68,40 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV206Pick(hist) {
+    function getV207Pick(hist) {
         if(hist.length < 5) return {res:[], coreNodes:[], expandNodes:[]};
         const last = hist[hist.length-1].nums;
-        const tailFreq = last.map(n => n % 10);
         
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            let score = (gap <= 3 ? 40 : 0) + (last.some(ln => Math.abs(ln-i) === 1) ? 30 : 0);
-            // 尾數共鳴加成
-            if(tailFreq.includes(i % 10)) score += 15;
-            pool.push({n: i, gap, score, tail: i % 10});
+            // 基礎分：熱度 + 斜連
+            let score = (gap <= 3 ? 40 : 0) + (last.some(ln => Math.abs(ln-i) === 1) ? 35 : 0);
+            pool.push({n: i, gap, score});
         }
 
-        // 核心 5 碼：尋找分值最高的同尾單元
+        // 1. 核心 5 碼：連號群集選取
         let coreNodes = [];
-        let sorted = pool.sort((a,b) => b.score - a.score);
-        for(let p of sorted) {
-            if(coreNodes.length >= 5) break;
-            coreNodes.push(p.n);
-        }
+        let poolSorted = [...pool].sort((a,b) => b.score - a.score);
         
-        // 擴展 3 碼：強化冷碼對沖
+        // 選取第一顆種子碼
+        const seed = poolSorted[0];
+        coreNodes.push(seed.n);
+
+        // 優先搜尋種子碼鄰近的號碼 (達成群聚)
+        let neighbors = pool.filter(p => Math.abs(p.n - seed.n) <= 3 && p.n !== seed.n)
+                            .sort((a,b) => b.score - a.score);
+        
+        neighbors.slice(0, 2).forEach(p => coreNodes.push(p.n));
+
+        // 補足剩餘核心碼
+        for(let p of poolSorted) {
+            if(coreNodes.length >= 5) break;
+            if(!coreNodes.includes(p.n)) coreNodes.push(p.n);
+        }
+
+        // 2. 擴展 3 碼：區間對沖冷碼
         let expandNodes = pool.filter(p => !coreNodes.includes(p.n))
                              .sort((a,b) => b.gap - a.gap).slice(0, 3).map(p => p.n);
 
@@ -100,7 +109,7 @@
     }
 
     function render() {
-        const fullData = [...state.data], finalPred = getV206Pick(fullData), recentForBT = fullData.slice(-12).reverse();
+        const fullData = [...state.data], finalPred = getV207Pick(fullData), recentForBT = fullData.slice(-12).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
             `<div class="ball ${finalPred.coreNodes.includes(n)?'core-node':'expand-node'}">${n}</div>`).join('');
 
@@ -108,7 +117,7 @@
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測</span><span>星</span></div>`;
         recentForBT.slice(0, 10).forEach(row => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV206Pick(histUntil);
+            const pred = getV207Pick(histUntil);
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:11px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
