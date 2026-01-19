@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v231</title>
+    <title>AI 539 數據中心 v232</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --triple: #af52de; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --core: #ffd60a; --drift: #007aff; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-        .ball { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; font-size: 14px; border: 1px solid var(--border); }
+        .ball { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.triple-node { border: 2px solid var(--triple); color: var(--triple); box-shadow: 0 0 10px rgba(175,82,222,0.4); }
+        .ball.drift-node { border: 2px solid var(--drift); color: var(--drift); }
         .matrix-wrapper { overflow-x: auto; background: #1c1c1e; border-radius: 8px; border: 1px solid var(--border); }
         .matrix-table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; min-width: 950px; }
         .matrix-table th, .matrix-table td { border: 1px solid var(--border); height: 32px; font-size: 11px; }
@@ -26,24 +26,24 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v231 - 7 碼衝擊 3 星)</div>
+        <div class="panel-header">數據注入 (v232 - 7 碼三位一體)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 精選 7 碼 (鄰區包圍邏輯)</div>
+                <div class="panel-header">Panel 2: 結構預測 (斜連+同尾+餘數補位)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">策略：強制「鄰碼+同尾」咬合結構，減少分布點，提高三星重疊率。</p>
+                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">藍框：餘數補位碼 | 策略：強化 3 星咬合結構並透過餘數分散提升覆蓋。</p>
             </div>
             <div class="panel">
-                <div class="panel-header">Panel 3: 10 期滾動回測</div>
+                <div class="panel-header">Panel 3: 10 期滾動回測 (7 碼)</div>
                 <div id="btContainer"></div>
             </div>
         </div>
         <div class="panel">
-            <div class="panel-header">Panel 4: 共振矩陣</div>
+            <div class="panel-header">Panel 4: 餘數分佈與重心矩陣</div>
             <div class="matrix-wrapper" id="matrixContainer"></div>
         </div>
     </div>
@@ -64,70 +64,68 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV231Pick(hist) {
-        if(hist.length < 5) return {res:[], tripleNodes:[]};
+    function getV232Pick(hist) {
+        if(hist.length < 5) return {res:[], driftNodes:[]};
         const last = hist[hist.length-1].nums;
         
-        // 1. 偵測最強勢尾數 (權重 50%)
+        // 1. 偵測最強勢尾數 (權重提升)
         const tails = {};
-        hist.slice(-7).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
+        hist.slice(-8).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
         const topTail = Number(Object.entries(tails).sort((a,b)=>b[1]-a[1])[0][0]);
 
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            
-            let sc = 0;
-            // 斜連種子 (40%)
-            if(last.some(ln => Math.abs(ln-i) === 1)) sc += 30000;
-            // 同尾共振 (30%)
-            if(i%10 === topTail) sc += 20000;
-            // 熱區銜接 (20%)
-            if(gap <= 3) sc += 10000;
-            // 鄰碼包圍額外權重
-            if(last.includes(i)) sc += 5000;
-
-            pool.push({n: i, gap, sc, t: i%10});
+            let sc = (last.some(ln => Math.abs(ln-i) === 1) ? 35000 : 0) +
+                     (i%10 === topTail ? 25000 : 0) +
+                     (gap >= 5 && gap <= 10 ? 15000 : 0) +
+                     (gap > 15 ? 10000 : 0);
+            pool.push({n: i, gap, sc, t: i%10, m5: i%5});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let tripleNodes = [];
+        let driftNodes = [];
 
-        // 第一步：選定 1 顆最高分種子
-        let seed = sorted[0];
-        res.push(seed.n);
+        // Trinity 1: 斜連種子 (2碼)
+        sorted.filter(p => last.some(ln => Math.abs(ln-p.n) === 1)).slice(0, 2).forEach(p => res.push(p.n));
 
-        // 第二步：強制包圍種子的鄰號 (衝擊連號 3 星)
-        let neighbors = sorted.filter(p => Math.abs(p.n - seed.n) === 1).slice(0, 1);
-        neighbors.forEach(p => res.push(p.n));
+        // Trinity 2: 同尾對 (2碼)
+        sorted.filter(p => !res.includes(p.n) && p.t === topTail).slice(0, 2).forEach(p => res.push(p.n));
 
-        // 第三步：同尾填充 (三元約束)
-        let tailPicks = sorted.filter(p => !res.includes(p.n) && p.t === topTail).slice(0, 2);
-        tailPicks.forEach(p => {
-            res.push(p.n);
-            tripleNodes.push(p.n);
-        });
+        // Trinity 3: 極冷保險 (1碼)
+        res.push(pool.sort((a,b) => b.gap - a.gap)[0].n);
 
-        // 第四步：補齊至 7 碼 (鎖定斜連與高分碼)
-        for(let p of sorted) {
-            if(res.length < 7 && !res.includes(p.n)) res.push(p.n);
+        // Modulo Drift: 補齊至 7 碼 (尋找目前未覆蓋的餘數區塊)
+        let coveredMods = res.map(n => n%5);
+        let candidates = pool.filter(p => !res.includes(p.n)).sort((a,b) => b.sc - a.sc);
+        
+        for(let p of candidates) {
+            if(res.length >= 7) break;
+            if(!coveredMods.includes(p.m5)) {
+                res.push(p.n);
+                driftNodes.push(p.n);
+                coveredMods.push(p.m5);
+            }
         }
+        
+        // 若仍未滿 7 碼，按得分補齊
+        while(res.length < 7) res.push(candidates.find(p => !res.includes(p.n)).n);
 
-        return { res: res.sort((a,b)=>a-b), tripleNodes };
+        return { res: res.sort((a,b)=>a-b), driftNodes };
     }
 
     function render() {
-        const fullData = [...state.data], finalPred = getV231Pick(fullData), recentForBT = fullData.slice(-12).reverse();
+        const fullData = [...state.data], finalPred = getV232Pick(fullData), recentForBT = fullData.slice(-12).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
-            `<div class="ball ${finalPred.tripleNodes.includes(n)?'triple-node':'active'}">${n}</div>`).join('');
+            `<div class="ball ${finalPred.driftNodes.includes(n)?'drift-node':'active'}">${n}</div>`).join('');
 
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測</span><span>星</span></div>`;
         recentForBT.slice(0, 10).forEach(row => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV229Pick_v231(histUntil); // 使用新策略
+            const pred = getV232Pick(histUntil);
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:10px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
@@ -145,9 +143,6 @@
         document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
         document.getElementById('mainDisplay').style.display = 'block';
     }
-
-    // 內部封裝 v231 邏輯供回測呼叫
-    function getV229Pick_v231(h) { return getV231Pick(h); }
 </script>
 </body>
 </html>
