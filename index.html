@@ -5,20 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AI 539 數據中心 v230</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --core: #ffd60a; --expand: #af52de; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --triple: #af52de; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; font-size: 14px; border: 1px solid var(--border); }
-        .ball.core-node { background: var(--core); color: #000; border: none; }
-        .ball.expand-node { border: 2px solid var(--expand); color: var(--expand); }
+        .ball.active { background: var(--primary); color: #000; border: none; }
+        .ball.triple-node { border: 2px solid var(--triple); color: var(--triple); box-shadow: 0 0 10px rgba(175,82,222,0.4); }
         .matrix-wrapper { overflow-x: auto; background: #1c1c1e; border-radius: 8px; border: 1px solid var(--border); }
         .matrix-table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; min-width: 950px; }
         .matrix-table th, .matrix-table td { border: 1px solid var(--border); height: 32px; font-size: 11px; }
-        .z1 { background: rgba(255,255,255,0.02); }
-        .z2 { background: rgba(255,255,255,0.05); }
         .is-hit { background: var(--hit) !important; color: #fff; font-weight: bold; }
         .bt-row { border-bottom: 1px solid #38383a; padding: 10px 0; display: grid; grid-template-columns: 85px 1fr 1fr 40px; align-items: center; gap: 10px; }
         .hit-count { color: var(--success); font-weight: bold; text-align: right; font-size: 16px; }
@@ -28,16 +26,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v230 - 參考 v182 衝擊 3 星優化)</div>
+        <div class="panel-header">數據注入 (v230 - 衝擊 3 星強化版)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 結構預測 (區塊引力 + 奇偶對稱)</div>
+                <div class="panel-header">Panel 2: 結構預測 (斜連+同尾+區塊地毯)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">策略：恢復 v182 的大區塊坍縮邏輯，並強制奇偶比例平衡以衝擊 3 星。</p>
+                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">策略：融合 v182 耦合邏輯，強制區塊地毯式分布，鎖定 3 星咬合。</p>
             </div>
             <div class="panel">
                 <div class="panel-header">Panel 3: 10 期滾動回測</div>
@@ -45,7 +43,7 @@
             </div>
         </div>
         <div class="panel">
-            <div class="panel-header">Panel 4: 分區走勢矩陣 (引力中心分析)</div>
+            <div class="panel-header">Panel 4: 分區走勢矩陣 (熱區重心分析)</div>
             <div class="matrix-wrapper" id="matrixContainer"></div>
         </div>
     </div>
@@ -67,80 +65,79 @@
     });
 
     function getV230Pick(hist) {
-        if(hist.length < 5) return {res:[], coreNodes:[], expandNodes:[]};
+        if(hist.length < 5) return {res:[], tripleNodes:[]};
         const last = hist[hist.length-1].nums;
         
-        // 1. 計算區塊引力 (1-13, 14-26, 27-39)
-        let weights = [0, 0, 0];
-        hist.slice(-5).forEach(d => d.nums.forEach(n => weights[Math.floor((n-1)/13)]++));
-        
+        // 1. 找出最熱尾數 (近5期)
+        const tails = {};
+        hist.slice(-5).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
+        const topTail = Number(Object.entries(tails).sort((a,b)=>b[1]-a[1])[0][0]);
+
+        // 2. 找出最熱區塊 (10號為一單位)
+        const zones = [0,0,0,0];
+        hist.slice(-3).forEach(d => d.nums.forEach(n => zones[Math.floor((n-1)/10)]++));
+        const topZone = zones.indexOf(Math.max(...zones));
+
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             
-            let zone = Math.floor((i-1)/13);
-            let score = (weights[zone] * 5) + 
-                        (last.some(ln => Math.abs(ln-i) === 1) ? 35 : 0) +
-                        (last.some(ln => ln % 10 === i % 10) ? 25 : 0);
-            pool.push({n: i, gap, score, odd: i % 2 !== 0, zone});
-        }
-
-        // 2. 核心選碼：奇偶與區塊平衡
-        let sorted = [...pool].sort((a,b) => b.score - a.score);
-        let coreNodes = [];
-        let oddCount = 0;
-        
-        for(let p of sorted) {
-            if(coreNodes.length >= 5) break;
-            // 強制奇偶比 3:2 或 2:3
-            if(p.odd && oddCount >= 3) continue;
-            if(!p.odd && (coreNodes.length - oddCount) >= 3) continue;
+            let sc = 0;
+            if(last.some(ln => Math.abs(ln-i) === 1)) sc += 25000; // 斜連核心 (最高權重)
+            if(i%10 === topTail) sc += 15000; // 同尾耦合
+            if(Math.floor((i-1)/10) === topZone) sc += 10000; // 區塊地毯
+            if(gap >= 4 && gap <= 9) sc += 5000; // 溫碼銜接
             
-            coreNodes.push(p.n);
-            if(p.odd) oddCount++;
+            pool.push({n: i, gap, sc, t: i%10});
         }
 
-        // 3. 擴展碼：v182 同尾修正 + 長遺漏
-        let rest = pool.filter(p => !coreNodes.includes(p.n)).sort((a,b) => b.score - a.score);
-        let expandNodes = [
-            rest.find(p => coreNodes.some(cn => cn % 10 === p.n % 10))?.n || rest[0].n, // 同尾鎖定
-            rest.sort((a,b) => b.gap - a.gap)[0].n, // 極冷補償
-            rest.find(p => Math.abs(p.n - coreNodes[0]) === 1) || rest[1].n // 鄰碼防禦
-        ];
-        if(typeof expandNodes[2] === 'object') expandNodes[2] = expandNodes[2].n;
+        let sorted = pool.sort((a,b) => b.sc - a.sc);
+        let res = [];
+        let tripleNodes = [];
 
-        return { res: [...new Set([...coreNodes, ...expandNodes])].sort((a,b)=>a-b), coreNodes, expandNodes };
+        // 強制：2顆斜連種子
+        sorted.filter(p => last.some(ln => Math.abs(ln-p.n) === 1)).slice(0, 2).forEach(p => res.push(p.n));
+
+        // 強制：2顆熱尾耦合 (標記為三元)
+        sorted.filter(p => !res.includes(p.n) && p.t === topTail).slice(0, 2).forEach(p => {
+            res.push(p.n);
+            tripleNodes.push(p.n);
+        });
+
+        // 強制：2顆熱區地毯碼
+        sorted.filter(p => !res.includes(p.n) && Math.floor((p.n-1)/10) === topZone).slice(0, 2).forEach(p => res.push(p.n));
+
+        // 補齊至 8 碼
+        for(let p of sorted) {
+            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
+        }
+
+        return { res: res.sort((a,b)=>a-b), tripleNodes };
     }
 
     function render() {
         const fullData = [...state.data], finalPred = getV230Pick(fullData), recentForBT = fullData.slice(-12).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
-            `<div class="ball ${finalPred.coreNodes.includes(n)?'core-node':'expand-node'}">${n}</div>`).join('');
+            `<div class="ball ${finalPred.tripleNodes.includes(n)?'triple-node':'active'}">${n}</div>`).join('');
 
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測</span><span>星</span></div>`;
         recentForBT.slice(0, 10).forEach(row => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV229Pick?.(histUntil) || getV230Pick(histUntil); // 避免函數遺失
+            const pred = getV230Pick(histUntil);
             const hits = pred.res.filter(n => row.nums.includes(n));
-            bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:11px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
+            bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:10px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
 
         let tableHtml = `<table class="matrix-table"><thead><tr><th style="width:70px">日期</th>`;
-        for(let i=1; i<=39; i++) tableHtml += `<th class="${Math.floor((i-1)/8)%2===0?'z1':'z2'}">${i}</th>`;
-        tableHtml += `</tr></thead><tbody><tr style="background:rgba(255,214,10,0.05)"><td>下期預測</td>`;
-        for(let i=1; i<=39; i++) {
-            let content = finalPred.coreNodes.includes(i) ? `<span style="width:12px;height:12px;border-radius:50%;background:var(--core);display:inline-block;"></span>` : (finalPred.expandNodes.includes(i) ? `<span style="width:12px;height:12px;border-radius:50%;border:2px solid var(--expand);display:inline-block;"></span>` : '');
-            tableHtml += `<td class="${Math.floor((i-1)/8)%2===0?'z1':'z2'}">${content}</td>`;
-        }
+        for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
+        tableHtml += `</tr></thead><tbody><tr style="background:rgba(255,214,10,0.1)"><td>下期預測</td>`;
+        for(let i=1; i<=39; i++) tableHtml += `<td>${finalPred.res.includes(i)?'●':''}</td>`;
         tableHtml += `</tr>`;
         recentForBT.forEach(row => {
             tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
-            for(let i=1; i<=39; i++) {
-                const hit = row.nums.includes(i);
-                tableHtml += `<td class="${hit?'is-hit':''} ${Math.floor((i-1)/8)%2===0?'z1':'z2'}">${hit?i:''}</td>`;
-            }
+            for(let i=1; i<=39; i++) tableHtml += `<td class="${row.nums.includes(i)?'is-hit':''}">${row.nums.includes(i)?i:''}</td>`;
             tableHtml += `</tr>`;
         });
         document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
