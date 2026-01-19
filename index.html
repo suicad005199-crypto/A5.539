@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v226</title>
+    <title>AI 539 數據中心 v227</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --core: #ffd60a; --expand: #af52de; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
@@ -28,16 +28,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v226 - 極限壓縮優化)</div>
+        <div class="panel-header">數據注入 (v227 - 跨維咬合優化)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 結構預測 (冷熱雙核 + 同尾聚變)</div>
+                <div class="panel-header">Panel 2: 結構預測 (熱區坍縮 + 連號修正)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">策略：強制 2冷+3熱 結構，並透過同尾簇群強化咬合力。</p>
+                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">策略：強化區塊連彈可能性，結合連號修正邏輯，衝擊 4 星連莊。</p>
             </div>
             <div class="panel">
                 <div class="panel-header">Panel 3: 10 期滾動回測</div>
@@ -45,7 +45,7 @@
             </div>
         </div>
         <div class="panel">
-            <div class="panel-header">Panel 4: 分區走勢矩陣 (冷熱碰撞分析)</div>
+            <div class="panel-header">Panel 4: 分區走勢矩陣 (連號與坍縮分析)</div>
             <div class="matrix-wrapper" id="matrixContainer"></div>
         </div>
     </div>
@@ -66,7 +66,7 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV226Pick(hist) {
+    function getV227Pick(hist) {
         if(hist.length < 5) return {res:[], coreNodes:[], expandNodes:[]};
         const last = hist[hist.length-1].nums;
         let pool = [];
@@ -74,45 +74,45 @@
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            // 評分算法：同尾(45) + 斜連(30) + 遺漏補償
-            let score = (last.some(ln => ln % 10 === i % 10) ? 45 : 0) +
-                        (last.some(ln => Math.abs(ln-i) === 1) ? 30 : 0) +
-                        (gap === 0 ? 25 : 0);
-            pool.push({n: i, gap, score, tail: i % 10});
+            
+            // v227 評分：斜連坍縮(40) + 連號潛力(35) + 同尾(25)
+            let isConsecutivePotential = last.some(ln => Math.abs(ln-i) === 1);
+            let score = (isConsecutivePotential ? 40 : 0) +
+                        (last.some(ln => ln % 10 === i % 10) ? 25 : 0) +
+                        (gap <= 3 ? 30 : 0);
+            pool.push({n: i, gap, score});
         }
 
-        // 核心：冷熱雙核 (2冷 + 3熱)
+        // 核心：熱區連號補強
         let sorted = pool.sort((a,b) => b.score - a.score);
-        let hotCores = sorted.filter(p => p.gap <= 3).slice(0, 3);
-        let coldCores = sorted.filter(p => p.gap >= 10).slice(0, 2);
-        let coreNodes = [...hotCores, ...coldCores].map(p => p.n);
-
-        // 同尾聚變：如果 coreNodes 有同尾，補強該尾數
-        let tails = coreNodes.map(n => n % 10);
-        let rest = pool.filter(p => !coreNodes.includes(p.n));
+        let coreNodes = [];
         
-        let expandNodes = [];
-        // 1. 同尾補強
-        let tailCluster = rest.find(p => tails.includes(p.tail));
-        if(tailCluster) expandNodes.push(tailCluster.n);
-        
-        // 2. 邊際修正 (核心最高分號碼的鄰號)
-        let topCore = hotCores[0].n;
-        let drift = rest.find(p => Math.abs(p.n - topCore) === 1);
-        if(drift) expandNodes.push(drift.n);
+        // 尋找最高分並強制附帶連號
+        let topNode = sorted[0];
+        coreNodes.push(topNode.n);
+        let partner = pool.find(p => Math.abs(p.n - topNode.n) === 1 && !coreNodes.includes(p.n));
+        if(partner) coreNodes.push(partner.n);
 
-        // 3. 最大遺漏保險
-        expandNodes.push(rest.sort((a,b) => b.gap - a.gap)[0].n);
-        
-        // 確保剛好 3 碼擴展
-        expandNodes = [...new Set(expandNodes)].slice(0, 3);
-        while(expandNodes.length < 3) expandNodes.push(rest.sort((a,b) => b.score - a.score)[expandNodes.length].n);
+        // 補齊 5 碼：混合長遺漏
+        let colds = pool.filter(p => p.gap >= 10).sort((a,b) => b.score - a.score);
+        while(coreNodes.length < 5) {
+            if(colds.length > 0 && coreNodes.length < 4) coreNodes.push(colds.shift().n);
+            else coreNodes.push(sorted.find(p => !coreNodes.includes(p.n)).n);
+        }
 
-        return { res: [...coreNodes, ...expandNodes].sort((a,b)=>a-b), coreNodes, expandNodes };
+        // 擴展碼：跨區防線
+        let rest = pool.filter(p => !coreNodes.includes(p.n)).sort((a,b) => b.score - a.score);
+        let expandNodes = [
+            rest.sort((a,b) => b.gap - a.gap)[0].n, // 最大遺漏
+            last[Math.floor(Math.random()*5)], // 隨機連莊補位
+            rest.find(p => p.gap >= 5 && p.gap <= 8)?.n || rest[0].n // 跨區溫碼
+        ];
+
+        return { res: [...new Set([...coreNodes, ...expandNodes])].sort((a,b)=>a-b), coreNodes, expandNodes };
     }
 
     function render() {
-        const fullData = [...state.data], finalPred = getV226Pick(fullData), recentForBT = fullData.slice(-12).reverse();
+        const fullData = [...state.data], finalPred = getV227Pick(fullData), recentForBT = fullData.slice(-12).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
             `<div class="ball ${finalPred.coreNodes.includes(n)?'core-node':'expand-node'}">${n}</div>`).join('');
 
@@ -120,7 +120,7 @@
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測</span><span>星</span></div>`;
         recentForBT.slice(0, 10).forEach(row => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV226Pick(histUntil);
+            const pred = getV227Pick(histUntil);
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:11px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
