@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v243</title>
+    <title>AI 539 數據中心 v244</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --wave: #007aff; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --collapse: #ff9f0a; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
@@ -13,7 +13,7 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.wave-node { border: 2px solid var(--wave); color: var(--wave); box-shadow: 0 0 8px rgba(0,122,255,0.4); }
+        .ball.collapse-node { border: 2px solid var(--collapse); color: var(--collapse); box-shadow: 0 0 8px rgba(255,159,10,0.4); }
         .matrix-table { width: 100%; border-collapse: collapse; text-align: center; min-width: 900px; }
         .matrix-table th, .matrix-table td { border: 1px solid var(--border); height: 30px; font-size: 11px; }
         .is-hit { background: var(--hit) !important; color: #fff; font-weight: bold; }
@@ -25,16 +25,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v243 - 波段咬合優化)</div>
+        <div class="panel-header">數據注入 (v244 - 引力坍縮優化)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 精選 7 碼 (區間對稱 + 斜連加強)</div>
+                <div class="panel-header">Panel 2: 精選 7 碼 (非對稱坍縮結構)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">藍框：波段節點碼 | 策略：強制執行前中後三區分佈，並對上期鄰號進行二連跳鎖定。</p>
+                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">橘框：坍縮核心碼 | 策略：放棄平均分佈，強制將 5-6 碼號碼擠壓在兩個高分熱點區塊。</p>
             </div>
             <div class="panel">
                 <div class="panel-header">Panel 3: 10 期滾動回測 (7 碼)</div>
@@ -42,7 +42,7 @@
             </div>
         </div>
         <div class="panel">
-            <div class="panel-header">Panel 4: 波段分佈矩陣</div>
+            <div class="panel-header">Panel 4: 引力分佈矩陣</div>
             <div style="overflow-x:auto;"><div id="matrixContainer"></div></div>
         </div>
     </div>
@@ -63,73 +63,63 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV243Pick(hist) {
-        if(hist.length < 5) return {res:[], waveNodes:[]};
+    function getV244Pick(hist) {
+        if(hist.length < 5) return {res:[], collapseNodes:[]};
         const last = hist[hist.length-1].nums;
-        
-        // 尾數熱度分析
         const tails = {};
-        hist.slice(-10).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
-        const sortedTails = Object.entries(tails).sort((a,b)=>b[1]-a[1]);
-        const hotTail = Number(sortedTails[0][0]);
-        const coldTail = Number(sortedTails[sortedTails.length-1][0]);
+        hist.slice(-15).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
+        const topTail = Number(Object.entries(tails).sort((a,b)=>b[1]-a[1])[0][0]);
 
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            
-            // 權重計算法
-            let sc = (last.some(ln => Math.abs(ln-i) === 1) ? 50000 : 0) + // 斜連權重加大
-                     (i%10 === hotTail ? 25000 : 0) +
-                     (i%10 === coldTail ? 15000 : 0) +
-                     (gap >= 3 && gap <= 8 ? 10000 : 0);
-            
-            pool.push({n: i, sc, b: i <= 13 ? 0 : (i <= 26 ? 1 : 2)});
+            if(gap > 15) continue; // 剪除極冷碼
+
+            let sc = (last.some(ln => Math.abs(ln-i) === 1) ? 45000 : 0) + 
+                     (i%10 === topTail ? 30000 : 0) + 
+                     (gap >= 2 && gap <= 6 ? 20000 : 0);
+            pool.push({n: i, sc, t: i%10, b: Math.floor((i-1)/10)});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let waveNodes = [];
+        let collapseNodes = [];
 
-        // 策略：區間對稱 (2-3-2)
-        const quotas = [2, 3, 2];
-        quotas.forEach((q, bIdx) => {
-            let zPool = sorted.filter(p => p.b === bIdx);
-            let count = 0;
-            for(let p of zPool) {
-                if(count >= q) break;
-                // 禁制三連號邏輯
-                let wouldBeTriple = res.some(rn => Math.abs(rn - p.n) === 1 && res.some(rn2 => Math.abs(rn2 - p.n) === 2 || (Math.abs(rn2 - p.n) === 1 && Math.abs(rn2 - rn) === 2)));
-                if(!wouldBeTriple) {
-                    res.push(p.n);
-                    waveNodes.push(p.n);
-                    count++;
-                }
+        // 策略 A: 雙軌二連號 (4碼) - 禁三連
+        let pairCount = 0;
+        for(let p of sorted) {
+            if(pairCount >= 2) break;
+            let nb = pool.find(n => Math.abs(n.n - p.n) === 1 && !res.includes(n.n));
+            if(nb && !res.includes(p.n)) {
+                res.push(p.n, nb.n);
+                collapseNodes.push(p.n, nb.n);
+                pairCount++;
             }
-        });
-
-        // 補齊至 7 碼 (如果區間分配未滿)
-        let fillers = sorted.filter(p => !res.includes(p.n));
-        while(res.length < 7) {
-            let p = fillers.shift();
-            let triple = res.some(rn => Math.abs(rn - p.n) === 1 && res.some(rn2 => Math.abs(rn2 - p.n) === 1));
-            if(!triple) res.push(p.n);
         }
 
-        return { res: res.sort((a,b)=>a-b), waveNodes };
+        // 策略 B: 同尾坍縮 (2碼) - 強制在最高分區塊補入
+        let topBlock = sorted[0].b;
+        let tailFillers = sorted.filter(p => !res.includes(p.n) && p.b === topBlock).slice(0, 2);
+        tailFillers.forEach(p => { res.push(p.n); collapseNodes.push(p.n); });
+
+        // 策略 C: 補齊至 7 碼
+        let fillers = sorted.filter(p => !res.includes(p.n));
+        while(res.length < 7) res.push(fillers.shift().n);
+
+        return { res: res.sort((a,b)=>a-b), collapseNodes };
     }
 
     function render() {
-        const fullData = [...state.data], finalPred = getV243Pick(fullData), recentForBT = fullData.slice(-12).reverse();
+        const fullData = [...state.data], finalPred = getV244Pick(fullData), recentForBT = fullData.slice(-12).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
-            `<div class="ball ${finalPred.waveNodes.includes(n)?'wave-node':'active'}">${n}</div>`).join('');
+            `<div class="ball ${finalPred.collapseNodes.includes(n)?'collapse-node':'active'}">${n}</div>`).join('');
 
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測</span><span>星</span></div>`;
         recentForBT.slice(0, 10).forEach(row => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV243Pick(histUntil);
+            const pred = getV244Pick(histUntil);
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:10px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
