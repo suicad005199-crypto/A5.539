@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v184</title>
+    <title>AI 539 數據中心 v185</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --expect: #ff2d55; --thermal: #32d74b; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
@@ -19,41 +19,40 @@
         .matrix-wrapper { width: 100%; overflow-x: auto; }
         .matrix-table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; min-width: 850px; }
         .matrix-table th, .matrix-table td { border: 1px solid var(--border); padding: 8px 0; width: 2.4%; font-size: 11px; }
-        .matrix-table th:first-child, .matrix-table td:first-child { width: 80px; font-size: 10px; color: var(--sub); }
+        .matrix-table th:first-child, .matrix-table td:first-child { width: 85px; font-size: 10px; color: var(--sub); }
         .pred-mark { background: rgba(255, 214, 10, 0.2); color: var(--primary); font-weight: bold; }
         .is-hit { background: var(--hit); color: #fff; font-weight: bold; }
 
-        .bt-row { border-bottom: 1px solid #38383a; padding: 10px 0; display: grid; grid-template-columns: 85px 1.2fr 1.2fr 40px; align-items: center; gap: 10px; font-size: 11px; }
+        .bt-row { border-bottom: 1px solid #38383a; padding: 10px 0; display: grid; grid-template-columns: 85px 1.2fr 1.5fr 40px; align-items: center; gap: 10px; font-size: 11px; }
         .hit-count { color: var(--success); font-weight: bold; text-align: right; font-size: 14px; }
+        .bt-pred-nums { display: flex; flex-wrap: wrap; gap: 3px; font-size: 10px; letter-spacing: -0.5px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v184)</div>
+        <div class="panel-header">數據注入 (v185)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (熱力守恆版)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (回測查驗修正版)</div>
                 <div id="finalCombo" class="ball-row"></div>
                 <p style="font-size:0.7rem; color:var(--sub);">
-                    <span style="color:var(--thermal)">綠框: 熱核碼</span> | 
-                    <span style="color:var(--expect)">紅框: 期望碼</span> | 
-                    策略: 重建覆蓋率，穩定高星輸出
+                    <span style="color:var(--thermal)">綠框: 熱核</span> | <span style="color:var(--expect)">紅框: 期望</span> | 修正預測同步邏輯
                 </p>
             </div>
             <div class="panel" id="panel3">
-                <div class="panel-header">Panel 3: 滾動回測 (最新置頂)</div>
+                <div class="panel-header">Panel 3: 滾動回測 (查驗用)</div>
                 <div id="btContainer"></div>
             </div>
         </div>
 
         <div class="panel" id="panel4">
-            <div class="panel-header">Panel 4: 全號碼分布矩陣 (等寬)</div>
+            <div class="panel-header">Panel 4: 全號碼分布矩陣</div>
             <div class="matrix-wrapper" id="matrixContainer"></div>
         </div>
     </div>
@@ -66,7 +65,7 @@
         const reader = new FileReader();
         reader.onload = () => {
             const rows = reader.result.trim().split('\n').map(r => r.split(','));
-            state.data = rows.filter(r => !isNaN(r[1])).map(r => ({
+            state.data = rows.filter(r => r.length >= 2 && !isNaN(r[1])).map(r => ({
                 date: r[0],
                 nums: r.slice(1, 6).map(Number).sort((a,b)=>a-b)
             }));
@@ -75,20 +74,19 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV184Pick(hist) {
-        if(hist.length < 10) return {res:[], expectNodes:[], thermalNodes:[]};
+    function getV185Pick(hist) {
+        if(hist.length < 5) return {res:[], expectNodes:[], thermalNodes:[]};
         const last = hist[hist.length-1].nums;
         
         let pool = [];
         for (let i=1; i<=39; i++) {
-            let currentGap = 0;
-            for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) currentGap++; else break; }
-            
+            let gap = 0;
+            for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
-            if(currentGap <= 2) score += 20000; // 強度加成：熱碼
+            if(gap <= 2) score += 20000; // 熱碼
+            if(gap >= 3 && gap <= 8) score += 12000; // 溫碼
             if(last.some(ln => Math.abs(ln-i) === 1)) score += 15000; // 斜連
-            
-            pool.push({n: i, gap: currentGap, sc: score});
+            pool.push({n: i, gap: gap, sc: score});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
@@ -96,30 +94,32 @@
         let thermalNodes = [];
         let expectNodes = [];
 
-        // 1. 強制選取 4 顆熱核碼 (綠框)
+        // 1. 確保 4 顆熱核 (綠)
         sorted.filter(p => p.gap <= 2).slice(0, 4).forEach(p => {
             res.push(p.n);
             thermalNodes.push(p.n);
         });
 
-        // 2. 選取 2 顆期望修正碼 (紅框 - 模擬冷碼反彈)
+        // 2. 確保 2 顆期望冷碼 (紅)
         sorted.filter(p => p.gap >= 10 && !res.includes(p.n)).slice(0, 2).forEach(p => {
             res.push(p.n);
             expectNodes.push(p.n);
         });
 
-        // 3. 補齊斜連或高分溫碼
+        // 3. 補齊至 8 碼
         for(let p of sorted) {
             if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
         }
 
-        return { res: res.slice(0, 8).sort((a,b)=>a-b), expectNodes, thermalNodes };
+        return { res: res.sort((a,b)=>a-b), expectNodes, thermalNodes };
     }
 
     function render() {
-        const finalPred = getV184Pick(state.data);
-        const recentData = [...state.data].reverse().slice(0, 10);
+        const fullData = [...state.data];
+        const finalPred = getV185Pick(fullData);
+        const recentForBT = fullData.slice(-10).reverse();
         
+        // Panel 2
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
             let cls = 'active';
             if(finalPred.thermalNodes.includes(n)) cls = 'thermal-node';
@@ -127,23 +127,44 @@
             return `<div class="ball ${cls}">${n}</div>`;
         }).join('');
 
+        // Panel 3
         const bt = document.getElementById('btContainer');
-        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
-        recentData.forEach((row) => {
-            const idx = state.data.findIndex(d => d.date === row.date);
-            const pred = getV184Pick(state.data.slice(0, idx));
+        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎號碼</span><span>AI 8碼預測</span><span>命中</span></div>`;
+        
+        recentForBT.forEach((row) => {
+            const historyUntilPoint = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
+            const pred = getV185Pick(historyUntilPoint);
             const hits = pred.res.filter(n => row.nums.includes(n));
-            bt.innerHTML += `<div class="bt-row"><span>${row.date}</span><span style="color:var(--primary)">${row.nums.join(' ')}</span><span style="font-size:10px">${pred.res.map(n => hits.includes(n)? `<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</span><span class="hit-count">${hits.length}</span></div>`;
+            
+            bt.innerHTML += `
+                <div class="bt-row">
+                    <span>${row.date}</span>
+                    <span style="color:var(--primary)">${row.nums.map(n => String(n).padStart(2,'0')).join(' ')}</span>
+                    <div class="bt-pred-nums">
+                        ${pred.res.map(n => {
+                            let isHit = row.nums.includes(n);
+                            return `<span style="color:${isHit ? 'var(--hit)' : 'inherit'}; font-weight:${isHit ? 'bold' : 'normal'}">${String(n).padStart(2,'0')}</span>`;
+                        }).join(' ')}
+                    </div>
+                    <span class="hit-count">${hits.length}</span>
+                </div>`;
         });
 
+        // Panel 4
         let tableHtml = `<table class="matrix-table"><thead><tr><th>日期</th>`;
         for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
         tableHtml += `</tr></thead><tbody><tr style="background:#2c2c2e"><td>下期預測</td>`;
-        for(let i=1; i<=39; i++) tableHtml += `<td class="${finalPred.res.includes(i)?'pred-mark':''}">${finalPred.res.includes(i)?'●':''}</td>`;
+        for(let i=1; i<=39; i++) {
+            let isP = finalPred.res.includes(i);
+            tableHtml += `<td class="${isP?'pred-mark':''}">${isP?'●':''}</td>`;
+        }
         tableHtml += `</tr>`;
-        recentData.forEach(row => {
+        recentForBT.forEach(row => {
             tableHtml += `<tr><td>${row.date.slice(5)}</td>`;
-            for(let i=1; i<=39; i++) tableHtml += `<td class="${row.nums.includes(i)?'is-hit':''}">${row.nums.includes(i)?i:''}</td>`;
+            for(let i=1; i<=39; i++) {
+                let isH = row.nums.includes(i);
+                tableHtml += `<td class="${isH?'is-hit':''}">${isH ? i : ''}</td>`;
+            }
             tableHtml += `</tr>`;
         });
         document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
