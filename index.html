@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v241</title>
+    <title>AI 539 數據中心 v242</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --bridge: #ff375f; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --trap: #bf5af2; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
@@ -13,7 +13,7 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.bridge-node { border: 2px solid var(--bridge); color: var(--bridge); }
+        .ball.trap-node { border: 2px solid var(--trap); color: var(--trap); box-shadow: 0 0 8px rgba(191,90,242,0.4); }
         .matrix-table { width: 100%; border-collapse: collapse; text-align: center; min-width: 900px; }
         .matrix-table th, .matrix-table td { border: 1px solid var(--border); height: 30px; font-size: 11px; }
         .is-hit { background: var(--hit) !important; color: #fff; font-weight: bold; }
@@ -25,16 +25,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v241 - 雙心橋接禁三連)</div>
+        <div class="panel-header">數據注入 (v242 - 共振陷阱禁三連)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel">
-                <div class="panel-header">Panel 2: 精選 7 碼 (橋接二連鎖結構)</div>
+                <div class="panel-header">Panel 2: 精選 7 碼 (同尾對撞 + 分層結構)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">紅框：橋接碼 | 策略：在兩個核心連鎖區塊間建立跳轉點，攔截跨區號碼。</p>
+                <p style="font-size:0.75rem; color:var(--sub); margin-top:5px;">紫框：陷阱核心碼 | 策略：強制鎖定一組同尾對撞與兩組連號，透過遺漏值分層攔截三星。</p>
             </div>
             <div class="panel">
                 <div class="panel-header">Panel 3: 10 期滾動回測 (7 碼)</div>
@@ -42,7 +42,7 @@
             </div>
         </div>
         <div class="panel">
-            <div class="panel-header">Panel 4: 橋接分佈矩陣</div>
+            <div class="panel-header">Panel 4: 共振分佈矩陣 (含遺漏分層)</div>
             <div style="overflow-x:auto;"><div id="matrixContainer"></div></div>
         </div>
     </div>
@@ -63,70 +63,76 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV241Pick(hist) {
-        if(hist.length < 5) return {res:[], bridgeNodes:[]};
+    function getV242Pick(hist) {
+        if(hist.length < 5) return {res:[], trapNodes:[]};
         const last = hist[hist.length-1].nums;
         const tails = {};
-        hist.slice(-10).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
+        hist.slice(-12).forEach(d => d.nums.forEach(n => tails[n%10] = (tails[n%10] || 0) + 1));
         const topTail = Number(Object.entries(tails).sort((a,b)=>b[1]-a[1])[0][0]);
 
         let pool = [];
         for (let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            let sc = (last.some(ln => Math.abs(ln-i) === 1) ? 45000 : 0) + 
-                     (i%10 === topTail ? 30000 : 0) + 
-                     (gap >= 4 && gap <= 9 ? 15000 : 0);
-            pool.push({n: i, sc, t: i%10, b: Math.floor((i-1)/10)});
+            let sc = (last.some(ln => Math.abs(ln-i) === 1) ? 40000 : 0) + 
+                     (i%10 === topTail ? 35000 : 0) + 
+                     (gap >= 3 && gap <= 7 ? 20000 : 0) +
+                     (gap > 10 ? 10000 : 0);
+            pool.push({n: i, sc, t: i%10, gap, b: Math.floor((i-1)/10)});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let bridgeNodes = [];
+        let trapNodes = [];
 
-        // 1. 雙核心二連號 (4碼)
+        // 1. 同尾對撞 (2碼): 鎖定最強尾數的一奇一偶
+        let t1 = sorted.find(p => p.t === topTail && p.n % 2 !== 0);
+        let t2 = sorted.find(p => p.t === topTail && p.n % 2 === 0 && p.n !== t1?.n);
+        if(t1) { res.push(t1.n); trapNodes.push(t1.n); }
+        if(t2) { res.push(t2.n); trapNodes.push(t2.n); }
+
+        // 2. 雙核心二連號 (4碼): 禁三連
         let zones = [0, 1, 2, 3];
-        let pickCount = 0;
+        let pairCount = 0;
         for(let z of zones) {
-            if(pickCount >= 2) break;
+            if(pairCount >= 2) break;
             let zPool = sorted.filter(p => p.b === z);
             for(let p of zPool) {
-                let nb = pool.find(n => Math.abs(n.n - p.n) === 1 && n.b === z);
-                if(nb && !res.includes(p.n) && !res.includes(nb.n)) {
-                    res.push(p.n, nb.n);
-                    pickCount++;
-                    break;
+                if(res.includes(p.n)) continue;
+                let nb = pool.find(n => Math.abs(n.n - p.n) === 1 && n.b === z && !res.includes(n.n));
+                if(nb) {
+                    // 檢查會不會變成三連
+                    let triple = res.some(rn => Math.abs(rn - p.n) === 1 || Math.abs(rn - nb.n) === 1);
+                    if(!triple) {
+                        res.push(p.n, nb.n);
+                        pairCount++;
+                        break;
+                    }
                 }
             }
         }
 
-        // 2. 橋接碼 (1碼): 尋找位於已選碼區間中間的高分碼
-        res.sort((a,b)=>a-b);
-        let mid = Math.floor((res[0] + res[res.length-1]) / 2);
-        let bridge = sorted.find(p => !res.includes(p.n) && Math.abs(p.n - mid) <= 5);
-        if(bridge) { res.push(bridge.n); bridgeNodes.push(bridge.n); }
-
-        // 3. 同尾嵌套補位 (2碼)
-        let tailFillers = sorted.filter(p => p.t === topTail && !res.includes(p.n)).slice(0, 2);
-        tailFillers.forEach(p => res.push(p.n));
+        // 3. 冷碼攔截 (1碼): 遺漏 > 9
+        let cold = pool.filter(p => p.gap > 9 && !res.includes(p.n)).sort((a,b)=>b.sc - a.sc)[0];
+        if(cold && res.length < 7) res.push(cold.n);
 
         // 補齊
         let fillers = sorted.filter(p => !res.includes(p.n));
         while(res.length < 7) res.push(fillers.shift().n);
 
-        return { res: res.slice(0, 7).sort((a,b)=>a-b), bridgeNodes };
+        return { res: res.slice(0, 7).sort((a,b)=>a-b), trapNodes };
     }
 
     function render() {
-        const fullData = [...state.data], finalPred = getV241Pick(fullData), recentForBT = fullData.slice(-12).reverse();
+        const fullData = [...state.data], finalPred = getV242Pick(fullData), recentForBT = fullData.slice(-12).reverse();
         document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
-            `<div class="ball ${finalPred.bridgeNodes.includes(n)?'bridge-node':'active'}">${n}</div>`).join('');
+            `<div class="ball ${finalPred.trapNodes.includes(n)?'trap-node':'active'}">${n}</div>`).join('');
 
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測</span><span>星</span></div>`;
         recentForBT.slice(0, 10).forEach(row => {
             const histUntil = fullData.slice(0, fullData.findIndex(d => d.date === row.date));
-            const pred = getV241Pick(histUntil);
+            const pred = getV242Pick(histUntil);
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span>${row.nums.join(' ')}</span><div style="font-size:10px;">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div><span class="hit-count">${hits.length}</span></div>`;
         });
