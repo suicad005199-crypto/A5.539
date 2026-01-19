@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v176</title>
+    <title>AI 539 數據中心 v177</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --harmonic: #5ac8fa; }
+        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --iso: #ff37ff; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 14px; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); overflow-x: auto; }
@@ -13,7 +13,7 @@
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
         .ball { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 6px; font-weight: bold; font-size: 12px; border: 1px solid var(--border); }
         .ball.active { background: var(--primary); color: #000; border: none; }
-        .ball.harmonic-node { border: 2px solid var(--harmonic); color: var(--harmonic); box-shadow: 0 0 10px rgba(90,200,250,0.3); }
+        .ball.iso-node { border: 2px solid var(--iso); color: var(--iso); box-shadow: 0 0 10px rgba(255,55,255,0.4); }
         .pred-mark { background: rgba(255, 214, 10, 0.15); border: 1px inset var(--primary) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: center; }
         th, td { border: 1px solid #38383a; padding: 6px 2px; }
@@ -27,16 +27,16 @@
 
 <div class="container">
     <div class="panel">
-        <div class="panel-header">數據注入 (v176)</div>
+        <div class="panel-header">數據注入 (v177)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub);">
     </div>
 
     <div id="mainDisplay" style="display:none;">
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
             <div class="panel" id="panel2">
-                <div class="panel-header">Panel 2: 下期精準 8 碼 (奇偶諧波連星版)</div>
+                <div class="panel-header">Panel 2: 下期精準 8 碼 (等距拓補版)</div>
                 <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:0.7rem; color:var(--sub);">藍框: 諧波共振碼 | 策略: 連號引力 + 奇偶比動態修正</p>
+                <p style="font-size:0.7rem; color:var(--sub);">粉框: 等距補償碼 | 策略: 跳點偵測 + 冷碼反彈，衝擊 4 星</p>
             </div>
             <div class="panel" id="panel3">
                 <div class="panel-header">Panel 3: 滾動回測紀錄</div>
@@ -67,8 +67,8 @@
         reader.readAsText(e.target.files[0]);
     });
 
-    function getV176Pick(hist) {
-        if(hist.length < 5) return {res:[], harmonicNodes:[]};
+    function getV177Pick(hist) {
+        if(hist.length < 5) return {res:[], isoNodes:[]};
         const last = hist[hist.length-1].nums;
         
         let pool = [];
@@ -76,47 +76,56 @@
             let gap = 0;
             for(let j=hist.length-1; j>=0; j--) { if(!hist[j].nums.includes(i)) gap++; else break; }
             let score = 0;
-            if(gap >= 3 && gap <= 7) score += 13000; // 強化溫碼
-            if(gap <= 2) score += 9000;
-            if(last.some(ln => Math.abs(ln-i) === 1)) score += 11000; // 斜連
-            pool.push({n: i, gap: gap, sc: score, isOdd: i%2!==0});
+            if(gap >= 3 && gap <= 8) score += 12000; // 溫碼優先
+            if(last.some(ln => Math.abs(ln-i) === 1)) score += 15000; // 斜連強權重
+            if(gap > 15) score += 5000; // 冷碼反彈基礎分
+            pool.push({n: i, gap: gap, sc: score});
         }
 
         let sorted = pool.sort((a,b) => b.sc - a.sc);
         let res = [];
-        let harmonicNodes = [];
+        let isoNodes = [];
 
-        // 1. 建立連號引力結構
+        // 1. 選取 3 顆核心碼
         for(let p of sorted) {
-            if(res.length >= 8) break;
-            if(!res.includes(p.n)) {
-                res.push(p.n);
-                // 檢查奇偶比，動態拉入連號或諧波號
-                let oddCount = res.filter(n => n%2!==0).length;
-                let neighbor = pool.find(x => Math.abs(x.n - p.n) === 1 && !res.includes(x.n));
-                
-                if(neighbor && res.length < 8) {
-                    // 如果拉入連號能優化奇偶比 (目標 4:4 或 3:5 / 5:3)
-                    res.push(neighbor.n);
-                    harmonicNodes.push(neighbor.n);
+            if(res.length < 3) res.push(p.n);
+        }
+
+        // 2. 等距跳點邏輯：基於前 3 碼計算可能跳點
+        for(let i=0; i<res.length; i++) {
+            for(let j=i+1; j<res.length; j++) {
+                let diff = Math.abs(res[i] - res[j]);
+                if(diff >= 2 && diff <= 10) {
+                    let nextPos = [Math.max(res[i], res[j]) + diff, Math.min(res[i], res[j]) - diff];
+                    nextPos.forEach(p => {
+                        if(p >= 1 && p <= 39 && !res.includes(p) && res.length < 8) {
+                            res.push(p);
+                            isoNodes.push(p);
+                        }
+                    });
                 }
             }
         }
 
-        return { res: res.slice(0, 8).sort((a,b)=>a-b), harmonicNodes };
+        // 3. 補齊高分碼
+        for(let p of sorted) {
+            if(res.length < 8 && !res.includes(p.n)) res.push(p.n);
+        }
+
+        return { res: res.slice(0, 8).sort((a,b)=>a-b), isoNodes };
     }
 
     function render() {
-        const finalPred = getV176Pick(state.data);
+        const finalPred = getV177Pick(state.data);
         const bt = document.getElementById('btContainer');
         bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>AI 預測</span><span>命中</span></div>`;
         state.data.slice(-10).reverse().forEach((row) => {
             const idx = state.data.findIndex(d => d.date === row.date);
-            const pred = getV176Pick(state.data.slice(0, idx));
+            const pred = getV177Pick(state.data.slice(0, idx));
             const hits = pred.res.filter(n => row.nums.includes(n));
             bt.innerHTML += `<div class="bt-row"><span>${row.date.slice(5)}</span><span style="color:var(--primary)">${row.nums.join(' ')}</span><span style="font-size:10px">${pred.res.map(n => hits.includes(n)? `<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</span><span class="hit-count">${hits.length}</span></div>`;
         });
-        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => `<div class="ball ${finalPred.harmonicNodes.includes(n)?'harmonic-node':'active'}">${n}</div>`).join('');
+        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => `<div class="ball ${finalPred.isoNodes.includes(n)?'iso-node':'active'}">${n}</div>`).join('');
         document.getElementById('mainDisplay').style.display = 'block';
     }
 </script>
