@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 V.32</title>
+    <title>539 精準分析 V.33</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -11,17 +11,28 @@
         .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 8px; border-left: 3px solid var(--primary); padding-left: 6px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
         .tag { background: var(--accent); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 4px; }
-        .bt-table { width: 100%; border-collapse: collapse; }
-        .bt-table td { border-bottom: 1px solid var(--border); padding: 8px 2px; text-align: center; font-size: 11px; }
+        
+        /* P2 數據表格樣式：強制對齊 */
+        .bt-table { width: 100%; border-collapse: collapse; font-family: 'Courier New', monospace; }
+        .bt-table th { color: var(--sub); font-size: 10px; padding-bottom: 5px; }
+        .bt-table td { border-bottom: 1px solid var(--border); padding: 8px 0; text-align: center; }
+        .date-cell { color: var(--sub); width: 45px; font-size: 11px; }
+        .nums-cell { letter-spacing: 2px; width: 110px; white-space: nowrap; }
+        .pred-cell { letter-spacing: 2px; color: #ccc; }
+        .star-cell { color: var(--success); font-weight: bold; width: 25px; font-size: 14px; }
         .is-hit { color: var(--hit); font-weight: bold; text-decoration: underline; }
+
         .ball-row { display: flex; flex-wrap: wrap; gap: 5px; justify-content: space-between; }
         .ball { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: 700; border: 1px solid var(--border); font-size: 15px; }
         .ball.active { border-color: var(--accent); color: var(--accent); background: rgba(10,132,255,0.1); }
-        .matrix-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .m-table { border-collapse: collapse; text-align: center; margin-top: 5px; }
-        .m-table td { width: 18px; height: 18px; border: 1px solid #222; font-size: 9px; }
+
+        /* P4 矩陣樣式 */
+        .matrix-scroll { overflow-x: auto; margin-top: 5px; border: 1px solid var(--border); border-radius: 8px; }
+        .m-table { border-collapse: collapse; }
+        .m-table td { width: 16px; height: 16px; border: 1px solid #222; font-size: 8px; text-align: center; }
         .m-hit { background: var(--hit); }
-        .m-date { width: 40px; color: var(--sub); font-size: 8px; }
+        .m-date { width: 45px; color: var(--sub); font-size: 10px; background: #2c2c2e; position: sticky; left: 0; }
+        .m-head { background: #2c2c2e; color: var(--primary); font-size: 8px; }
     </style>
 </head>
 <body>
@@ -32,29 +43,48 @@
     </div>
 
     <div class="panel">
-        <div class="panel-header">P2: 最佳策略動態回測 <span id="algoTag" class="tag">等待數據...</span></div>
-        <table class="bt-table"><tbody id="btBody"></tbody></table>
+        <div class="panel-header">P2: 策略對齊回測 <span id="algoTag" class="tag">等待數據...</span></div>
+        <table class="bt-table">
+            <thead><tr><th>日期</th><th>開獎號碼</th><th>預測 8 碼</th><th>★</th></tr></thead>
+            <tbody id="btBody"></tbody>
+        </table>
     </div>
 
     <div class="panel">
-        <div class="panel-header">P3: 下期 8 碼預測</div>
+        <div class="panel-header">P3: 下期預測 (8 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
 
     <div class="panel">
-        <div class="panel-header">P4: 連號分布矩陣 (近 15 期)</div>
+        <div class="panel-header">P4: 連號分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
 </div>
 
 <script>
     let rawData = [];
-    const getV19 = (hist) => { // V19 邏輯：交叉覆蓋 (模擬版)
+
+    // 日期格式化工具
+    function formatDate(str) {
+        if (!str) return "--/--";
+        const parts = str.split(/[-/]/);
+        if (parts.length < 3) return str;
+        let m = parts[1].padStart(2, '0');
+        let d = parts[2].substring(0, 2).padStart(2, '0');
+        return `${m}/${d}`;
+    }
+
+    // 補零工具確保對齊
+    const pad = (n) => n.toString().padStart(2, '0');
+
+    // 策略邏輯
+    const getV19 = (hist) => {
         let s = Array(40).fill(0).map((_,i)=>({n:i, v:0}));
-        hist.slice(-15).forEach(d => d.nums.forEach(n => s[n].v += 1));
+        hist.slice(-20).forEach(d => d.nums.forEach(n => s[n].v += 1));
         return s.slice(1).sort((a,b)=>b.v-a.v).slice(0,8).map(x=>x.n).sort((a,b)=>a-b);
     };
-    const getV26 = (hist) => { // V26.1 邏輯：相位修正
+
+    const getV26 = (hist) => {
         if(!hist.length) return [];
         const last = hist[hist.length-1].nums;
         let p = new Set(last.flatMap(n => [n-1, n, n+1]).filter(n => n>0 && n<40));
@@ -67,44 +97,57 @@
         const file = e.target.files[0];
         const reader = new FileReader();
         reader.onload = () => {
-            const rows = reader.result.trim().split('\n');
-            rawData = rows.map(r => r.split(',')).filter(r => r.length >= 6).map(r => ({
-                date: r[0].trim(), nums: r.slice(1, 6).map(n => parseInt(n.trim())).sort((a,b)=>a-b)
-            }));
-            runSystem();
+            try {
+                const content = reader.result.replace(/\r/g, ""); // 處理 Windows 換行
+                const rows = content.trim().split('\n');
+                rawData = rows.map(r => {
+                    const cols = r.split(',');
+                    return {
+                        date: cols[0].trim(),
+                        nums: cols.slice(1, 6).map(n => parseInt(n.trim())).filter(n => !isNaN(n)).sort((a,b)=>a-b)
+                    };
+                }).filter(r => r.nums.length === 5);
+                runSystem();
+            } catch (err) { alert("CSV 格式解析失敗，請檢查內容"); }
         };
         reader.readAsText(file);
     });
 
     function runSystem() {
-        // 策略海選
-        const scoreV19 = rawData.slice(-5).reduce((acc, row, i) => acc + row.nums.filter(n => getV19(rawData.slice(0, rawData.indexOf(row))).includes(n)).length, 0);
-        const scoreV26 = rawData.slice(-5).reduce((acc, row, i) => acc + row.nums.filter(n => getV26(rawData.slice(0, rawData.indexOf(row))).includes(n)).length, 0);
+        // 策略海選 (近5期測試)
+        const checkRange = rawData.slice(-5);
+        const scoreV19 = checkRange.reduce((acc, row) => acc + row.nums.filter(n => getV19(rawData.slice(0, rawData.indexOf(row))).includes(n)).length, 0);
+        const scoreV26 = checkRange.reduce((acc, row) => acc + row.nums.filter(n => getV26(rawData.slice(0, rawData.indexOf(row))).includes(n)).length, 0);
         
-        const useAlgo = scoreV19 >= scoreV26 ? "V.19 交叉覆蓋" : "V.26.1 相位修正";
         const algoFn = scoreV19 >= scoreV26 ? getV19 : getV26;
-        
-        document.getElementById('algoTag').innerText = useAlgo;
+        document.getElementById('algoTag').innerText = scoreV19 >= scoreV26 ? "V.19 模式" : "V.26.1 模式";
 
-        // P2 回測
+        // P2 回測渲染
         let btHtml = "";
         rawData.slice(-10).reverse().forEach(row => {
             const p = algoFn(rawData.slice(0, rawData.indexOf(row)));
             const hits = row.nums.filter(n => p.includes(n));
-            btHtml += `<tr><td class="m-date">${row.date.slice(-5)}</td><td>${row.nums.join(' ')}</td><td>${p.map(n => row.nums.includes(n) ? `<span class="is-hit">${n}</span>` : n).join(' ')}</td><td style="color:var(--success);font-weight:bold">${hits.length}</td></tr>`;
+            btHtml += `<tr>
+                <td class="date-cell">${formatDate(row.date)}</td>
+                <td class="nums-cell">${row.nums.map(pad).join(' ')}</td>
+                <td class="pred-cell">${p.map(n => row.nums.includes(n) ? `<span class="is-hit">${pad(n)}</span>` : pad(n)).join(' ')}</td>
+                <td class="star-cell">${hits.length}</td>
+            </tr>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
 
         // P3 預測
         const next = algoFn(rawData);
-        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball active">${n}</div>`).join('');
+        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball active">${pad(n)}</div>`).join('');
 
         // P4 矩陣
-        let mHtml = `<table class="m-table">`;
+        let mHtml = `<table class="m-table"><tr><td class="m-date">日期</td>`;
+        for(let i=1; i<=39; i++) mHtml += `<td class="m-head">${i%10}</td>`;
+        mHtml += `</tr>`;
         rawData.slice(-15).reverse().forEach(row => {
-            mHtml += `<tr><td class="m-date">${row.date.slice(-5)}</td>`;
+            mHtml += `<tr><td class="m-date">${formatDate(row.date)}</td>`;
             for (let i = 1; i <= 39; i++) {
-                mHtml += `<td class="${row.nums.includes(i) ? 'm-hit' : ''}">${row.nums.includes(i) ? '' : ''}</td>`;
+                mHtml += `<td class="${row.nums.includes(i) ? 'm-hit' : ''}"></td>`;
             }
             mHtml += `</tr>`;
         });
