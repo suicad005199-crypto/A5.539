@@ -2,18 +2,18 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>CSV 預測分析系統 (日期修正版)</title>
+    <title>CSV 預測分析系統 (強化讀取版)</title>
     
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; display: flex; flex-direction: column; gap: 20px; max-width: 950px; margin: auto; background-color: #f9f9f9; }
         .panel { border: 1px solid #ccc; padding: 20px; border-radius: 10px; background-color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .panel-title { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; display: block; border-left: 5px solid #333; padding-left: 10px; }
+        .panel-title { font-weight: bold; margin-bottom: 15px; display: block; border-left: 5px solid #333; padding-left: 10px; }
         table { border-collapse: collapse; width: 100%; margin-top: 10px; }
         th, td { border: 1px solid #e0e0e0; padding: 12px; text-align: center; }
         th { background-color: #f1f1f1; }
         .predict-row { background-color: #fff9e6; font-weight: bold; }
         .predict-num-text { color: #d9534f; font-size: 1.1em; }
-        #bestNumbers { font-size: 28px; color: #d9534f; font-weight: bold; text-align: center; letter-spacing: 3px; padding: 15px; }
+        #bestNumbers { font-size: 28px; color: #d9534f; font-weight: bold; text-align: center; padding: 15px; }
     </style>
 </head>
 <body>
@@ -21,11 +21,12 @@
     <div class="panel">
         <span class="panel-title">Panel 1: 上傳 CSV 檔案</span>
         <input type="file" id="csvFile" accept=".csv">
+        <p style="font-size: 0.8em; color: #666;">※ 若讀取失敗，請確認檔案為標準 CSV 格式</p>
     </div>
 
     <div class="panel">
         <span class="panel-title">Panel 2: 下期精準預期號碼</span>
-        <div id="bestNumbers">等待上傳資料...</div>
+        <div id="bestNumbers">等待檔案上傳...</div>
     </div>
 
     <div class="panel">
@@ -41,7 +42,7 @@
                     </tr>
                 </thead>
                 <tbody id="dataTableBody">
-                    <tr><td colspan="4">請上傳 CSV 檔案以利運算</td></tr>
+                    <tr><td colspan="4">目前無資料</td></tr>
                 </tbody>
             </table>
         </div>
@@ -51,12 +52,25 @@
         document.getElementById('csvFile').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
+
             const reader = new FileReader();
-            reader.onload = (event) => processCSVData(event.target.result);
-            reader.readAsText(file);
+            // 使用 Big5 編碼讀取以防止 Excel 匯出的中文 CSV 亂碼，若無中文可改回 UTF-8
+            reader.readAsText(file, "Big5"); 
+            
+            reader.onload = (event) => {
+                const content = event.target.result;
+                // 如果 Big5 讀取出來是亂碼，嘗試用 UTF-8 重讀
+                if (content.includes('')) {
+                    const utf8Reader = new FileReader();
+                    utf8Reader.readAsText(file, "UTF-8");
+                    utf8Reader.onload = (ev) => processCSVData(ev.target.result);
+                } else {
+                    processCSVData(content);
+                }
+            };
         });
 
-        // 隨機產生 8 碼 (示範用)
+        // 產生 8 碼隨機預測
         function generatePrediction8() {
             let nums = [];
             while(nums.length < 8) {
@@ -67,39 +81,44 @@
             return nums.sort().join(' ');
         }
 
+        // 解析資料核心
         function processCSVData(csvText) {
-            // 1. 基礎解析與過濾標題列
-            let rows = csvText.trim().split('\n')
-                .map(row => row.split(',').map(cell => cell.trim()))
-                .filter(columns => {
-                    const isDate = !isNaN(Date.parse(columns[0]));
-                    return isDate && !columns[0].includes("日期");
-                });
+            // 處理換行符號並分割列
+            let lines = csvText.split(/\r?\n/);
+            let rows = [];
 
-            if (rows.length === 0) return;
+            lines.forEach(line => {
+                let cols = line.split(',').map(c => c.trim().replace(/"/g, ''));
+                // 驗證第一欄是否為有效日期 (排除標題列)
+                if (cols[0] && !isNaN(Date.parse(cols[0])) && !cols[0].includes("日期")) {
+                    rows.push(cols);
+                }
+            });
 
-            // 2. 找出歷史最大日期 (例如 1/19)
+            if (rows.length === 0) {
+                alert("讀取失敗：找不到有效的日期資料。請檢查 CSV 內容格式。");
+                return;
+            }
+
+            // 1. 找出檔案內最新的日期
             const allDates = rows.map(r => new Date(r[0]));
             const maxDate = new Date(Math.max.apply(null, allDates));
             
-            // 3. 計算預測日 (例如 1/19 + 1 = 1/20)
+            // 2. 計算預測日 (+1天)
             let nextDate = new Date(maxDate);
             nextDate.setDate(nextDate.getDate() + 1);
-            const nextDateStr = nextDate.toISOString().split('T')[0];
+            const nextDateStr = `${nextDate.getFullYear()}/${nextDate.getMonth()+1}/${nextDate.getDate()}`;
 
-            // 4. 生成 8 碼並更新 Panel 2
+            // 3. 準備 Panel 2 預測號碼
             const predictionStr = generatePrediction8();
             document.getElementById('bestNumbers').innerText = predictionStr;
 
-            // 5. 排序歷史資料 (降序：1/19, 1/18...)
-            const sortedHistory = rows.sort((a, b) => new Date(b[0]) - new Date(a[0]));
+            // 4. 歷史資料降序排序
+            rows.sort((a, b) => new Date(b[0]) - new Date(a[0]));
 
-            // 6. 渲染表格
+            // 5. 渲染表格
             const tbody = document.getElementById('dataTableBody');
-            let html = "";
-
-            // --- 第一列：專屬預測列 (由程式計算出的 +1 天) ---
-            html += `
+            let html = `
                 <tr class="predict-row">
                     <td>${nextDateStr}</td>
                     <td>待開獎</td>
@@ -108,8 +127,7 @@
                 </tr>
             `;
 
-            // --- 後續列：純歷史資料 ---
-            sortedHistory.forEach(columns => {
+            rows.forEach(columns => {
                 html += `
                     <tr>
                         <td>${columns[0]}</td>
@@ -119,10 +137,8 @@
                     </tr>
                 `;
             });
-
             tbody.innerHTML = html;
         }
     </script>
-
 </body>
 </html>
