@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 539 數據中心 v262</title>
+    <title>AI 539 數據中心 v263</title>
     <style>
         :root {
             --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b;
@@ -13,40 +13,34 @@
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px 15px 50px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; font-size: 14px; }
-        
-        /* Panel 2 佈局 (4x2) */
         .ball-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 250px; margin: 0 auto; }
         .ball { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 1px solid var(--border); font-size: 16px; }
         .ball.phase-node { border: 2px solid var(--phase); color: var(--phase); }
         .ball.balance-node { border: 2px solid var(--odd); color: var(--odd); }
-        
-        /* 表格樣式 */
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th, td { border: 1px solid var(--border); padding: 10px 4px; text-align: center; }
         th { background: #2c2c2e; }
-        
         .predict-row { background: rgba(255, 214, 10, 0.1); }
         .is-hit { background: var(--hit) !important; color: #fff; font-weight: bold; }
         .hit-count { color: var(--success); font-weight: bold; font-size: 16px; }
         .small-pred { font-size: 10px; color: var(--sub); line-height: 1.4; word-break: break-all; }
         .small-pred b { color: var(--hit); border-bottom: 1px solid var(--hit); }
-        
         .matrix-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <div class="panel-header">數據注入 (v262 - 策略優化版)</div>
+        <div class="panel-header">數據注入 (v263 - 聚能相位版)</div>
         <input type="file" id="csvFile" accept=".csv" style="color:var(--sub); width:100%;">
     </div>
 
     <div id="mainContent" style="display:none;">
         <div class="panel">
-            <div class="panel-header">精選 8 碼 (v262 攻擊+防禦)</div>
+            <div class="panel-header">精選 8 碼 (v263 核心聚能)</div>
             <div id="finalCombo" class="ball-grid"></div>
             <div style="margin-top:10px; text-align:center; font-size:11px; color:var(--sub);">
-                藍圈: 相位攻擊碼 | 橘圈: 冷門防禦碼
+                藍圈: 聚能相位碼 (6) | 橘圈: 強制防禦碼 (2)
             </div>
         </div>
 
@@ -55,7 +49,7 @@
             <div id="btContainer">
                 <table>
                     <thead>
-                        <tr><th>日期</th><th>開獎號碼</th><th>8碼預測比對</th><th>星</th></tr>
+                        <tr><th>日期</th><th>開獎號碼</th><th>8碼預測</th><th>星</th></tr>
                     </thead>
                     <tbody id="p3Body"></tbody>
                 </table>
@@ -63,9 +57,9 @@
         </div>
 
         <div class="panel">
-            <div class="panel-header">軌跡矩陣 (相位觀測)</div>
+            <div class="panel-header">軌跡矩陣</div>
             <div class="matrix-wrapper">
-                <table id="matrixTable">
+                <table>
                     <thead id="matrixHead"><tr><th>日期</th></tr></thead>
                     <tbody id="matrixBody"></tbody>
                 </table>
@@ -76,7 +70,6 @@
     <script>
         const state = { data: [] };
 
-        // 1. 初始化矩陣表頭
         const mHead = document.getElementById('matrixHead').rows[0];
         for(let i=1; i<=39; i++) {
             let th = document.createElement('th');
@@ -85,7 +78,6 @@
             mHead.appendChild(th);
         }
 
-        // 2. CSV 讀取
         document.getElementById('csvFile').addEventListener('change', e => {
             const reader = new FileReader();
             reader.onload = () => {
@@ -98,73 +90,43 @@
             reader.readAsText(e.target.files[0]);
         });
 
-        /**
- * v263 策略：聚能相位(6) + 強制防禦(2)
- * 目標：提升命中 > 2 與命中 > 3 的期數
- */
-function getV263Pick8(hist) {
-    if(hist.length < 10) return {res:[], phaseNodes:[], balanceNodes:[]};
-    const last = hist[hist.length-1].nums;
-    
-    let pool = [];
-    for (let i=1; i<=39; i++) {
-        let gap = 0;
-        for(let k=hist.length-1; k>=0; k--) { 
-            if(!hist[k].nums.includes(i)) gap++; else break; 
+        // v263 核心算法：聚能相位(6) + 強制防禦(2)
+        function getV263Pick8(hist) {
+            if(hist.length < 10) return {res:[], phaseNodes:[], balanceNodes:[]};
+            const last = hist[hist.length-1].nums;
+            let pool = [];
+            for (let i=1; i<=39; i++) {
+                let gap = 0;
+                for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
+                
+                let drift = (last.some(ln => Math.abs(ln-i) === 1)) ? 60000 : 0;
+                let repeatSc = last.includes(i) ? 25000 : 0;
+                let gapSc = (gap >= 3 && gap <= 8) ? 40000 : 0;
+                
+                let sc = drift + repeatSc + gapSc;
+                pool.push({n: i, sc, gap});
+            }
+            let sorted = pool.sort((a,b) => b.sc - a.sc);
+            let res = [], phaseNodes = [], balanceNodes = [];
+            sorted.slice(0, 6).forEach(p => { res.push(p.n); phaseNodes.push(p.n); });
+            let coldCandidates = pool.filter(p => !res.includes(p.n)).sort((a,b) => b.gap - a.gap);
+            for(let i=0; i<2; i++) { if(coldCandidates[i]) { res.push(coldCandidates[i].n); balanceNodes.push(coldCandidates[i].n); } }
+            return { res: res.sort((a,b)=>a-b), phaseNodes, balanceNodes };
         }
-        
-        // 1. 聚焦相位 (+/- 1)
-        let drift = 0;
-        if (last.some(ln => Math.abs(ln-i) === 1)) drift = 60000; // 提高核心權重
-        
-        // 2. 重號加成 (重複開出邏輯)
-        let repeatSc = last.includes(i) ? 25000 : 0;
-        
-        // 3. 遺漏區間優化
-        let gapSc = (gap >= 3 && gap <= 8) ? 40000 : 0; // 縮小噴發區間至更精確範圍
-        
-        let sc = drift + repeatSc + gapSc;
-        pool.push({n: i, sc, gap});
-    }
 
-    let sorted = pool.sort((a,b) => b.sc - a.sc);
-    let res = [], phaseNodes = [], balanceNodes = [];
-
-    // A. 擴大核心至 6 碼 (提高捕捉高星機率)
-    sorted.slice(0, 6).forEach(p => { 
-        res.push(p.n); 
-        phaseNodes.push(p.n); 
-    });
-
-    // B. 僅保留 2 碼極端冷門 (減少雜訊)
-    let coldCandidates = pool
-        .filter(p => !res.includes(p.n))
-        .sort((a,b) => b.gap - a.gap);
-    
-    for(let i=0; i<2; i++) {
-        if(coldCandidates[i]) {
-            res.push(coldCandidates[i].n);
-            balanceNodes.push(coldCandidates[i].n);
-        }
-    }
-    return { res: res.sort((a,b)=>a-b), phaseNodes, balanceNodes };
-}
         function render() {
             const full = state.data;
-            const latest = getV262Pick8(full); // 全面使用 v262
+            const latest = getV263Pick8(full); // 已修正為 v263
             const recent = [...full].reverse();
             
-            // P2: 顯示最新預測
             document.getElementById('finalCombo').innerHTML = latest.res.map(n => 
                 `<div class="ball ${latest.phaseNodes.includes(n)?'phase-node':'balance-node'}">${n}</div>`
             ).join('');
 
-            // 日期演算
             const lastD = new Date(recent[0].date);
             lastD.setDate(lastD.getDate() + 1);
             const nextDateStr = `${lastD.getMonth()+1}/${lastD.getDate()}`;
 
-            // P3: 1+5 期
             let p3h = `<tr class="predict-row">
                 <td>${nextDateStr}</td>
                 <td style="color:var(--primary)">待開獎</td>
@@ -174,7 +136,7 @@ function getV263Pick8(hist) {
             
             recent.slice(0, 5).forEach((row, idx) => {
                 const histUntil = full.slice(0, full.length - 1 - idx);
-                const pred = getV262Pick8(histUntil); // 回測同步 v262
+                const pred = getV263Pick8(histUntil); // 已修正為 v263
                 const hits = pred.res.filter(n => row.nums.includes(n));
                 p3h += `<tr>
                     <td>${row.date.slice(5).replace('-','/')}</td>
@@ -185,7 +147,6 @@ function getV263Pick8(hist) {
             });
             document.getElementById('p3Body').innerHTML = p3h;
 
-            // P4: 矩陣
             let p4h = "";
             recent.slice(0, 15).forEach(row => {
                 p4h += `<tr><td>${row.date.slice(5)}</td>`;
@@ -201,4 +162,3 @@ function getV263Pick8(hist) {
     </script>
 </body>
 </html>
-
