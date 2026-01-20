@@ -21,7 +21,7 @@
 
     <div class="panel">
         <strong>Panel 2</strong>
-        <div id="tableContainer" style="margin-top: 15px;">請上傳檔案以顯示資料...</div>
+        <div id="tableContainer" style="margin-top: 15px;">請上傳檔案...</div>
     </div>
 
     <script>
@@ -37,29 +37,38 @@
         });
 
         function processData(csvText) {
-            let rows = csvText.trim().split('\n').map(row => row.split(','));
+            // 讀取並過濾掉包含「日期」或「獎號」字樣的標題列，且確保該列首欄是有效日期
+            let rows = csvText.trim().split('\n')
+                .map(row => row.split(',').map(cell => cell.trim()))
+                .filter(columns => {
+                    const isDate = !isNaN(Date.parse(columns[0]));
+                    const isNotHeader = !columns[0].includes("日期");
+                    return isDate && isNotHeader;
+                });
+
             if (rows.length === 0) return;
 
-            // 1. 計算預測日 (最後一筆日期 + 1)
+            // 1. 取得最後一筆日期並 +1 天 (預測日)
+            // 由於 CSV 通常是升序存放，最後一筆為 rows[rows.length - 1]
             const lastDataRow = rows[rows.length - 1];
             const lastDate = new Date(lastDataRow[0]);
             lastDate.setDate(lastDate.getDate() + 1);
             const predictDateStr = lastDate.toISOString().split('T')[0];
 
-            // 2. 資料降序反轉
+            // 2. 資料降序反轉 (新到舊)
             const reversedRows = [...rows].reverse();
 
-            // 3. 建立無標題表格
+            // 3. 建立表格 (無標題)
             let html = '<table><tbody>';
 
-            // 首列：預測資訊
+            // 首列：預測日
             html += `<tr class="predict-row">
                 <td>${predictDateStr}</td>
                 <td>待開獎</td>
                 <td class="predict-num">預測號碼</td>
             </tr>`;
 
-            // 原始資料列
+            // 原始資料列 (已過濾掉標題)
             reversedRows.forEach(columns => {
                 const date = columns[0];
                 const numbers = columns.slice(1).join(' ');
