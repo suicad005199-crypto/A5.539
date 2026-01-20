@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 V.6 - 修正版</title>
+    <title>539 精準分析 V.7</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -24,7 +24,7 @@
         .matrix-table td { width: 20px; height: 24px; border: 1px solid #222; font-size: 10px; }
         .m-date { width: 45px; background: #2c2c2e; color: var(--sub); }
         .m-hit { background: var(--hit); color: #fff; }
-        #logBox { background: #000; color: #32d74b; padding: 8px; height: 60px; overflow-y: auto; font-family: monospace; font-size: 10px; border: 1px solid var(--border); }
+        #logBox { background: #000; color: #32d74b; padding: 8px; height: 60px; overflow-y: auto; font-family: monospace; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -35,7 +35,7 @@
     </div>
 
     <div class="panel">
-        <div class="panel-header">P2: 10期回測 (V.6 尾數拖牌)</div>
+        <div class="panel-header">P2: 10期回測 (V.7 熱區重壓)</div>
         <table class="bt-table"><tbody id="btBody"></tbody></table>
     </div>
 
@@ -51,123 +51,73 @@
 
     <div class="panel">
         <div class="panel-header">P5: 策略日誌</div>
-        <div id="logBox">等待 CSV 檔案上傳...</div>
+        <div id="logBox">V.7 矩陣熱區飽和演算法啟動...</div>
     </div>
 </div>
 
 <script>
     let rawData = [];
-    const log = (m) => { 
-        const b = document.getElementById('logBox'); 
-        b.innerHTML += `> ${m}<br>`; 
-        b.scrollTop = b.scrollHeight; 
-    };
+    const log = (m) => { const b = document.getElementById('logBox'); b.innerHTML += `> ${m}<br>`; b.scrollTop = b.scrollHeight; };
+    function formatDate(dateStr) { const p = dateStr.split(/[-/]/); return p.length >= 3 ? `${parseInt(p[1])}/${parseInt(p[2])}` : dateStr; }
 
-    function formatDate(dateStr) {
-        const p = dateStr.split(/[-/]/);
-        return p.length >= 3 ? `${parseInt(p[1])}/${parseInt(p[2])}` : dateStr;
-    }
-
-    // 修正後的讀取邏輯
     document.getElementById('csvFile').addEventListener('change', e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
         const reader = new FileReader();
         reader.onload = () => {
-            try {
-                const content = reader.result.trim();
-                const rows = content.split('\n');
-                rawData = rows.map(r => r.split(',')).filter(r => r.length >= 6).map(r => ({
-                    date: r[0].trim(), 
-                    nums: r.slice(1, 6).map(n => parseInt(n.trim())).sort((a,b)=>a-b)
-                }));
-                
-                if (rawData.length > 0) {
-                    log(`成功讀取 ${rawData.length} 期數據`);
-                    render();
-                } else {
-                    log(`錯誤：CSV 格式不正確`);
-                }
-            } catch (err) {
-                log(`讀取失敗：${err.message}`);
-            }
+            const rows = reader.result.trim().split('\n');
+            rawData = rows.map(r => r.split(',')).filter(r => r.length >= 6).map(r => ({
+                date: r[0].trim(), nums: r.slice(1, 6).map(n => parseInt(n.trim())).sort((a,b)=>a-b)
+            }));
+            render();
         };
-        reader.readAsText(file);
+        reader.readAsText(e.target.files[0]);
     });
 
     function getPrediction(history) {
         if (history.length < 5) return [1,2,3,4,5,6,7,8]; 
         let scores = Array(40).fill(0);
         const last1 = history[history.length-1].nums;
+        const last3 = history.slice(-3);
         
-        // 提取近 3 期核心尾數
-        const coreTails = history.slice(-3).flatMap(d => d.nums.map(n => n % 10));
-        const tFreq = coreTails.reduce((a, b) => (a[b] = (a[b] || 0) + 1, a), {});
+        // 1. 強力尾數鎖定
+        const tails = last3.flatMap(d => d.nums.map(n => n % 10));
+        const tFreq = tails.reduce((a, b) => (a[b] = (a[b] || 0) + 1, a), {});
 
         for(let i=1; i<=39; i++) {
             let gap = 0;
-            for(let k=history.length-1; k>=0; k--) { 
-                if(!history[k].nums.includes(i)) gap++; else break; 
-            }
+            for(let k=history.length-1; k>=0; k--) { if(!history[k].nums.includes(i)) gap++; else break; }
             
-            // 1. 遺漏權重：熱號黃金期 (1-5期) 
-            if(gap >= 1 && gap <= 5) scores[i] += 180;
-            if(gap >= 10 && gap <= 13) scores[i] += 110; 
-            if(gap === 0) scores[i] += 80; 
+            // A. 極熱加權：只追遺漏 0-4 期的號碼
+            if(gap <= 4) scores[i] += 200;
+            // B. 連莊加成
+            if(gap === 0) scores[i] += 100;
+            // C. 鄰號加成 (最高權重)
+            if(last1.some(ln => Math.abs(ln-i) === 1)) scores[i] += 120;
+            // D. 尾數飽和加成
+            if(tFreq[i%10] >= 2) scores[i] += 90;
 
-            // 2. 尾數拖牌權重 (V.6 核心)
-            const myTail = i % 10;
-            if(tFreq[myTail] >= 2) scores[i] += 70; 
-
-            // 3. 鄰位共振
-            if(last1.some(ln => Math.abs(ln-i) === 1)) scores[i] += 60;
-
-            scores[i] += Math.random() * 15;
+            scores[i] += Math.random() * 20;
         }
 
-        return scores.map((s,i)=>({n:i, s}))
-                     .sort((a,b)=>b.s-a.s)
-                     .slice(0, 8)
-                     .map(v => v.n)
-                     .sort((a,b)=>a-b);
+        // V.7 暴力選取前 8 名，不考慮分區，追求號碼撞擊度
+        return scores.map((s,i)=>({n:i, s})).sort((a,b)=>b.s-a.s).slice(0,8).map(v=>v.n).sort((a,b)=>a-b);
     }
 
     function render() {
-        // P3 下期預測
-        const next = getPrediction(rawData);
-        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball active">${n}</div>`).join('');
-        
-        // P2 回測渲染
-        let btHtml = ""; 
-        let s2=0, s3=0;
-        const testSet = rawData.slice(-10).reverse();
-
-        testSet.forEach(row => {
+        document.getElementById('nextPred').innerHTML = getPrediction(rawData).map(n => `<div class="ball active">${n}</div>`).join('');
+        let btHtml = ""; let s2=0, s3=0;
+        rawData.slice(-10).reverse().forEach(row => {
             const idx = rawData.findIndex(d => d.date === row.date);
             const pred = getPrediction(rawData.slice(0, idx));
             const hits = row.nums.filter(n => pred.includes(n));
-            
-            if(hits.length >= 2) s2++; 
-            if(hits.length >= 3) s3++;
-
-            btHtml += `<tr>
-                <td class="date-col">${formatDate(row.date)}</td>
-                <td class="num-col">${row.nums.join(' ')}</td>
-                <td>${pred.map(n => row.nums.includes(n)?`<span class="is-hit">${n}</span>`:n).join(' ')}</td>
-                <td class="star-col">${hits.length}</td>
-            </tr>`;
+            if(hits.length>=2) s2++; if(hits.length>=3) s3++;
+            btHtml += `<tr><td class="date-col">${formatDate(row.date)}</td><td class="num-col">${row.nums.join(' ')}</td><td>${pred.map(n => row.nums.includes(n)?`<span class="is-hit">${n}</span>`:n).join(' ')}</td><td class="star-col">${hits.length}</td></tr>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        log(`V.6 運算完畢。2星率：${s2*10}% / 3星率：${s3*10}%`);
-
-        // P4 矩陣渲染
+        log(`V.7 回測完畢：2星率 ${s2*10}% / 3星率 ${s3*10}%`);
         let mHtml = `<table class="matrix-table">`;
         rawData.slice(-15).reverse().forEach(row => {
             mHtml += `<tr><td class="m-date">${formatDate(row.date)}</td>`;
-            for(let i=1; i<=39; i++) {
-                mHtml += `<td class="${row.nums.includes(i)?'m-hit':''}">${row.nums.includes(i)?i:''}</td>`;
-            }
+            for(let i=1; i<=39; i++) mHtml += `<td class="${row.nums.includes(i)?'m-hit':''}">${row.nums.includes(i)?i:''}</td>`;
             mHtml += `</tr>`;
         });
         document.getElementById('matrixContainer').innerHTML = mHtml + `</table>`;
