@@ -3,199 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 逐期回測系統 - 命中標色版</title>
+    <title>AI 539 數據中心 v261</title>
     <style>
         :root {
-            --ios-blue: #007AFF;
-            --ios-bg: #F2F2F7;
-            --ios-card: #FFFFFF;
-            --hit-red: #FF3B30;
-            --predict-gold: #FFF9E6;
+            --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b;
+            --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f;
+            --phase: #007aff; --odd: #ff9f0a;
         }
-
-        body {
-            font-family: -apple-system, system-ui, sans-serif;
-            background: var(--ios-bg);
-            margin: 0;
-            padding: 15px 15px 50px;
-        }
-
-        .panel {
-            background: var(--ios-card);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .panel-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #8E8E93;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .auto-scroll { max-height: 350px; overflow-y: auto; scroll-behavior: smooth; }
-
-        table { border-collapse: collapse; width: 100%; font-size: 12px; }
-        th, td { border-bottom: 0.5px solid #E5E5EA; padding: 10px 4px; text-align: center; }
-        th { position: sticky; top: 0; background: #F8F8F8; z-index: 10; }
-
-        /* 預測列與命中標色 */
-        .predict-row { background: var(--predict-gold); font-weight: bold; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px 15px 50px; }
         
-        /* 預測號碼球樣式 */
-        .num-ball {
-            display: inline-block;
-            width: 22px;
-            height: 22px;
-            line-height: 22px;
-            text-align: center;
-            margin: 0 1px;
-            border-radius: 50%;
-        }
+        /* 卡片設計 */
+        .panel { background: var(--panel); border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border); }
+        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; font-size: 14px; }
         
-        /* 命中時的樣式 */
-        .is-hit {
-            background-color: var(--hit-red);
-            color: white;
-            font-weight: bold;
-        }
+        /* 號碼球樣式 */
+        .ball-row { display: flex; flex-wrap: wrap; gap: 6px; }
+        .ball { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 1px solid var(--border); font-size: 14px; }
+        .ball.phase-node { border: 2px solid var(--phase); color: var(--phase); box-shadow: 0 0 8px rgba(0,122,255,0.3); }
+        .ball.balance-node { border: 2px solid var(--odd); color: var(--odd); }
+        .ball.active { background: var(--primary); color: #000; border: none; }
 
-        .hit-count-cell { color: var(--hit-red); font-weight: bold; font-size: 14px; }
-        .num-cell { min-width: 22px; color: #C7C7CC; font-size: 10px; }
-        .grid-hit { background: #FFCC00; color: #000; border-radius: 4px; font-weight: bold; }
-        #bestNumbers { font-size: 26px; color: var(--hit-red); font-weight: bold; text-align: center; }
+        /* 表格優化 */
+        .auto-scroll { max-height: 300px; overflow-y: auto; scroll-behavior: smooth; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid var(--border); padding: 10px 4px; text-align: center; }
+        th { background: #2c2c2e; position: sticky; top: 0; z-index: 5; }
+        
+        /* 矩陣分佈圖專用 */
+        .matrix-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .is-hit { background: var(--hit) !important; color: #fff; font-weight: bold; }
+        .hit-count { color: var(--success); font-weight: bold; font-size: 16px; }
+        .small-pred { font-size: 10px; color: var(--sub); }
+        .small-pred b { color: var(--hit); }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <span class="panel-title">PANEL 1: 數據導入</span>
-        <input type="file" id="csvFile" accept=".csv" style="width:100%">
+        <div class="panel-header">數據注入 (v261 - 相位修正策略)</div>
+        <input type="file" id="csvFile" accept=".csv" style="color:var(--sub); width:100%;">
     </div>
 
-    <div class="panel">
-        <span class="panel-title">PANEL 2: 下期精準預測</span>
-        <div id="bestNumbers">等待數據...</div>
-    </div>
-
-    <div class="panel">
-        <span class="panel-title">PANEL 3: 歷史逐期預測回測 <span style="color:var(--ios-blue)">● 命中自動標色</span></span>
-        <div class="auto-scroll" id="p3Scroll">
-            <table>
-                <thead>
-                    <tr>
-                        <th>日期</th>
-                        <th>開獎號碼</th>
-                        <th>當期預測 (命中標紅)</th>
-                        <th>命中</th>
-                    </tr>
-                </thead>
-                <tbody id="p3Body"></tbody>
-            </table>
+    <div id="mainContent" style="display:none;">
+        <div class="panel">
+            <div class="panel-header">精選 10 碼 (相位修正 + 奇偶平衡)</div>
+            <div id="finalCombo" class="ball-row"></div>
+            <div style="margin-top:10px; font-size:11px; color:var(--sub); line-height:1.5;">
+                <span style="color:var(--phase)">● 藍框：相位修正碼</span> | 
+                <span style="color:var(--odd)">● 橘框：奇偶平衡位</span><br>
+                策略：偵測鄰位殘差噴發，動態過濾奇偶偏差值。
+            </div>
         </div>
-    </div>
 
-    <div class="panel">
-        <span class="panel-title">PANEL 4: 分佈圖表 (1-39)</span>
-        <div style="overflow-x:auto">
-            <table>
-                <thead><tr id="distHeader"><th>日期</th></tr></thead>
-                <tbody id="p4Body"></tbody>
-            </table>
+        <div class="panel">
+            <div class="panel-header">歷史逐期回測 (自動滾動驗證)</div>
+            <div class="auto-scroll" id="p3Scroll">
+                <table>
+                    <thead>
+                        <tr><th>日期</th><th>開獎</th><th>預測比對</th><th>星</th></tr>
+                    </thead>
+                    <tbody id="p3Body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">軌跡矩陣 (相位偵測模式)</div>
+            <div class="matrix-wrapper">
+                <table id="matrixTable">
+                    <thead id="matrixHead"><tr><th>日期</th></tr></thead>
+                    <tbody id="matrixBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
-        // 初始化 Panel 4 標題
-        const distHeader = document.getElementById('distHeader');
-        for (let i = 1; i <= 39; i++) {
+        const state = { data: [] };
+
+        // 初始化矩陣表頭 1-39
+        const mHead = document.getElementById('matrixHead').rows[0];
+        for(let i=1; i<=39; i++) {
             let th = document.createElement('th');
-            th.innerText = i; th.className = 'num-cell';
-            distHeader.appendChild(th);
+            th.innerText = i.toString().padStart(2, '0');
+            th.style.minWidth = '25px';
+            mHead.appendChild(th);
         }
 
-        // 模擬策略
-        function strategyGenerator() {
-            let res = [];
-            while(res.length < 8) {
-                let r = Math.floor(Math.random() * 39) + 1;
-                let s = r.toString().padStart(2, '0');
-                if(!res.includes(s)) res.push(s);
-            }
-            return res.sort();
-        }
-
-        document.getElementById('csvFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
+        document.getElementById('csvFile').addEventListener('change', e => {
             const reader = new FileReader();
-            reader.onload = (ev) => processData(ev.target.result);
-            reader.readAsText(file);
+            reader.onload = () => {
+                const rows = reader.result.trim().split('\n').map(r => r.split(','));
+                state.data = rows.filter(r => r.length >= 2 && !isNaN(Date.parse(r[0]))).map(r => ({
+                    date: r[0], 
+                    nums: r.slice(1, 6).map(Number).sort((a,b)=>a-b)
+                }));
+                render();
+            };
+            reader.readAsText(e.target.files[0]);
         });
 
-        function processData(csv) {
-            let rows = csv.trim().split(/\r?\n/)
-                .map(l => l.split(',').map(c => c.trim().replace(/"/g, '')))
-                .filter(c => !isNaN(Date.parse(c[0])) && !c[0].includes("日期"));
-
-            if (rows.length === 0) return;
-
-            const dates = rows.map(r => new Date(r[0]));
-            const maxD = new Date(Math.max.apply(null, dates));
-            let nextD = new Date(maxD);
-            nextD.setDate(nextD.getDate() + 1);
+        /**
+         * v261 核心演算法：相位分析 + 奇偶修正
+         */
+        function getV261Pick(hist) {
+            if(hist.length < 5) return {res:[], phaseNodes:[], balanceNodes:[]};
+            const last = hist[hist.length-1].nums;
             
-            const latestPred = strategyGenerator();
-            document.getElementById('bestNumbers').innerText = latestPred.join(' ');
+            let pool = [];
+            for (let i=1; i<=39; i++) {
+                let gap = 0;
+                for(let k=hist.length-1; k>=0; k--) { 
+                    if(!hist[k].nums.includes(i)) gap++; else break; 
+                }
+                // 相位偏差值計算 (鄰位權重)
+                let drift = last.some(ln => Math.abs(ln-i) === 1) ? 45000 : 0;
+                let sc = drift + (gap >= 5 && gap <= 10 ? 30000 : 0) + (gap === 0 ? 15000 : 0);
+                pool.push({n: i, sc, odd: i%2!==0, gap});
+            }
 
-            rows.sort((a, b) => new Date(b[0]) - new Date(a[0]));
+            let sorted = pool.sort((a,b) => b.sc - a.sc);
+            let res = [], phaseNodes = [], balanceNodes = [];
 
-            let p3h = "";
-            let p4h = "";
+            // 抓取前 6 碼為核心相位
+            sorted.slice(0, 6).forEach(p => { res.push(p.n); phaseNodes.push(p.n); });
 
-            // 預測首列
-            p3h += `<tr class="predict-row">
-                <td>${nextD.toISOString().split('T')[0]}</td>
-                <td>待開獎</td>
-                <td>${latestPred.map(n => `<span class="num-ball">${n}</span>`).join('')}</td>
-                <td>-</td>
-            </tr>`;
+            // 奇偶平衡補償
+            let currentOdd = res.filter(n => n%2!==0).length;
+            let fillers = pool.filter(p => !res.includes(p.n)).sort((a,b) => b.sc - a.sc);
+            
+            for(let p of fillers) {
+                if(res.length >= 10) break;
+                if(currentOdd < 5 && p.odd) { res.push(p.n); balanceNodes.push(p.n); currentOdd++; }
+                else if(currentOdd >= 5 && !p.odd) { res.push(p.n); balanceNodes.push(p.n); }
+                else if(res.length < 8) { res.push(p.n); balanceNodes.push(p.n); if(p.odd) currentOdd++; }
+            }
+            while(res.length < 10) res.push(fillers.shift().n);
 
-            // 歷史逐期比對
-            rows.forEach(r => {
-                const date = r[0];
-                const drawNums = r.slice(1).map(n => n.padStart(2, '0'));
-                const historyPred = strategyGenerator();
-                
-                // 計算命中並渲染帶有標色的號碼球
-                let hitCount = 0;
-                let predHtml = historyPred.map(n => {
-                    const hit = drawNums.includes(n);
-                    if(hit) hitCount++;
-                    return `<span class="num-ball ${hit ? 'is-hit' : ''}">${n}</span>`;
-                }).join('');
+            return { res: res.sort((a,b)=>a-b), phaseNodes, balanceNodes };
+        }
 
-                p3h += `<tr>
-                    <td>${date}</td>
-                    <td>${drawNums.join(' ')}</td>
-                    <td>${predHtml}</td>
-                    <td class="hit-count-cell">${hitCount}</td>
+        function render() {
+            const fullData = [...state.data];
+            const finalPred = getV261Pick(fullData);
+            const recent = fullData.slice().reverse();
+            
+            // Panel 2: 渲染 10 碼球
+            document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => {
+                let cls = 'ball';
+                if(finalPred.phaseNodes.includes(n)) cls += ' phase-node';
+                else if(finalPred.balanceNodes.includes(n)) cls += ' balance-node';
+                else cls += ' active';
+                return `<div class="${cls}">${n}</div>`;
+            }).join('');
+
+            // Panel 3 & 4 渲染
+            let p3Html = "";
+            let p4Html = "";
+
+            // 預測列
+            const nextDate = new Date(Math.max(...fullData.map(d=>new Date(d.date))));
+            nextDate.setDate(nextDate.getDate() + 1);
+            p4Html += `<tr style="background:rgba(255,214,10,0.1)"><td>預測</td>`;
+            for(let i=1; i<=39; i++) p4Html += `<td>${finalPred.res.includes(i)?'●':''}</td>`;
+            p4Html += `</tr>`;
+
+            recent.forEach((row, idx) => {
+                // 模擬回測：找出該日期之前的數據進行預測
+                const histUntil = fullData.slice(0, fullData.length - 1 - idx);
+                const pred = getV261Pick(histUntil);
+                const hits = pred.res.filter(n => row.nums.includes(n));
+
+                // Panel 3
+                p3Html += `<tr>
+                    <td>${row.date.slice(5)}</td>
+                    <td>${row.nums.join(' ')}</td>
+                    <td class="small-pred">${pred.res.map(n => row.nums.includes(n) ? `<b>${n}</b>` : n).join(' ')}</td>
+                    <td class="hit-count">${hits.length}</td>
                 </tr>`;
 
-                let cells = "";
+                // Panel 4
+                p4Html += `<tr><td>${row.date.slice(5)}</td>`;
                 for(let i=1; i<=39; i++) {
-                    let cur = i.toString().padStart(2, '0');
-                    let isHit = drawNums.includes(cur);
-                    cells += `<td class="num-cell ${isHit ? 'grid-hit' : ''}">${isHit ? i : ''}</td>`;
+                    const hit = row.nums.includes(i);
+                    p4Html += `<td class="${hit?'is-hit':''}">${hit?i:''}</td>`;
                 }
-                p4h += `<tr><td>${date}</td>${cells}</tr>`;
+                p4Html += `</tr>`;
             });
 
-            document.getElementById('p3Body').innerHTML = p3h;
-            document.getElementById('p4Body').innerHTML = p4h;
+            document.getElementById('p3Body').innerHTML = p3Html;
+            document.getElementById('matrixBody').innerHTML = p4Html;
+            document.getElementById('mainContent').style.display = 'block';
             startAutoScroll();
         }
 
