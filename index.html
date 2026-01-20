@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 V.19</title>
+    <title>539 精準分析 V.20</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -30,10 +30,10 @@
 <body>
 <div class="container">
     <div class="panel"><div class="panel-header">P1: 數據注入</div><input type="file" id="csvFile" accept=".csv"></div>
-    <div class="panel"><div class="panel-header">P2: 10期回測 (V.19 交叉覆蓋)</div><table class="bt-table"><tbody id="btBody"></tbody></table></div>
+    <div class="panel"><div class="panel-header">P2: 10期回測 (V.20 奇偶強壓)</div><table class="bt-table"><tbody id="btBody"></tbody></table></div>
     <div class="panel"><div class="panel-header">P3: 下期精準預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
     <div class="panel"><div class="panel-header">P4: 規律矩陣</div><div class="scroll-wrapper" id="matrixContainer"></div></div>
-    <div class="panel"><div class="panel-header">P5: 策略日誌</div><div id="logBox">V.19 多維交叉系統啟動...</div></div>
+    <div class="panel"><div class="panel-header">P5: 策略日誌</div><div id="logBox">V.20 奇偶強壓系統啟動...</div></div>
 </div>
 
 <script>
@@ -59,9 +59,11 @@
         if (history.length < 10) return [1,2,3,4,5,6,7,8];
         let stats = Array(40).fill(0).map((_,i)=>({n:i, s:0, g:0}));
         const last1 = history[history.length - 1].nums;
-        const last3 = history.slice(-3);
-        const tails = last3.flatMap(d => d.nums.map(n => n % 10));
-        const tFreq = tails.reduce((a, b) => (a[b] = (a[b] || 0) + 1, a), {});
+        const last5 = history.slice(-5);
+        
+        // 奇偶統計
+        let oddCount = last5.flatMap(d => d.nums).filter(n => n % 2 !== 0).length;
+        let targetOdd = oddCount > 12 ? 3 : 5; // 動態調整奇數碼目標數量
 
         for (let i = 1; i <= 39; i++) {
             let gap = 0;
@@ -70,32 +72,26 @@
             }
             stats[i].g = gap;
 
-            // 分項評分
-            if (gap === 0) stats[i].s += 200; // 連莊
-            if (gap >= 1 && gap <= 4) stats[i].s += 250; // 熱
-            if (gap >= 5 && gap <= 10) stats[i].s += 180; // 溫回補
-            if (last1.some(ln => Math.abs(ln - i) === 1)) stats[i].s += 150; // 鄰位
+            if (gap <= 4) stats[i].s += 300;
+            if (gap >= 5 && gap <= 10) stats[i].s += 150;
+            if (last1.some(ln => Math.abs(ln - i) === 1)) stats[i].s += 200;
             
-            const myTail = i % 10;
-            if (tFreq[myTail]) stats[i].s += tFreq[myTail] * 40;
+            // 區間加成 (偵測當前強勢區間)
+            if (i <= 13) stats[i].s += 20;
+            else if (i <= 26) stats[i].s += 50;
+            else stats[i].s += 30;
+
             stats[i].s += (i * 0.01);
         }
 
-        // 強制結構挑選
+        let sorted = stats.slice(1).sort((a,b) => b.s - a.s);
         let final8 = [];
-        let pool = stats.slice(1);
-        
-        // 1. 選 2 碼連莊 (gap=0)
-        let repeaters = pool.filter(x => x.g === 0).sort((a,b)=>b.s-a.s);
-        final8.push(...repeaters.slice(0, 2).map(v => v.n));
+        let odds = sorted.filter(x => x.n % 2 !== 0);
+        let evens = sorted.filter(x => x.n % 2 === 0);
 
-        // 2. 選 3 碼鄰位 (排除已選)
-        let neighbors = pool.filter(x => !final8.includes(x.n) && last1.some(ln => Math.abs(ln-x.n)===1)).sort((a,b)=>b.s-a.s);
-        final8.push(...neighbors.slice(0, 3).map(v => v.n));
-
-        // 3. 補齊剩餘高分碼
-        let others = pool.filter(x => !final8.includes(x.n)).sort((a,b)=>b.s-a.s);
-        while(final8.length < 8) final8.push(others.shift().n);
+        // 強制奇偶配比
+        final8.push(...odds.slice(0, targetOdd).map(v => v.n));
+        final8.push(...evens.slice(0, 8 - targetOdd).map(v => v.n));
 
         return final8.sort((a, b) => a - b);
     }
@@ -111,7 +107,7 @@
             btHtml += `<tr><td class="date-col">${formatDate(row.date)}</td><td class="num-col">${row.nums.join(' ')}</td><td>${pred.map(n => row.nums.includes(n) ? `<span class="is-hit">${n}</span>` : n).join(' ')}</td><td class="star-col">${hits.length}</td></tr>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        log(`V.19：2星 ${s2*10}% | 3星 ${s3*10}% | 掛0期數 ${s0}`);
+        log(`V.20：2星 ${s2*10}% | 3星 ${s3*10}% | 掛0期數 ${s0}`);
         let mHtml = `<table class="matrix-table">`;
         rawData.slice(-15).reverse().forEach(row => {
             mHtml += `<tr><td class="m-date">${formatDate(row.date)}</td>`;
