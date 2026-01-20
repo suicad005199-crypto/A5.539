@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 V.36</title>
+    <title>539 精準分析 V.37</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', 'Courier New', monospace; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -13,47 +13,28 @@
         .bt-row { border-bottom: 1px solid var(--border); padding: 10px 0; display: flex; flex-direction: column; gap: 8px; }
         .bt-meta { display: flex; justify-content: space-between; align-items: center; color: var(--sub); font-size: 11px; }
         .num-group { display: flex; gap: 4px; align-items: center; }
-        .num-label { font-size: 10px; color: var(--sub); width: 35px; }
-        .n-box { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #2c2c2e; font-size: 12px; font-weight: bold; font-family: monospace; }
+        .n-box { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #2c2c2e; font-size: 12px; font-weight: bold; }
         .n-box.hit { background: var(--primary); color: #000; }
         .star-tag { background: var(--success); color: #000; padding: 3px 10px; border-radius: 4px; font-weight: 900; }
         .matrix-container { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         .m-table { border-collapse: collapse; }
-        .m-table td, .m-table th { border: 1px solid #333; width: 17px; height: 17px; text-align: center; font-size: 9px; }
-        .m-head { background: #2c2c2e; color: var(--primary); position: sticky; top: 0; }
-        .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; width: 55px; }
+        .m-table td { border: 1px solid #333; width: 17px; height: 17px; text-align: center; font-size: 9px; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 10px; height: 10px; display: inline-block; }
-        #logBox { background: #000; color: var(--success); padding: 10px; height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; }
+        #logBox { background: #000; color: var(--success); padding: 10px; height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); }
         .ball-row { display: flex; flex-wrap: wrap; gap: 6px; }
-        .ball { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 2px solid var(--accent); color: var(--accent); font-size: 16px; font-family: monospace; }
+        .ball { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 2px solid var(--accent); color: var(--accent); font-size: 16px; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (確定的權重演算)</div>
+        <div class="panel-header">P1: 數據注入 (極端區間鎖定)</div>
         <input type="file" id="csvFile" accept=".csv">
     </div>
-
-    <div class="panel">
-        <div class="panel-header">P2: 綜合評分回測 (近 10 期)</div>
-        <div id="btBody"></div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">P3: 最終權重預測 (8 碼)</div>
-        <div id="nextPred" class="ball-row"></div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">P4: 全歷史規律矩陣</div>
-        <div class="matrix-container" id="matrixCont"></div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">P5: 權重日誌與穩定度報告</div>
-        <div id="logBox">等待 CSV 匯入...</div>
-    </div>
+    <div class="panel"><div class="panel-header">P2: 綜合評分回測</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 最終權重預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
+    <div class="panel"><div class="panel-header">P4: 分布矩陣</div><div class="matrix-container" id="matrixCont"></div></div>
+    <div class="panel"><div class="panel-header">P5: 策略報告</div><div id="logBox">請匯入 CSV...</div></div>
 </div>
 
 <script>
@@ -62,93 +43,75 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    // V.36 確定性演算引擎：不再選取單一策略，而是合併權重
-    function getWeightedPrediction(hist) {
-        if(hist.length < 10) return [1,2,3,4,5,6,7,8];
+    function getV37Prediction(hist) {
+        if(hist.length < 20) return [1,2,3,4,5,6,7,8];
+        let stats = Array(40).fill(0).map((_, i) => ({ n: i, freq: 0, gap: 0, score: 0 }));
         
-        let scores = Array(40).fill(0).map((_, i) => ({ n: i, total: 0 }));
-        const lastRow = hist[hist.length-1].nums;
+        // 1. 全域頻率
+        hist.forEach(d => d.nums.forEach(n => stats[n].freq++));
         
-        // 1. 熱度權重 (基於全量數據)
-        hist.forEach(d => d.nums.forEach(n => scores[n].total += 1.0));
-        
-        // 2. 相位權重 (基於鄰位)
-        lastRow.forEach(n => {
-            if(n > 1) scores[n-1].total += 5.0;
-            if(n < 39) scores[n+1].total += 5.0;
-            scores[n].total += 3.0; // 連莊權重
-        });
-
-        // 3. 遺漏值權重 (確定性補償)
+        // 2. 計算遺漏值 (Gap)
         for(let i=1; i<=39; i++) {
-            let gap = 0;
+            let g = 0;
             for(let k=hist.length-1; k>=0; k--) {
-                if(!hist[k].nums.includes(i)) gap++; else break;
+                if(!hist[k].nums.includes(i)) g++; else break;
             }
-            if(gap > 10) scores[i].total += (gap * 0.5); // 遺漏越久，權重越高（非隨機）
+            stats[i].gap = g;
         }
 
-        // 4. 尾數權重
-        let tailMap = Array(10).fill(0);
-        hist.slice(-10).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
-        for(let i=1; i<=39; i++) scores[i].total += (tailMap[i%10] * 0.8);
+        // 3. 極端策略權重：只抓「極熱」與「極冷」
+        stats.forEach(s => {
+            if(s.n === 0) return;
+            // 極熱：近 10 期出現 3 次以上
+            let recentFreq = hist.slice(-10).filter(d => d.nums.includes(s.n)).length;
+            if(recentFreq >= 3) s.score += 50; 
+            // 極冷補償：遺漏超過 15 期
+            if(s.gap >= 15) s.score += 40;
+            // 鄰位偵測 (相位)
+            hist[hist.length-1].nums.forEach(ln => {
+                if(Math.abs(ln - s.n) === 1) s.score += 15;
+            });
+        });
 
-        // 排序取出最高 8 碼
-        return scores.slice(1)
-            .sort((a,b) => b.total - a.total || a.n - b.n) // 如果分數相同，按號碼大小排（確保結果固定）
-            .slice(0, 8)
-            .map(x => x.n)
-            .sort((a,b) => a-b);
+        // 取出分數最高 8 碼 (去隨機)
+        return stats.slice(1).sort((a,b) => b.score - a.score || b.freq - a.freq || a.n - b.n).slice(0, 8).map(x => x.n).sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
         const file = e.target.files[0];
         const reader = new FileReader();
         reader.onload = () => {
-            const content = reader.result.replace(/\r/g, "");
-            rawData = content.trim().split('\n').map(l => {
+            rawData = reader.result.replace(/\r/g, "").trim().split('\n').map(l => {
                 const c = l.split(',');
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
-            runV36();
+            render();
         };
         reader.readAsText(file);
     });
 
-    function runV36() {
-        log(`啟動 V.36 確定性演算...`);
-        let totalStars = 0;
+    function render() {
+        log(`啟動 V.37 極端演算...`);
         let btHtml = "";
-        
-        // P2 回測
         rawData.slice(-10).reverse().forEach(row => {
-            const idx = rawData.indexOf(row);
-            const p = getWeightedPrediction(rawData.slice(0, idx));
+            const p = getV37Prediction(rawData.slice(0, rawData.indexOf(row)));
             const hits = row.nums.filter(n => p.includes(n));
-            totalStars += hits.length;
             btHtml += `<div class="bt-row">
                 <div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div>
-                <div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${p.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div>
-                <div class="num-group"><span class="num-label">預測</span>${p.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}</div>
+                <div class="num-group">${row.nums.map(n => `<div class="n-box ${p.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div>
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-
-        // P3 預測
-        const next = getWeightedPrediction(rawData);
+        const next = getV37Prediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
-
-        // P4 矩陣
-        let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日期</th>`;
-        for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
-        mHtml += `</tr></thead><tbody>`;
+        let mHtml = `<table class="m-table">`;
         rawData.slice(-15).reverse().forEach(row => {
-            mHtml += `<tr><td class="m-date">${formatDate(row.date)}</td>`;
+            mHtml += `<tr><td style="color:#888;font-size:8px">${formatDate(row.date)}</td>`;
             for(let i=1; i<=39; i++) mHtml += `<td>${row.nums.includes(i) ? '<span class="m-ball"></span>' : ''}</td>`;
             mHtml += `</tr>`;
         });
-        document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`預測結果已鎖定。總命中星數: ${totalStars}`);
+        document.getElementById('matrixCont').innerHTML = mHtml + `</table>`;
+        log(`已切換為「極熱+極冷」雙端策略。`);
     }
 </script>
 </body>
