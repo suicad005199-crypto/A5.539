@@ -2,73 +2,66 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 539 數據預測中心 v261</title>
+    <title>539 精準分析 v.1</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --success: #32d74b; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --phase: #007aff; --odd: #ff9f0a; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; font-size: 14px; }
+        :root { --bg: #0a0a0a; --panel: #161618; --primary: #ffd60a; --success: #32d74b; --border: #2c2c2e; --text: #f2f2f7; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; font-size: 14px; line-height: 1.4; }
         .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; }
-        .panel { background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--border); }
-        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 8px; display: flex; justify-content: space-between; }
+        .panel { background: var(--panel); border-radius: 10px; padding: 15px; border: 1px solid var(--border); }
+        .panel-header { color: var(--primary); font-weight: 700; margin-bottom: 12px; border-left: 4px solid var(--primary); padding-left: 10px; font-size: 15px; }
         
-        /* Panel 3: 下期預測球體 */
-        .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-        .ball { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 1px solid var(--border); }
-        .ball.phase-node { border: 2px solid var(--phase); color: var(--phase); box-shadow: 0 0 10px rgba(0,122,255,0.3); }
-        .ball.balance-node { border: 2px solid var(--odd); color: var(--odd); }
-        
-        /* Panel 4: 矩陣圖表 */
-        .matrix-wrapper { width: 100%; overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
-        .matrix-table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; min-width: 1000px; }
-        .matrix-table th, .matrix-table td { border: 1px solid var(--border); height: 30px; font-size: 11px; }
-        .is-hit { background: var(--hit) !important; color: #fff; }
-        .pred-indicator { color: var(--primary); font-size: 14px; }
+        /* Panel 3: 下期預測 */
+        .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .ball { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 2px solid var(--border); transition: 0.3s; }
+        .ball.pred { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 10px rgba(10,132,255,0.3); }
 
-        /* Panel 2: 回測列 */
-        .bt-row { border-bottom: 1px solid var(--border); padding: 8px 0; display: grid; grid-template-columns: 80px 1.5fr 2fr 40px; align-items: center; gap: 10px; }
-        .hit-count { color: var(--success); font-weight: bold; text-align: right; }
-        
+        /* Panel 2 & 4: 數據呈現 */
+        .scroll-box { width: 100%; overflow-x: auto; margin-top: 10px; border-radius: 6px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; text-align: center; min-width: 1000px; background: #1c1c1e; }
+        th, td { border: 1px solid var(--border); padding: 8px; font-size: 12px; }
+        th { background: #2c2c2e; color: var(--sub); }
+        .is-hit { background: var(--hit) !important; color: #fff; font-weight: bold; }
+        .star-text { color: var(--success); font-weight: bold; font-size: 16px; }
+
         /* Panel 5: Log */
-        #logConsole { background: #000; color: #27ae60; padding: 10px; height: 80px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; }
-        input[type="file"] { color: var(--sub); font-size: 12px; }
+        #logConsole { background: #000; color: #32d74b; padding: 10px; height: 90px; overflow-y: auto; font-family: "SF Mono", monospace; font-size: 11px; border-radius: 4px; }
+        input[type="file"] { color: var(--sub); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="panel">
-        <div class="panel-header">Panel 1: 數據注入 (CSV 上傳)</div>
-        <input type="file" id="csvFile" accept=".csv">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        <div class="panel">
+            <div class="panel-header">Panel 1: 數據注入 (CSV)</div>
+            <input type="file" id="csvFile" accept=".csv">
+            <p style="font-size: 11px; color: var(--sub); margin: 8px 0 0 0;">支援格式：日期, 號碼1, 2, 3, 4, 5</p>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Panel 5: 精準分析引擎 Log</div>
+            <div id="logConsole">System Ready... Waiting for Data</div>
+        </div>
     </div>
 
-    <div id="mainDisplay" style="display:none;">
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:15px;">
-            <div class="panel">
-                <div class="panel-header">Panel 3: 下期預測 (8碼 相位定位)</div>
-                <div id="finalCombo" class="ball-row"></div>
-                <p style="font-size:11px; color:var(--sub);">藍框：相位修正碼 | 橘框：平衡位</p>
-            </div>
+    <div class="panel">
+        <div class="panel-header">Panel 3: 下期核心預測 (8碼 精選組合)</div>
+        <div id="nextPred" class="ball-row"></div>
+        <p style="font-size: 12px; color: var(--sub); margin-top: 10px;">策略狀態：已啟用相位偏差修正 & 遺漏平衡演算法</p>
+    </div>
 
-            <div class="panel">
-                <div class="panel-header">Panel 2: 近 10 期滾動回測</div>
-                <div id="btContainer"></div>
-            </div>
-        </div>
-        
-        <div class="panel">
-            <div class="panel-header">Panel 4: 號碼連號分佈軌跡矩陣 (1-39)</div>
-            <div class="matrix-wrapper"><div id="matrixContainer"></div></div>
-        </div>
+    <div class="panel">
+        <div class="panel-header">Panel 2: 滾動回測 (近10期命中率檢核)</div>
+        <div class="scroll-box" id="btContainer"></div>
+    </div>
 
-        <div class="panel">
-            <div class="panel-header">Panel 5: 系統日誌 (Engine Log)</div>
-            <div id="logConsole">等待數據載入...</div>
-        </div>
+    <div class="panel">
+        <div class="panel-header">Panel 4: 軌跡矩陣 (連號分布圖)</div>
+        <div class="scroll-box" id="matrixContainer"></div>
     </div>
 </div>
 
 <script>
-    const state = { data: [] };
+    let rawData = [];
     const logBox = document.getElementById('logConsole');
 
     function addLog(msg) {
@@ -79,99 +72,86 @@
     document.getElementById('csvFile').addEventListener('change', e => {
         const reader = new FileReader();
         reader.onload = () => {
-            const rows = reader.result.trim().split('\n').map(r => r.split(','));
-            state.data = rows.filter(r => r.length >= 2 && !isNaN(r[1].trim())).map(r => ({
-                date: r[0].trim(), 
+            const lines = reader.result.trim().split('\n');
+            rawData = lines.map(l => l.split(',')).filter(r => r.length >= 6).map(r => ({
+                date: r[0].trim(),
                 nums: r.slice(1, 6).map(n => parseInt(n.trim())).sort((a,b)=>a-b)
             }));
-            addLog(`成功導入 ${state.data.length} 期數據`);
-            render();
+            addLog(`數據載入成功：共 ${rawData.length} 期`);
+            analyze();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    // 核心預測演算法 (v261 相位修正)
-    function getV261Pick(hist, count = 8) {
-        if(hist.length < 5) return {res:[], phaseNodes:[], balanceNodes:[]};
-        const last = hist[hist.length-1].nums;
-        let pool = [];
+    // 精準分析 v.1 核心演算法
+    function runCoreEngine(dataset) {
+        if (dataset.length < 10) return [];
+        let scores = Array(40).fill(0);
+        const lastBatch = dataset.slice(-20);
+        const lastNums = dataset[dataset.length-1].nums;
 
-        for (let i=1; i<=39; i++) {
+        for (let i = 1; i <= 39; i++) {
+            // 1. 頻率分析 (計算近 20 期出現頻率)
+            const freq = lastBatch.filter(d => d.nums.includes(i)).length;
+            scores[i] += freq * 45;
+
+            // 2. 遺漏值加權 (針對 539 溫號回補特性)
             let gap = 0;
-            for(let k=hist.length-1; k>=0; k--) { 
-                if(!hist[k].nums.includes(i)) gap++; else break; 
+            for (let k = dataset.length - 1; k >= 0; k--) {
+                if (!dataset[k].nums.includes(i)) gap++; else break;
             }
-            // 相位權重：鄰位偏差 + 遺漏值補償
-            let drift = last.some(ln => Math.abs(ln-i) === 1) ? 5000 : 0;
-            let sc = drift + (gap >= 4 && gap <= 9 ? 8000 : 0) + (gap === 0 ? 3000 : 0);
-            pool.push({n: i, sc: sc + Math.random()*100, odd: i%2!==0});
+            if (gap >= 4 && gap <= 8) scores[i] += 60; // 核心噴發區段
+            if (gap > 12) scores[i] -= 30; // 排除長期冷號
+
+            // 3. 鄰位延伸 (539 特有的連號/鄰號特性)
+            if (lastNums.some(ln => Math.abs(ln - i) === 1)) scores[i] += 40;
+
+            scores[i] += Math.random() * 15; // 隨機微擾避免死板
         }
 
-        let sorted = pool.sort((a,b) => b.sc - a.sc);
-        let res = [], phaseNodes = [], balanceNodes = [];
-
-        // 挑選核心碼
-        sorted.slice(0, 5).forEach(p => { res.push(p.n); phaseNodes.push(p.n); });
-        
-        // 奇偶平衡修正
-        let fillers = pool.filter(p => !res.includes(p.n)).sort((a,b) => b.sc - a.sc);
-        for(let p of fillers) {
-            if(res.length >= count) break;
-            res.push(p.n);
-            balanceNodes.push(p.n);
-        }
-
-        return { res: res.sort((a,b)=>a-b), phaseNodes, balanceNodes };
+        // 提取前 8 碼
+        return scores.map((s, i) => ({n: i, s}))
+                     .sort((a, b) => b.s - a.s)
+                     .slice(0, 8)
+                     .map(v => v.n)
+                     .sort((a, b) => a - b);
     }
 
-    function render() {
-        const fullData = [...state.data];
-        const finalPred = getV261Pick(fullData, 8); // 8碼預測
-        const recent = fullData.slice(-12).reverse();
+    function analyze() {
+        // 下期預測 (Panel 3)
+        const next = runCoreEngine(rawData);
+        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball pred">${n}</div>`).join('');
+        addLog(`精準分析完成：下期 8 碼已產出`);
 
-        // Panel 3: 顯示預測
-        document.getElementById('finalCombo').innerHTML = finalPred.res.map(n => 
-            `<div class="ball ${finalPred.phaseNodes.includes(n)?'phase-node':'balance-node'}">${n}</div>`).join('');
-        
-        // Panel 2: 回測
-        const bt = document.getElementById('btContainer');
-        bt.innerHTML = `<div class="bt-row" style="color:var(--sub); border:none"><span>日期</span><span>開獎</span><span>預測(8碼)</span><span>命中</span></div>`;
-        recent.slice(0, 10).forEach(row => {
-            const idx = fullData.findIndex(d => d.date === row.date);
-            const pred = getV261Pick(fullData.slice(0, idx), 8);
-            const hits = pred.res.filter(n => row.nums.includes(n));
-            bt.innerHTML += `
-                <div class="bt-row">
-                    <span>${row.date.slice(-5)}</span>
-                    <span style="font-size:12px">${row.nums.join(' ')}</span>
-                    <div style="font-size:10px; color:var(--sub)">${pred.res.map(n => row.nums.includes(n)?`<b style="color:var(--hit)">${n}</b>`:n).join(' ')}</div>
-                    <span class="hit-count">${hits.length}</span>
-                </div>`;
+        // 回測渲染 (Panel 2)
+        let btHtml = `<table><tr><th>日期</th><th>開獎號碼</th><th>精準預測 (8碼)</th><th>命中星數</th></tr>`;
+        const testData = rawData.slice(-10).reverse();
+        testData.forEach(row => {
+            const idx = rawData.findIndex(d => d.date === row.date);
+            const pred = runCoreEngine(rawData.slice(0, idx));
+            const hits = row.nums.filter(n => pred.includes(n));
+            btHtml += `<tr><td>${row.date}</td><td>${row.nums.join(' ')}</td>
+                       <td>${pred.map(n => row.nums.includes(n)?`<b class="is-hit">${n}</b>`:n).join(' ')}</td>
+                       <td class="star-text">${hits.length} 星</td></tr>`;
         });
+        document.getElementById('btContainer').innerHTML = btHtml + `</table>`;
 
-        // Panel 4: 矩陣
-        let tableHtml = `<table class="matrix-table"><thead><tr><th style="width:70px">日期</th>`;
-        for(let i=1; i<=39; i++) tableHtml += `<th>${i}</th>`;
-        tableHtml += `</tr></thead><tbody>`;
-        
-        // 矩陣第一列：下期預測標記
-        tableHtml += `<tr style="background:rgba(255,214,10,0.1)"><td>下期預測</td>`;
-        for(let i=1; i<=39; i++) tableHtml += `<td class="pred-indicator">${finalPred.res.includes(i)?'●':''}</td>`;
-        tableHtml += `</tr>`;
-
-        recent.forEach(row => {
-            tableHtml += `<tr><td>${row.date.slice(-5)}</td>`;
-            for(let i=1; i<=39; i++) {
-                const isHit = row.nums.includes(i);
-                tableHtml += `<td class="${isHit?'is-hit':''}">${isHit?i:''}</td>`;
+        // 矩陣渲染 (Panel 4)
+        let mHtml = `<table><tr><th>日期 \\ 號碼</th>`;
+        for (let i = 1; i <= 39; i++) mHtml += `<th>${i}</th>`;
+        mHtml += `</tr>`;
+        rawData.slice(-15).reverse().forEach(row => {
+            mHtml += `<tr><td>${row.date}</td>`;
+            for (let i = 1; i <= 39; i++) {
+                const hit = row.nums.includes(i);
+                mHtml += `<td class="${hit?'is-hit':''}">${hit?i:''}</td>`;
             }
-            tableHtml += `</tr>`;
+            mHtml += `</tr>`;
         });
-        document.getElementById('matrixContainer').innerHTML = tableHtml + `</tbody></table>`;
-
-        document.getElementById('mainDisplay').style.display = 'block';
-        addLog("相位修正矩陣渲染完成。");
+        document.getElementById('matrixContainer').innerHTML = mHtml + `</table>`;
+        addLog(`矩陣分布更新完成。系統穩定運作中。`);
     }
 </script>
+
 </body>
 </html>
