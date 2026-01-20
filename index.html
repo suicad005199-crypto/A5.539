@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 V.29</title>
+    <title>539 精準分析 V.30</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -24,10 +24,10 @@
 </head>
 <body>
 <div class="container">
-    <div class="panel"><div class="panel-header">P1: 數據注入</div><input type="file" id="csvFile" accept=".csv"></div>
-    <div class="panel"><div class="panel-header">P2: 10期回測 (V.29 相位修正)</div><table class="bt-table"><tbody id="btBody"></tbody></table></div>
-    <div class="panel"><div class="panel-header">P3: 下期預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
-    <div class="panel"><div class="panel-header">P5: 策略日誌</div><div id="logBox">V.29 啟動：執行相位偏移修正與極端遺漏值補償...</div></div>
+    <div class="panel"><div class="panel-header">P1: 模擬數據注入</div><input type="file" id="csvFile" accept=".csv"></div>
+    <div class="panel"><div class="panel-header">P2: 策略模擬回測 (V.30 自適應)</div><table class="bt-table"><tbody id="btBody"></tbody></table></div>
+    <div class="panel"><div class="panel-header">P3: 動態修正預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
+    <div class="panel"><div class="panel-header">P5: 模擬日誌</div><div id="logBox">系統已就緒。匯入 CSV 後將自動計算最優模擬策略...</div></div>
 </div>
 
 <script>
@@ -48,15 +48,19 @@
         reader.readAsText(file);
     });
 
-    function getPrediction(history) {
-        if (history.length < 10) return [1,5,10,15,20,25,30,35];
-        const last1 = history[history.length - 1].nums;
-        const last3 = history.slice(-3);
-        const last20Nums = history.slice(-20).flatMap(d => d.nums);
+    // 核心模擬算法：動態調整最合適策略
+    function getAdaptivePrediction(history) {
+        if (history.length < 15) return [2,4,11,18,22,29,33,38];
         
-        let stats = Array(40).fill(0).map((_,i)=>({n:i, s:0, g:0}));
+        const last1 = history[history.length - 1].nums;
+        const last5 = history.slice(-5);
+        
+        // 1. 計算近期「熱度特徵」
+        const recentFreq = last5.flatMap(d => d.nums).reduce((acc, n) => (acc[n] = (acc[n] || 0) + 1, acc), {});
+        const avgGap = last5.reduce((acc, d) => acc + (d.nums[4] - d.nums[0]), 0) / 5;
 
-        // 計算近期遺漏
+        // 2. 模擬評分系統
+        let stats = Array(40).fill(0).map((_,i)=>({n:i, s:0, g:0}));
         for (let i = 1; i <= 39; i++) {
             let gap = 0;
             for (let k = history.length - 1; k >= 0; k--) {
@@ -64,52 +68,49 @@
             }
             stats[i].g = gap;
 
-            // V.29 核心：非線性加權
-            if (gap === 0) stats[i].s += 400; // 連莊
-            if (gap >= 1 && gap <= 3) stats[i].s += 350; // 極短遺漏
-            if (gap >= 20) stats[i].s += 450; // 極長冷號共振 (539近期特徵)
-            if (gap >= 5 && gap <= 12) stats[i].s += 200; // 中溫過渡
-            
-            // 相位偏移補償 (鄰位加強)
-            if (last1.some(ln => Math.abs(ln - i) <= 1)) stats[i].s += 150;
-            
-            // 避開近期過熱尾數
-            const recentTails = last3.flatMap(d => d.nums.map(n => n % 10));
-            if (!recentTails.includes(i % 10)) stats[i].s += 100;
+            // 動態策略修正：如果近期跨度小(號碼集中)，加強鄰位權重
+            const neighborWeight = avgGap < 20 ? 300 : 150;
+            if (last1.some(ln => Math.abs(ln - i) === 1)) stats[i].s += neighborWeight;
 
-            stats[i].s += (i * 0.01);
+            // 動態權重：若近期熱號連開(0-2期遺漏)，則強化熱號分佈
+            if (gap <= 2) stats[i].s += 400;
+            else if (gap >= 15) stats[i].s += 250; // 冷號適度補償
+            else stats[i].s += 100; // 溫號保底
+
+            // 頻率加成
+            if (recentFreq[i]) stats[i].s += recentFreq[i] * 50;
         }
 
         let sorted = stats.slice(1).sort((a,b) => b.s - a.s);
-        let final8 = [];
-
-        // 確保結構：1冷 + 1熱 + 6均值
-        const coldOne = sorted.filter(x => x.g >= 20)[0];
-        if (coldOne) final8.push(coldOne.n);
         
-        const hotOne = sorted.filter(x => x.g === 0)[0];
-        if (hotOne) final8.push(hotOne.n);
-
-        for(let item of sorted) {
-            if(!final8.includes(item.n)) final8.push(item.n);
-            if(final8.length >= 8) break;
+        // 3. 模擬「匯聚過濾」：確保選出的 8 碼不會過於集中在同一區間
+        let final8 = [];
+        for (let item of sorted) {
+            const headCount = final8.filter(n => Math.floor(n/10) === Math.floor(item.n/10)).length;
+            if (headCount < 3) final8.push(item.n); // 限制每10碼區間最多3碼，防止雞蛋放同籃子
+            if (final8.length >= 8) break;
         }
 
         return final8.sort((a, b) => a - b);
     }
 
     function render() {
-        const pred = getPrediction(rawData);
+        const pred = getAdaptivePrediction(rawData);
         document.getElementById('nextPred').innerHTML = pred.map(n => `<div class="ball active">${n}</div>`).join('');
         let btHtml = "";
+        let s2 = 0, s3 = 0;
+        
         rawData.slice(-10).reverse().forEach(row => {
             const idx = rawData.findIndex(d => d.date === row.date);
-            const p = getPrediction(rawData.slice(0, idx));
+            const p = getAdaptivePrediction(rawData.slice(0, idx));
             const hits = row.nums.filter(n => p.includes(n));
+            if (hits.length >= 2) s2++;
+            if (hits.length >= 3) s3++;
             btHtml += `<tr><td class="date-col">${formatDate(row.date)}</td><td class="num-col">${row.nums.join(' ')}</td><td>${p.map(n => row.nums.includes(n) ? `<span class="is-hit">${n}</span>` : n).join(' ')}</td><td class="star-col">${hits.length}</td></tr>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        log(`V.29 回測完畢。相位偏移修正與冷熱共振已生效，破除掛 0 僵局。`);
+        log(`策略模擬完成。2星回補率: ${s2*10}% | 3星爆發率: ${s3*10}%`);
+        log(`動態修正：已根據跨度調整鄰位權重。`);
     }
 </script>
 </body>
