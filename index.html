@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 V.41</title>
+    <title>539 精準分析 V.42</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -22,20 +22,21 @@
         .m-head { background: #2c2c2e; color: var(--primary); position: sticky; top: 0; }
         .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; width: 50px; z-index: 5; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 12px; height: 12px; display: inline-block; }
-        #logBox { background: #000; color: var(--success); padding: 10px; height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); }
+        #logBox { background: #000; color: var(--success); padding: 10px; height: 90px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); }
+        .ball-row { display: flex; flex-wrap: wrap; gap: 6px; }
         .ball { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 2px solid var(--accent); color: var(--accent); font-size: 16px; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (V.41 巔峰版)</div>
+        <div class="panel-header">P1: 數據注入 (V.42 邏輯修正版)</div>
         <input type="file" id="csvFile" accept=".csv">
     </div>
-    <div class="panel"><div class="panel-header">P2: 深度回測看板</div><div id="btBody"></div></div>
-    <div class="panel"><div class="panel-header">P3: 權重鎖定預測 (8 碼)</div><div id="nextPred" style="display:flex; gap:6px; flex-wrap:wrap;"></div></div>
+    <div class="panel"><div class="panel-header">P2: 綜合回測 (穩定性優先)</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 最終結構預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
     <div class="panel"><div class="panel-header">P4: 分布矩陣 (1-39)</div><div class="matrix-scroll" id="matrixCont"></div></div>
-    <div class="panel"><div class="panel-header">P5: 期望值分析日誌</div><div id="logBox">等待 CSV 匯入...</div></div>
+    <div class="panel"><div class="panel-header">P5: 權重日誌</div><div id="logBox">等待 CSV 匯入...</div></div>
 </div>
 
 <script>
@@ -44,51 +45,44 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getV41Prediction(hist) {
+    function getV42Prediction(hist) {
         if(hist.length < 20) return [1,2,3,4,5,6,7,8];
         let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0 }));
         const lastRow = hist[hist.length-1].nums;
         
-        // 1. 遺漏權重：針對「中位跳轉」進行補償 (5-9期加分)
+        // 1. 遺漏權重修正 (去除負數潛在 Bug)
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) {
                 if(!hist[k].nums.includes(i)) gap++; else break;
             }
-            if(gap >= 5 && gap <= 9) stats[i].score += 35; // 中位彈跳權重
-            else if(gap < 5) stats[i].score += gap * 5; 
-            else stats[i].score += (20 - gap);
+            // 邏輯優化：12期內加強權重，超過12期漸減但不為負
+            stats[i].score += (gap <= 12) ? (gap * 2.8) : Math.max(0, 35 - gap); 
         }
 
-        // 2. 尾數熱力 (近12期)
+        // 2. 尾數加成 (強化碰撞率)
         let tailMap = Array(10).fill(0);
-        hist.slice(-12).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
-        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 4);
+        hist.slice(-15).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
+        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 3.5);
 
-        // 3. 連號結構與連莊
+        // 3. 結構化連號補強 (V.40 優秀邏輯)
         lastRow.forEach(ln => {
             if(ln > 1) stats[ln-1].score += 20;
             if(ln < 39) stats[ln+1].score += 20;
-            stats[ln].score += 15;
+            stats[ln].score += 12; // 連莊
         });
 
-        // 4. 動態區塊趨勢選號
-        let zones = [[],[],[]]; // 01-13, 14-26, 27-39
+        // 4. 三大區塊平衡選號 (01-13, 14-26, 27-39)
+        let zones = [[],[],[]];
         for(let i=1; i<=39; i++) {
             let z = Math.min(Math.floor((i-1)/13), 2);
             zones[z].push(stats[i]);
         }
         
-        // 找出近期最熱區，多配 1 名額
-        let zoneHeat = zones.map(z => z.reduce((a,b) => a + (lastRow.includes(b.n)?1:0), 0));
-        let hotZoneIdx = zoneHeat.indexOf(Math.max(...zoneHeat));
-
         let pool = [];
-        zones.forEach((z, idx) => {
-            let count = (idx === hotZoneIdx) ? 4 : 2;
-            pool.push(...z.sort((a,b)=>b.score-a.score).slice(0, count));
-        });
+        zones.forEach(z => pool.push(...z.sort((a,b)=>b.score-a.score).slice(0, 3)));
         
+        // 最終選取最優 8 碼 (去隨機)
         return pool.sort((a,b)=>b.score-a.score || a.n-b.n).slice(0, 8).map(x=>x.n).sort((a,b)=>a-b);
     }
 
@@ -101,16 +95,17 @@
             }).filter(r => r.nums.length === 5);
             document.getElementById('logBox').innerHTML = "";
             log(`成功讀取筆數: ${rawData.length}`);
-            runV41();
+            runV42();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function runV41() {
+    function runV42() {
         let btHtml = "";
         let totalS = 0;
         rawData.slice(-10).reverse().forEach(row => {
-            const p = getV41Prediction(rawData.slice(0, rawData.indexOf(row)));
+            const idx = rawData.indexOf(row);
+            const p = getV42Prediction(rawData.slice(0, idx));
             const hits = row.nums.filter(n => p.includes(n));
             totalS += hits.length;
             btHtml += `<div class="bt-row">
@@ -120,7 +115,7 @@
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getV41Prediction(rawData);
+        const next = getV42Prediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日期</th>`;
         for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
@@ -131,8 +126,7 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`V.41 巔峰演算法鎖定。近10期總星數: ${totalS}`);
-        log(`平均期望值: ${(totalS/10).toFixed(1)} 碼/期`);
+        log(`V.42 結構優化修正版鎖定。`);
     }
 </script>
 </body>
