@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 V.42.3</title>
+    <title>539 精準分析 V.42.4</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -30,9 +30,9 @@
 </head>
 <body>
 <div class="container">
-    <div class="panel"><div class="panel-header">P1: 數據注入 (V.42.3 動態佈陣)</div><input type="file" id="csvFile" accept=".csv"></div>
-    <div class="panel"><div class="panel-header">P2: 深度回測</div><div id="btBody"></div></div>
-    <div class="panel"><div class="panel-header">P3: 下期動態預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
+    <div class="panel"><div class="panel-header">P1: 數據注入 (V.42.4 星等加壓)</div><input type="file" id="csvFile" accept=".csv"></div>
+    <div class="panel"><div class="panel-header">P2: 深度回測看板</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 下期結構預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
     <div class="panel"><div class="panel-header">P4: 分布矩陣</div><div class="matrix-scroll" id="matrixCont"></div></div>
     <div class="panel"><div id="logBox">等待 CSV 匯入...</div></div>
 </div>
@@ -43,45 +43,28 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getV423Prediction(hist) {
+    function getV424Prediction(hist) {
         if(hist.length < 20) return [1,2,3,4,5,6,7,8];
         let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0 }));
         const lastRow = hist[hist.length-1].nums;
         
-        // 1. 遺漏權重
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) {
                 if(!hist[k].nums.includes(i)) gap++; else break;
             }
-            stats[i].score += (gap <= 10) ? (gap * 3.5) : Math.max(0, 40 - gap); 
+            stats[i].score += (gap <= 12) ? (gap * 3.0) : Math.max(0, 38 - gap); 
         }
-
-        // 2. 尾數權重 (近期熱度)
         let tailMap = Array(10).fill(0);
         hist.slice(-15).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
-        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 4);
-
-        // 3. 連莊/鄰位
+        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 3.2);
         lastRow.forEach(ln => {
-            if(ln > 1) stats[ln-1].score += 25;
-            if(ln < 39) stats[ln+1].score += 25;
-            stats[ln].score += 20; 
+            if(ln > 1) stats[ln-1].score += 20;
+            if(ln < 39) stats[ln+1].score += 20;
+            stats[ln].score += 15; 
         });
 
-        // 4. V.42.3 動態分區 (動態調整各區配額)
-        let zoneStats = [0, 0, 0];
-        hist.slice(-5).forEach(d => d.nums.forEach(n => {
-            zoneStats[Math.min(Math.floor((n-1)/13), 2)]++;
-        }));
-        
-        // 找出最熱區塊，給予更多配額
-        let total = zoneStats.reduce((a,b)=>a+b, 0);
-        let quota = zoneStats.map(s => Math.max(2, Math.round((s/total) * 8)));
-        // 修正總數為 8
-        while(quota.reduce((a,b)=>a+b,0) > 8) quota[quota.indexOf(Math.max(...quota))]--;
-        while(quota.reduce((a,b)=>a+b,0) < 8) quota[quota.indexOf(Math.min(...quota))]++;
-
+        // 分區邏輯 (與 V.42.2 相同)
         let zones = [[],[],[]];
         for(let i=1; i<=39; i++) {
             let z = Math.min(Math.floor((i-1)/13), 2);
@@ -89,11 +72,16 @@
         }
         
         let pool = [];
-        zones.forEach((z, idx) => {
-            pool.push(...z.sort((a,b)=>b.score-a.score).slice(0, quota[idx]));
-        });
+        zones.forEach(z => pool.push(...z.sort((a,b)=>b.score-a.score).slice(0, 4)));
         
-        return pool.sort((a,b)=>b.score-a.score).slice(0, 8).map(x=>x.n).sort((a,b)=>a-b);
+        // 星等加壓：統計尾數頻率並進行二次校準
+        let pTail = Array(10).fill(0);
+        pool.forEach(x => pTail[x.n % 10]++);
+        pool.forEach(x => {
+            if(pTail[x.n % 10] >= 2) x.score += 15; // 強化同尾共振力
+        });
+
+        return pool.sort((a,b)=>b.score-a.score || a.n-b.n).slice(0, 8).map(x=>x.n).sort((a,b)=>a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
@@ -104,17 +92,17 @@
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
             document.getElementById('logBox').innerHTML = "";
-            runV423();
+            runV424();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function runV423() {
+    function runV424() {
         let btHtml = "";
         let hitsArr = [];
         rawData.slice(-10).reverse().forEach(row => {
             const histSlice = rawData.slice(0, rawData.indexOf(row));
-            const pred = getV423Prediction(histSlice);
+            const pred = getV424Prediction(histSlice);
             const hits = row.nums.filter(n => pred.includes(n));
             hitsArr.push(hits.length);
             btHtml += `<div class="bt-row">
@@ -124,7 +112,7 @@
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getV423Prediction(rawData);
+        const next = getV424Prediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
         for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
@@ -135,7 +123,8 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`V.42.3 啟動：動態區間權重已套用，防止區域失衡導致的掛 1。`);
+        const avg = hitsArr.length > 0 ? (hitsArr.reduce((a,b)=>a+b,0)/hitsArr.length).toFixed(1) : 0;
+        log(`V.42.4 星等加壓版啟動 | 10期均值: ${avg} 碼`);
     }
 </script>
 </body>
