@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 深度分析 MS20</title>
+    <title>539 深度分析 MS21</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -29,7 +29,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (MS20 結構叢集版)</div>
+        <div class="panel-header">P1: 數據注入 (MS21 動態偏態版)</div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
@@ -37,14 +37,14 @@
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: 叢集共振預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: 偏態修正預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div class="panel"><div id="logBox">MS20 啟動。正在掃描結構化叢集...</div></div>
+    <div class="panel"><div id="logBox">MS21 已就緒。正在分析奇偶與遺漏偏態...</div></div>
 </div>
 
 <script>
@@ -57,56 +57,57 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getMS20Prediction(hist, isSilent=true) {
+    function getMS21Prediction(hist, isSilent=true) {
         if(hist.length < 15) return [1,2,3,4,5];
         const lastRow = hist[hist.length-1].nums;
         let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0, tail: i%10 }));
 
-        // 1. 基礎權重：鄰號(鄰近共振)
-        lastRow.forEach(ln => {
-            for(let d=-1; d<=1; d++) {
-                let t = ln + d;
-                if(t>=1 && t<=39) stats[t].score += (d===0 ? 15 : 40);
-            }
-        });
+        // 1. 奇偶偏態偵測
+        let oddCount = 0;
+        hist.slice(-3).forEach(d => d.nums.forEach(n => { if(n%2 !== 0) oddCount++; }));
+        let oddBias = oddCount > 10 ? -10 : (oddCount < 5 ? 15 : 0);
 
-        // 2. 遺漏分析與尾數統計
-        let tailFreq = Array(10).fill(0);
-        hist.slice(-15).forEach(d => d.nums.forEach(n => {
-            tailFreq[n%10]++;
-            let gap = 0;
-            // 計算每個號碼的遺漏
-        }));
-
+        // 2. 核心加權
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             stats[i].gap = gap;
-            // 提升中遺漏 (4-11) 的得分
-            if (gap >= 4 && gap <= 11) stats[i].score += 35;
-            // 尾數熱度
-            stats[i].score += tailFreq[i%10] * 3;
+
+            // 遺漏分：黃金回溫 (4-11) 給予最高權重
+            if (gap >= 4 && gap <= 11) stats[i].score += 45;
+            else if (gap === 0) stats[i].score += 15; // 連莊分
+            else if (gap > 20) stats[i].score -= 20;  // 隔離極冷碼
+
+            // 鄰號聯動
+            if(lastRow.some(ln => Math.abs(ln - i) === 1)) stats[i].score += 35;
+
+            // 奇偶修正
+            if(i%2 !== 0) stats[i].score += oddBias;
         }
 
-        // 3. 核心：同尾叢集加成 (衝擊雙星)
-        let sortedByScore = [...stats.slice(1)].sort((a,b) => b.score - a.score);
-        let top10 = sortedByScore.slice(0, 10);
-        top10.forEach(s1 => {
-            top10.forEach(s2 => {
-                if(s1.n !== s2.n && s1.tail === s2.tail) {
-                    s1.score += 20; // 同尾共振加分
-                    s2.score += 20;
-                }
-            });
-        });
+        // 3. 尾數共振 (限合同尾前 2 強)
+        let tailMap = Array(10).fill(0);
+        hist.slice(-15).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
+        for(let i=1; i<=39; i++) stats[i].score += tailMap[i%10] * 3.5;
 
-        // 4. 選碼策略：放棄區域平衡，改採最高分叢集
-        let selected = stats.slice(1).sort((a,b) => b.score - a.score).slice(0, 5);
-        
+        // 4. 排序與選碼 (保留叢集，但分散尾數防止死局)
+        let sorted = stats.slice(1).sort((a,b) => b.score - a.score);
+        let selected = [];
+        let usedTails = new Set();
+
+        for(let s of sorted) {
+            if(selected.length >= 5) break;
+            // 允許最多一個同尾共振，其餘分散
+            let tailCount = [...usedTails].filter(t => t === s.tail).length;
+            if(tailCount < 2) {
+                selected.push(s);
+                usedTails.add(s.tail);
+            }
+        }
+
         if(!isSilent) {
-            const mode = (lastRow.some(n => selected.some(s => Math.abs(s.n-n)<=1))) ? "鄰號聯動" : "遺漏回歸";
-            log(`當前戰術模式: ${mode}`, '#ffd60a');
-            selected.forEach(s => log(`${pad(s.n)} 分:${Math.round(s.score)} (遺漏:${s.gap} 尾:${s.tail})`));
+            log(`偏態報告: 奇數偏值 ${oddBias} | 遺漏回溫權重: 45`, '#ffd60a');
+            selected.sort((a,b)=>a.n-b.n).forEach(s => log(`${pad(s.n)} 分:${Math.round(s.score)} [G:${s.gap} T:${s.tail}]`));
         }
 
         return selected.map(x => x.n).sort((a,b)=>a-b);
@@ -120,25 +121,37 @@
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
             document.getElementById('logBox').innerHTML = "";
-            runMS20();
+            runMS21();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function runMS20() {
-        let btHtml = "", totalH = 0, h0 = 0, h2plus = 0;
+    function runMS21() {
+        let btHtml = "", totalH = 0, h0 = 0, h3plus = 0;
         const displayData = rawData.slice(-10).reverse();
         displayData.forEach(row => {
             const idx = rawData.indexOf(row);
-            const pred = getMS20Prediction(rawData.slice(0, idx), true);
+            const pred = getMS21Prediction(rawData.slice(0, idx), true);
             const hits = row.nums.filter(n => pred.includes(n));
             if(hits.length === 0) h0++;
-            if(hits.length >= 2) h2plus++;
+            if(hits.length >= 3) h3plus++;
             totalH += hits.length;
-            btHtml += `<div class="bt-row"><div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div><div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div><div class="num-group"><span class="num-label">預測</span>${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}</div></div>`;
+            
+            // Panel 2 修復後的顯示邏輯
+            btHtml += `<div class="bt-row">
+                <div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span style="background:var(--success);color:#000;padding:2px 5px;border-radius:4px;font-weight:bold;">${hits.length} ★</span></div>
+                <div class="num-group">
+                    <span class="num-label">開獎</span>
+                    ${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}
+                </div>
+                <div class="num-group">
+                    <span class="num-label">預測</span>
+                    ${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}
+                </div>
+            </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS20Prediction(rawData, false);
+        const next = getMS21Prediction(rawData, false);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
@@ -150,8 +163,8 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`--- MS20 戰力報告 ---`, '#0a84ff');
-        log(`平均命中: ${(totalH/10).toFixed(1)}碼 | 雙星爆發期: ${h2plus*10}% | 掛零率: ${h0*10}%`);
+        log(`--- MS21 性能報告 ---`, '#0a84ff');
+        log(`平均命中: ${(totalH/10).toFixed(1)} | 三星爆發次數: ${h3plus} | 掛零: ${h0}期`);
     }
 </script>
 </body>
