@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539/A.01-MS9 歸一化統計版</title>
+    <title>539/A.01-MS10 穩定覆蓋版</title>
     <style>
         :root { --bg: #0b0b0c; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 8px; font-size: 13px; }
@@ -14,13 +14,13 @@
         .num-group { display: flex; gap: 6px; margin-top: 6px; }
         .n-box { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 12px; font-weight: bold; background: #2c2c2e; color: var(--sub); }
         .n-box.is-hit { background: var(--primary); color: #000; box-shadow: 0 0 8px var(--primary); }
-        .pred-list { font-size: 10px; color: var(--accent); margin-top: 5px; }
+        .pred-list { font-size: 11px; color: var(--accent); margin-top: 5px; font-weight: 500; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 15px 0; background: rgba(10,132,255,0.08); border-radius: 8px; }
         .ball { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: 900; border: 3px solid var(--accent); color: var(--accent); font-size: 22px; }
         .matrix-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         .m-table { border-collapse: collapse; white-space: nowrap; width: 100%; }
         .m-table td, .m-table th { border: 1px solid #333; width: 16px; height: 16px; text-align: center; font-size: 9px; }
-        .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; min-width: 38px; padding-left: 4px; }
+        .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; min-width: 38px; padding-left: 4px; z-index: 5; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 10px; height: 10px; display: inline-block; }
         #logBox { background: #000; color: var(--success); padding: 8px; height: 50px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; margin-top: 5px; }
     </style>
@@ -28,7 +28,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--accent)">MS9-NORMALIZED</span></div>
+        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--success)">MS10-STABLE</span></div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
@@ -36,14 +36,14 @@
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: MS9 歸一化預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: MS10 穩定覆蓋預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div id="logBox">MS9 已佈署。Z-Score 正規化引擎啟動。</div>
+    <div id="logBox">MS10 已佈署。目標：降低 0 命中率，穩定覆蓋不同週期號碼。</div>
 </div>
 
 <script>
@@ -51,39 +51,75 @@
     const log = (m) => { const lb = document.getElementById('logBox'); lb.innerHTML += `> ${m}<br>`; lb.scrollTop = lb.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    // 計算平均值與標準差
-    const getZScore = (val, mean, std) => std === 0 ? 0 : (val - mean) / std;
-
-    function getMS9Logic(hist) {
-        if(hist.length < 10) return [1,2,3,4,5].map(n=>({n, s:0}));
+    function getMS10Logic(hist) {
+        if(hist.length < 20) return [1,2,3,4,5];
         
-        let pool = Array.from({length:39}, (_, i) => {
-            const n = i + 1;
-            let gap = 0;
-            for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(n)) gap++; else break; }
-            return { n, gap, s: 0, tails: 0 };
-        });
-
-        // 1. 數據收集：遺漏值與尾數頻率 (近 15 期)
-        const gaps = pool.map(p => p.gap);
-        const meanGap = gaps.reduce((a,b)=>a+b)/39;
-        const stdGap = Math.sqrt(gaps.reduce((a,b)=>a+(b-meanGap)**2,0)/39);
-
-        const tailFreq = new Array(10).fill(0);
-        hist.slice(-15).forEach(d => d.nums.forEach(n => tailFreq[n%10]++));
-
-        // 2. 歸一化評分 (Z-Score)
-        pool.forEach(p => {
-            const zGap = getZScore(p.gap, meanGap, stdGap);
-            // 熱碼權重 (負 Z-Score 代表熱) + 冷碼權重 (正 Z-Score) 的平衡曲線
-            p.s = (Math.abs(zGap) * 20) + (p.gap === 0 ? 30 : 0); // 顯著性加成
-            p.s += (tailFreq[p.n % 10] * 2); // 尾數線性權重
-        });
-
-        // 3. 穩定雜湊排序 (避免號碼偏誤)
-        const hash = (n) => Number((BigInt(n) * 15926535897932384626n) % 1000n);
+        const coverage = new Array(39).fill(0).map((_, i) => ({
+            num: i+1, lastSeen: 0, hotScore: 0, zone: Math.floor(i/13), tail: (i+1) % 10
+        }));
         
-        return pool.sort((a,b) => (b.s - a.s) || (hash(a.n) - hash(b.n))).slice(0, 5);
+        for(let i = 0; i < Math.min(30, hist.length); i++) {
+            const period = hist.length - 1 - i;
+            hist[period].nums.forEach(n => {
+                const idx = n - 1;
+                if(coverage[idx].lastSeen === 0) coverage[idx].lastSeen = i + 1;
+                if(i < 10) coverage[idx].hotScore += (10 - i);
+            });
+        }
+        
+        const selected = [];
+        const usedTails = new Set();
+        const usedZones = [0, 0, 0];
+        
+        // 策略A：2個強熱
+        const strongHot = coverage.filter(item => item.lastSeen <= 3 && item.hotScore > 5)
+            .sort((a,b) => b.hotScore - a.hotScore).slice(0, 5);
+        if(strongHot.length >= 2) {
+            for(let i=0; i<2; i++) {
+                selected.push(strongHot[i].num);
+                usedTails.add(strongHot[i].tail);
+                usedZones[strongHot[i].zone]++;
+            }
+        }
+        
+        // 策略B：1個溫號
+        const warmNumbers = coverage.filter(item => item.lastSeen >= 4 && item.lastSeen <= 8 && !selected.includes(item.num))
+            .sort((a,b) => a.lastSeen - b.lastSeen);
+        if(warmNumbers.length > 0) {
+            const bestWarm = warmNumbers.find(item => !usedTails.has(item.tail) && usedZones[item.zone] < 2) || warmNumbers[0];
+            selected.push(bestWarm.num);
+            usedTails.add(bestWarm.tail);
+            usedZones[bestWarm.zone]++;
+        }
+        
+        // 策略C：1-2個回歸
+        const regressionNumbers = coverage.filter(item => item.lastSeen >= 9 && item.lastSeen <= 15 && !selected.includes(item.num))
+            .sort((a,b) => b.lastSeen - a.lastSeen);
+        let needed = 5 - selected.length;
+        let regCount = 0;
+        for(const item of regressionNumbers) {
+            if(regCount >= needed) break;
+            const zoneLimit = (selected.length <= 3) ? 2 : 1;
+            if(usedZones[item.zone] < zoneLimit) {
+                selected.push(item.num);
+                usedTails.add(item.tail);
+                usedZones[item.zone]++;
+                regCount++;
+            }
+        }
+        
+        // 策略D：補足
+        while(selected.length < 5) {
+            const remaining = coverage.filter(item => !selected.includes(item.num))
+                .map(item => ({ ...item, balanceScore: ((2 - usedZones[item.zone]) * 10) + (usedTails.has(item.tail) ? 0 : 5) + Math.min(20, item.lastSeen) }))
+                .sort((a,b) => b.balanceScore - a.balanceScore);
+            if(remaining.length > 0) {
+                selected.push(remaining[0].num);
+                usedTails.add(remaining[0].tail);
+                usedZones[remaining[0].zone]++;
+            } else break;
+        }
+        return selected.slice(0, 5).sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
@@ -99,32 +135,22 @@
     });
 
     function render() {
-        let btHtml = "", totalHits = 0;
+        let btHtml = "", totalHits = 0, hit0Count = 0;
         const btData = rawData.slice(-10).reverse();
         btData.forEach(row => {
             const idx = rawData.findIndex(r => r.date === row.date);
-            const predObjs = getMS9Logic(rawData.slice(0, idx));
-            const predNums = predObjs.map(o => o.n);
-            const hits = row.nums.filter(n => predNums.includes(n));
+            const pred = getMS10Logic(rawData.slice(0, idx));
+            const hits = row.nums.filter(n => pred.includes(n));
             totalHits += hits.length;
+            if(hits.length === 0) hit0Count++;
             btHtml += `<div class="bt-row"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span>📅 ${row.date}</span><span style="background:var(--success);color:#000;padding:2px 6px;border-radius:4px;font-weight:900">${hits.length} ★</span></div>
-                <div class="num-group">${row.nums.map(n => `<div class="n-box ${predNums.includes(n)?'is-hit':''}">${pad(n)}</div>`).join('')}</div>
-                <div class="pred-list">方案：${predObjs.map(o => `${pad(o.n)}(${Math.round(o.s)})`).join(' ')}</div></div>`;
+                <div class="num-group">${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'is-hit':''}">${pad(n)}</div>`).join('')}</div>
+                <div class="pred-list">方案：${pred.map(n => pad(n)).join(' ')}</div></div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS9Logic(rawData);
-        document.getElementById('nextPred').innerHTML = next.map(o => `<div class="ball">${pad(o.n)}</div>`).join('');
-        
-        let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
-        for(let i=1; i<=39; i++) mHtml += `<th>${pad(i)}</th>`;
-        mHtml += `</tr></thead><tbody>`;
-        rawData.slice(-15).reverse().forEach(row => {
-            mHtml += `<tr><td class="m-date">${row.date.split('-').slice(1).join('/')}</td>`;
-            for(let i=1; i<=39; i++) mHtml += `<td>${row.nums.includes(i) ? '<span class="m-ball"></span>' : ''}</td>`;
-            mHtml += `</tr>`;
-        });
-        document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`MS9 期望值: ${(totalHits/10).toFixed(1)} | 引擎: Z-Score 正規化`);
+        const next = getMS10Logic(rawData);
+        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
+        log(`MS10 期望命中: ${(totalHits/10).toFixed(1)} | 掛0率: ${hit0Count*10}%`);
     }
 </script>
 </body>
