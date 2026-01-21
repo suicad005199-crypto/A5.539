@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 MS36</title>
+    <title>539 精準分析 MS37</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -29,7 +29,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (MS36 全域版)</div>
+        <div class="panel-header">P1: 數據注入 (MS37 趨勢版)</div>
         <input type="file" id="csvFile" accept=".csv">
     </div>
     <div class="panel">
@@ -37,14 +37,14 @@
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: MS36 下期預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: MS37 下期預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div class="panel"><div id="logBox">MS36 已就緒：切換至分散式覆蓋邏輯。</div></div>
+    <div class="panel"><div id="logBox">MS37 啟動：執行區間重壓策略。</div></div>
 </div>
 
 <script>
@@ -53,44 +53,49 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getMS36Prediction(hist) {
+    function getMS37Prediction(hist) {
         if(hist.length < 20) return [1,2,3,4,5];
         const lastRow = hist[hist.length-1].nums;
-        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0, type: '' }));
+        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0, zone: Math.floor((i-1)/10) }));
 
-        // 真空掃描
-        let zones = [0,0,0,0];
-        hist.slice(-5).forEach(d => d.nums.forEach(n => zones[Math.min(Math.floor((n-1)/10), 3)]++));
+        // 區間熱度分析
+        let zoneHeat = [0,0,0,0];
+        hist.slice(-5).forEach(d => d.nums.forEach(n => zoneHeat[Math.floor((n-1)/10)]++));
+        let hotZones = zoneHeat.map((h, i) => ({ z: i, h })).sort((a,b) => b.h - a.h);
+
+        // 尾數熱度分析
+        let tailHeat = Array(10).fill(0);
+        hist.slice(-3).forEach(d => d.nums.forEach(n => tailHeat[n%10]++));
 
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             stats[i].gap = gap;
             
-            // 分散式權重分配
-            if(lastRow.some(ln => Math.abs(ln-i) === 1)) { stats[i].score += 45; stats[i].type = '鄰'; }
-            else if(gap >= 5 && gap <= 14) { stats[i].score += 50; stats[i].type = '跳'; }
-            else if(gap >= 18) { stats[i].score += 35; stats[i].type = '冷'; }
+            // 基礎鄰跳分
+            if(lastRow.some(ln => Math.abs(ln-i) === 1)) stats[i].score += 40;
+            if(gap >= 5 && gap <= 14) stats[i].score += 50;
             
-            // 真空加成分
-            if(zones[Math.min(Math.floor((i-1)/10), 3)] === 0) stats[i].score += 25;
+            // 趨勢加成：屬於前兩大熱區
+            if(stats[i].zone === hotZones[0].z || stats[i].zone === hotZones[1].z) stats[i].score += 30;
+            // 趨勢加成：符合熱門尾數
+            if(tailHeat[i%10] > 1) stats[i].score += 25;
         }
 
         let selected = [];
-        const pick = (type, count) => {
-            let cand = stats.slice(1).filter(s => s.type === type && !selected.includes(s.n)).sort((a,b)=>b.score - a.score);
-            selected.push(...cand.slice(0, count).map(x => x.n));
-        };
+        // 強制在第一熱區取 2 碼
+        let z1 = stats.slice(1).filter(s => s.zone === hotZones[0].z).sort((a,b) => b.score - a.score);
+        selected.push(...z1.slice(0, 2).map(x => x.n));
 
-        pick('鄰', 2);
-        pick('跳', 2);
-        pick('冷', 1);
+        // 在第二熱區取 1 碼
+        let z2 = stats.slice(1).filter(s => s.zone === hotZones[1].z && !selected.includes(s.n)).sort((a,b) => b.score - a.score);
+        selected.push(...z2.slice(0, 1).map(x => x.n));
 
-        while(selected.length < 5) {
-            let rem = stats.slice(1).filter(s => !selected.includes(s.n)).sort((a,b)=>b.score-a.score)[0];
-            selected.push(rem.n);
-        }
-        return selected.sort((a,b)=>a-b);
+        // 補足其餘 2 碼 (跨區防禦)
+        let remain = stats.slice(1).filter(s => !selected.includes(s.n)).sort((a,b) => b.score - a.score);
+        selected.push(...remain.slice(0, 2).map(x => x.n));
+
+        return selected.sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
@@ -109,7 +114,7 @@
     function run() {
         let btHtml = "";
         rawData.slice(-10).reverse().forEach(row => {
-            const pred = getMS36Prediction(rawData.slice(0, rawData.indexOf(row)));
+            const pred = getMS37Prediction(rawData.slice(0, rawData.indexOf(row)));
             const hits = row.nums.filter(n => pred.includes(n));
             btHtml += `<div class="bt-row">
                 <div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div>
@@ -118,7 +123,7 @@
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS36Prediction(rawData);
+        const next = getMS37Prediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
@@ -130,7 +135,7 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`MS36 已啟動 | 強化真空區域與分散選碼`);
+        log(`MS37 攔截模組啟動 | 熱區與熱尾重壓`);
     }
 </script>
 </body>
