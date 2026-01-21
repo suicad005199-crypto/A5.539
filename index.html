@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 MS37</title>
+    <title>539 精準分析 V.43.0 PRO</title>
     <style>
-        :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
+        :root { --bg: #0b0b0c; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
         .container { display: flex; flex-direction: column; gap: 12px; }
         .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
@@ -13,15 +13,17 @@
         .bt-row { border-bottom: 1px solid var(--border); padding: 10px 0; display: flex; flex-direction: column; gap: 6px; }
         .bt-meta { display: flex; justify-content: space-between; color: var(--sub); font-size: 11px; }
         .num-group { display: flex; gap: 4px; align-items: center; }
+        .num-label { font-size: 10px; color: var(--sub); width: 30px; flex-shrink: 0; }
         .n-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #2c2c2e; font-size: 11px; font-weight: bold; }
         .n-box.hit { background: var(--primary); color: #000; box-shadow: 0 0 5px var(--primary); }
         .star-tag { background: var(--success); color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 900; }
         .matrix-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         .m-table { border-collapse: collapse; white-space: nowrap; width: 100%; }
         .m-table td, .m-table th { border: 1px solid #333; width: 18px; height: 18px; text-align: center; font-size: 9px; }
+        .m-head { background: #2c2c2e; color: var(--primary); position: sticky; top: 0; }
         .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; width: 50px; z-index: 5; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 12px; height: 12px; display: inline-block; }
-        #logBox { background: #000; color: var(--success); padding: 10px; height: 80px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); }
+        #logBox { background: #000; color: var(--success); padding: 10px; height: 60px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); }
         .ball-row { display: flex; flex-wrap: wrap; gap: 6px; }
         .ball { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 2px solid var(--accent); color: var(--accent); font-size: 16px; }
     </style>
@@ -29,22 +31,22 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (MS37 趨勢版)</div>
+        <div class="panel-header">P1: 數據注入 (V.43.0 PRO)</div>
         <input type="file" id="csvFile" accept=".csv">
     </div>
     <div class="panel">
-        <div class="panel-header">P2: 深度回測看板</div>
+        <div class="panel-header">P2: 近期回測 (驗證勝率)</div>
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: MS37 下期預測 (5 碼)</div>
+        <div class="panel-header">P3: 核心預測 (精選 8 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
-        <div class="panel-header">P4: 分布矩陣</div>
+        <div class="panel-header">P4: 號碼分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div class="panel"><div id="logBox">MS37 啟動：執行區間重壓策略。</div></div>
+    <div class="panel"><div id="logBox">系統待命中...</div></div>
 </div>
 
 <script>
@@ -53,77 +55,88 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getMS37Prediction(hist) {
-        if(hist.length < 20) return [1,2,3,4,5];
+    function getV430Prediction(hist) {
+        if(hist.length < 30) return [1,2,3,4,5,6,7,8];
+        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0 }));
         const lastRow = hist[hist.length-1].nums;
-        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0, zone: Math.floor((i-1)/10) }));
-
-        // 區間熱度分析
-        let zoneHeat = [0,0,0,0];
-        hist.slice(-5).forEach(d => d.nums.forEach(n => zoneHeat[Math.floor((n-1)/10)]++));
-        let hotZones = zoneHeat.map((h, i) => ({ z: i, h })).sort((a,b) => b.h - a.h);
-
-        // 尾數熱度分析
-        let tailHeat = Array(10).fill(0);
-        hist.slice(-3).forEach(d => d.nums.forEach(n => tailHeat[n%10]++));
-
+        
+        // 1. 遺漏值優化：鎖定 4-10 期「黃金遺漏」
         for(let i=1; i<=39; i++) {
             let gap = 0;
-            for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            stats[i].gap = gap;
-            
-            // 基礎鄰跳分
-            if(lastRow.some(ln => Math.abs(ln-i) === 1)) stats[i].score += 40;
-            if(gap >= 5 && gap <= 14) stats[i].score += 50;
-            
-            // 趨勢加成：屬於前兩大熱區
-            if(stats[i].zone === hotZones[0].z || stats[i].zone === hotZones[1].z) stats[i].score += 30;
-            // 趨勢加成：符合熱門尾數
-            if(tailHeat[i%10] > 1) stats[i].score += 25;
+            for(let k=hist.length-1; k>=0; k--) {
+                if(!hist[k].nums.includes(i)) gap++; else break;
+            }
+            if (gap >= 4 && gap <= 10) stats[i].score += 25; // 黃金跳期
+            else if (gap < 4) stats[i].score += 10;          // 熱號區
+            else stats[i].score += 5;                        // 冷號區
         }
 
-        let selected = [];
-        // 強制在第一熱區取 2 碼
-        let z1 = stats.slice(1).filter(s => s.zone === hotZones[0].z).sort((a,b) => b.score - a.score);
-        selected.push(...z1.slice(0, 2).map(x => x.n));
+        // 2. 尾數熱度（加強權重）
+        let tailMap = Array(10).fill(0);
+        hist.slice(-10).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
+        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 5);
 
-        // 在第二熱區取 1 碼
-        let z2 = stats.slice(1).filter(s => s.zone === hotZones[1].z && !selected.includes(s.n)).sort((a,b) => b.score - a.score);
-        selected.push(...z2.slice(0, 1).map(x => x.n));
+        // 3. 鄰號與重號（降低干擾，微調權重）
+        lastRow.forEach(ln => {
+            if(ln > 1) stats[ln-1].score += 12; 
+            if(ln < 39) stats[ln+1].score += 12;
+            stats[ln].score += 10; 
+        });
 
-        // 補足其餘 2 碼 (跨區防禦)
-        let remain = stats.slice(1).filter(s => !selected.includes(s.n)).sort((a,b) => b.score - a.score);
-        selected.push(...remain.slice(0, 2).map(x => x.n));
+        // 4. 五區均衡強制過濾 (0-9, 10-19, 20-29, 30-39)
+        let zones = [[],[],[],[]];
+        for(let i=1; i<=39; i++) {
+            let z = Math.min(Math.floor(i/10), 3);
+            zones[z].push(stats[i]);
+        }
+        
+        let pool = [];
+        zones.forEach(z => {
+            // 每區選取得分最高的前 2 名，確保不偏重某一區
+            let top2 = z.sort((a,b) => b.score - a.score).slice(0, 2);
+            pool.push(...top2);
+        });
 
-        return selected.sort((a,b) => a-b);
+        return pool.sort((a,b) => b.score - a.score || a.n - b.n).slice(0, 8).map(x => x.n).sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
         const reader = new FileReader();
         reader.onload = () => {
-            rawData = reader.result.replace(/\ufeff/g, "").replace(/\r/g, "").trim().split('\n').map(l => {
+            rawData = reader.result.replace(/\r/g, "").trim().split('\n').map(l => {
                 const c = l.split(',');
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
             document.getElementById('logBox').innerHTML = "";
-            run();
+            runV430();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function run() {
+    function runV430() {
         let btHtml = "";
-        rawData.slice(-10).reverse().forEach(row => {
-            const pred = getMS37Prediction(rawData.slice(0, rawData.indexOf(row)));
+        const displayData = rawData.slice(-10).reverse();
+        
+        displayData.forEach(row => {
+            const histSlice = rawData.slice(0, rawData.indexOf(row));
+            const pred = getV430Prediction(histSlice);
             const hits = row.nums.filter(n => pred.includes(n));
+            
             btHtml += `<div class="bt-row">
                 <div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div>
-                <div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div>
-                <div class="num-group"><span class="num-label">預測</span>${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}</div>
+                <div class="num-group">
+                    <span class="num-label">開獎</span>
+                    ${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}
+                </div>
+                <div class="num-group">
+                    <span class="num-label">預測</span>
+                    ${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}
+                </div>
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS37Prediction(rawData);
+        
+        const next = getV430Prediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
@@ -135,7 +148,7 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`MS37 攔截模組啟動 | 熱區與熱尾重壓`);
+        log(`V.43.0 PRO 已就緒 | 樣本: ${rawData.length} 期`);
     }
 </script>
 </body>
