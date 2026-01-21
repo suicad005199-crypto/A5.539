@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 MS22</title>
+    <title>539 精準分析 MS23</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -29,7 +29,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (MS22 二階差值版)</div>
+        <div class="panel-header">P1: 數據注入 (MS23 三元擴張版)</div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
@@ -37,14 +37,14 @@
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: 區塊保底預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: 三元擴張預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div class="panel"><div id="logBox">MS22 已就緒。固定規則核心已啟動...</div></div>
+    <div class="panel"><div id="logBox">MS23 就緒。規律配額機制已啟動...</div></div>
 </div>
 
 <script>
@@ -57,42 +57,47 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getMS22Prediction(hist, isSilent=true) {
+    function getMS23Prediction(hist, isSilent=true) {
         if(hist.length < 20) return [1,2,3,4,5];
         const lastRow = hist[hist.length-1].nums;
-        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0 }));
+        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0, type: '' }));
 
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             stats[i].gap = gap;
-
-            // 固定規則 1: 遺漏權重
-            if (gap >= 4 && gap <= 9) stats[i].score += 50; 
-            else if (gap <= 1) stats[i].score += 30;
-            else if (gap >= 15) stats[i].score = 0; // 強制排除極冷號
-
-            // 固定規則 2: 鄰號 (加分不解釋)
-            if (lastRow.some(ln => Math.abs(ln - i) === 1)) stats[i].score += 40;
-
-            // 固定規則 3: 尾數熱度 (近15期)
-            let tailCount = hist.slice(-15).filter(d => d.nums.some(n => n%10 === i%10)).length;
-            stats[i].score += tailCount * 2;
+            
+            // 規律 1: 鄰區 (鄰近爆發)
+            if(lastRow.some(ln => Math.abs(ln - i) === 1)) { stats[i].score += 40; stats[i].type = '鄰'; }
+            // 規律 2: 熱區 (強勢回歸)
+            let f10 = hist.slice(-10).filter(d => d.nums.includes(i)).length;
+            if(f10 >= 2 && gap < 4) { stats[i].score += 35; stats[i].type = stats[i].type || '熱'; }
+            // 規律 3: 跳區 (遺漏反彈)
+            if(gap >= 5 && gap <= 12) { stats[i].score += 45; stats[i].type = stats[i].type || '跳'; }
         }
 
-        // 核心：五區強選保底 (1-8, 9-16, 17-24, 25-32, 33-39)
         let selected = [];
-        const zoneSize = 8;
-        for(let z=0; z<5; z++) {
-            let start = z * zoneSize + 1;
-            let end = (z === 4) ? 39 : start + zoneSize - 1;
-            let bestInZone = stats.slice(start, end + 1).sort((a,b) => b.score - a.score)[0];
-            selected.push(bestInZone);
+        // 按配額選碼
+        const getBest = (type, count) => {
+            return stats.slice(1)
+                .filter(s => s.type === type && !selected.some(sel => sel.n === s.n))
+                .sort((a,b) => b.score - a.score)
+                .slice(0, count);
+        };
+
+        selected.push(...getBest('鄰', 2));
+        selected.push(...getBest('熱', 2));
+        selected.push(...getBest('跳', 1));
+
+        // 補位機制
+        if(selected.length < 5) {
+            let remain = stats.slice(1).filter(s => !selected.some(sel => sel.n === s.n)).sort((a,b)=>b.score - a.score);
+            selected.push(...remain.slice(0, 5 - selected.length));
         }
 
         if(!isSilent) {
-            log(`策略執行: 五區強選保底 | 遺漏剔除臨界: 15期`, '#ffd60a');
-            selected.forEach(s => log(`${pad(s.n)} 分:${Math.round(s.score)} [G:${s.gap}]`));
+            log(`三元配額執行：鄰(2) 熱(2) 跳(1)`, '#ffd60a');
+            selected.forEach(s => log(`${pad(s.n)} [${s.type || '補'}] G:${s.gap} 分:${Math.round(s.score)}`));
         }
         return selected.map(x => x.n).sort((a,b)=>a-b);
     }
@@ -105,28 +110,25 @@
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
             document.getElementById('logBox').innerHTML = "";
-            runMS22();
+            runMS23();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function runMS22() {
-        let btHtml = "", totalH = 0, h0 = 0;
+    function runMS23() {
+        let btHtml = "", totalH = 0, h0 = 0, h2p = 0;
         const displayData = rawData.slice(-10).reverse();
         displayData.forEach(row => {
             const idx = rawData.indexOf(row);
-            const pred = getMS22Prediction(rawData.slice(0, idx), true);
+            const pred = getMS23Prediction(rawData.slice(0, idx), true);
             const hits = row.nums.filter(n => pred.includes(n));
             if(hits.length === 0) h0++;
+            if(hits.length >= 2) h2p++;
             totalH += hits.length;
-            btHtml += `<div class="bt-row">
-                <div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span style="background:var(--success);color:#000;padding:2px 5px;border-radius:4px;font-weight:bold;">${hits.length} ★</span></div>
-                <div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div>
-                <div class="num-group"><span class="num-label">預測</span>${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}</div>
-            </div>`;
+            btHtml += `<div class="bt-row"><div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div><div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div><div class="num-group"><span class="num-label">預測</span>${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}</div></div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS22Prediction(rawData, false);
+        const next = getMS23Prediction(rawData, false);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
@@ -138,8 +140,7 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`--- MS22 戰力報告 ---`, '#0a84ff');
-        log(`平均命中: ${(totalH/10).toFixed(1)} | 掛零次數: ${h0} 期`);
+        log(`命中率報告: 平均 ${(totalH/10).toFixed(1)}碼 | 雙星爆發期 ${h2p*10}% | 掛零 ${h0}期`, '#0a84ff');
     }
 </script>
 </body>
