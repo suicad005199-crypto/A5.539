@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539/A.01-MS10 穩定覆蓋版</title>
+    <title>539/A.01-MS11 智能分類動態版</title>
     <style>
         :root { --bg: #0b0b0c; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 8px; font-size: 13px; }
@@ -22,13 +22,13 @@
         .m-table td, .m-table th { border: 1px solid #333; width: 16px; height: 16px; text-align: center; font-size: 9px; }
         .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; min-width: 38px; padding-left: 4px; z-index: 5; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 10px; height: 10px; display: inline-block; }
-        #logBox { background: #000; color: var(--success); padding: 8px; height: 50px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; margin-top: 5px; }
+        #logBox { background: #000; color: var(--success); padding: 8px; height: 75px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; margin-top: 5px; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--success)">MS10-STABLE</span></div>
+        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--success)">MS11-DYNAMIC</span></div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
@@ -36,14 +36,14 @@
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: MS10 穩定覆蓋預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: MS11 智能分類預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div id="logBox">MS10 已佈署。目標：降低 0 命中率，穩定覆蓋不同週期號碼。</div>
+    <div id="logBox">系統已就緒，等待數據注入分析。</div>
 </div>
 
 <script>
@@ -51,75 +51,102 @@
     const log = (m) => { const lb = document.getElementById('logBox'); lb.innerHTML += `> ${m}<br>`; lb.scrollTop = lb.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    function getMS10Logic(hist) {
-        if(hist.length < 20) return [1,2,3,4,5];
+    function getSimpleFallback(hist) {
+        if(hist.length === 0) return [1,2,3,4,5];
+        const freq = new Array(40).fill(0);
+        hist.slice(-10).forEach(d => d.nums.forEach(n => freq[n]++));
+        const hot = freq.map((count, num) => ({num, count})).slice(1).sort((a,b) => b.count - a.count).slice(0, 8).map(x => x.num);
+        const selected = [];
+        const zones = [0,0,0];
+        for(const num of hot) {
+            if(selected.length >= 5) break;
+            const z = Math.floor((num-1)/13);
+            if(zones[z] < 2) { selected.push(num); zones[z]++; }
+        }
+        while(selected.length < 5) {
+            for(let i=1; i<=39; i++) if(!selected.includes(i)) { selected.push(i); if(selected.length===5) break; }
+        }
+        return selected.sort((a,b) => a-b);
+    }
+
+    function getMS11EnhancedLogic(hist) {
+        if(hist.length < 25) return getSimpleFallback(hist);
         
         const coverage = new Array(39).fill(0).map((_, i) => ({
-            num: i+1, lastSeen: 0, hotScore: 0, zone: Math.floor(i/13), tail: (i+1) % 10
+            num: i+1, lastSeen: 0, freq10: 0, freq20: 0, zone: Math.floor(i/13), tail: (i+1) % 10, neighbors: 0
         }));
         
+        const lastNums = hist[hist.length-1].nums;
         for(let i = 0; i < Math.min(30, hist.length); i++) {
-            const period = hist.length - 1 - i;
-            hist[period].nums.forEach(n => {
+            const periodIdx = hist.length - 1 - i;
+            hist[periodIdx].nums.forEach(n => {
                 const idx = n - 1;
                 if(coverage[idx].lastSeen === 0) coverage[idx].lastSeen = i + 1;
-                if(i < 10) coverage[idx].hotScore += (10 - i);
+                if(i < 10) coverage[idx].freq10++;
+                if(i < 20) coverage[idx].freq20++;
             });
         }
-        
+        lastNums.forEach(n => {
+            if(n > 1) coverage[n-2].neighbors++;
+            if(n < 39) coverage[n].neighbors++;
+        });
+
+        const avgFreq = (hist.slice(-20).length * 5) / 39;
+        const hotT = Math.max(2, Math.ceil(avgFreq * 1.5));
+        const warmT = Math.max(1, Math.floor(avgFreq));
+        const coldT = Math.floor(avgFreq * 0.5);
+
+        const categories = { hot: [], warm: [], cold: [], neighbor: [], balanced: [] };
+        coverage.forEach(item => {
+            let catS = 0;
+            if(item.freq10 >= hotT) { catS += 30; categories.hot.push({...item, catScore: catS}); }
+            else if(item.freq20 >= warmT && item.lastSeen <= 15) { catS += 20; categories.warm.push({...item, catScore: catS}); }
+            else if(item.freq20 <= coldT && item.lastSeen <= 25) { catS += 15; categories.cold.push({...item, catScore: catS}); }
+            if(item.neighbors > 0) { catS += 25; categories.neighbor.push({...item, catScore: catS}); }
+            if(item.freq10 > 0 && item.freq10 < 3 && item.lastSeen > 5 && item.lastSeen < 20) categories.balanced.push({...item, catScore: 10});
+        });
+
         const selected = [];
         const usedTails = new Set();
-        const usedZones = [0, 0, 0];
-        
-        // 策略A：2個強熱
-        const strongHot = coverage.filter(item => item.lastSeen <= 3 && item.hotScore > 5)
-            .sort((a,b) => b.hotScore - a.hotScore).slice(0, 5);
-        if(strongHot.length >= 2) {
-            for(let i=0; i<2; i++) {
-                selected.push(strongHot[i].num);
-                usedTails.add(strongHot[i].tail);
-                usedZones[strongHot[i].zone]++;
+        const usedZones = {0:0, 1:0, 2:0};
+        const maxZoneLimit = 2;
+        const selectionOrder = [
+            {name: 'hot', target: 2}, {name: 'neighbor', target: 1}, {name: 'warm', target: 1}, {name: 'balanced', target: 1}, {name: 'cold', target: 1}
+        ];
+
+        for(const strategy of selectionOrder) {
+            if(selected.length >= 5) break;
+            const pool = categories[strategy.name];
+            if(!pool || pool.length === 0) continue;
+            pool.sort((a,b) => {
+                const sD = b.catScore - a.catScore;
+                if(Math.abs(sD) > 5) return sD;
+                const tD = (usedTails.has(a.tail) ? 0 : 1) - (usedTails.has(b.tail) ? 0 : 1);
+                if(tD !== 0) return tD;
+                return (maxZoneLimit - usedZones[a.zone]) - (maxZoneLimit - usedZones[b.zone]);
+            });
+            const needed = Math.min(strategy.target, 5 - selected.length, pool.length);
+            let count = 0;
+            for(let i=0; i<pool.length && count < needed; i++) {
+                const cand = pool[i];
+                if(!selected.includes(cand.num) && usedZones[cand.zone] < maxZoneLimit) {
+                    selected.push(cand.num); usedTails.add(cand.tail); usedZones[cand.zone]++; count++;
+                }
             }
         }
-        
-        // 策略B：1個溫號
-        const warmNumbers = coverage.filter(item => item.lastSeen >= 4 && item.lastSeen <= 8 && !selected.includes(item.num))
-            .sort((a,b) => a.lastSeen - b.lastSeen);
-        if(warmNumbers.length > 0) {
-            const bestWarm = warmNumbers.find(item => !usedTails.has(item.tail) && usedZones[item.zone] < 2) || warmNumbers[0];
-            selected.push(bestWarm.num);
-            usedTails.add(bestWarm.tail);
-            usedZones[bestWarm.zone]++;
-        }
-        
-        // 策略C：1-2個回歸
-        const regressionNumbers = coverage.filter(item => item.lastSeen >= 9 && item.lastSeen <= 15 && !selected.includes(item.num))
-            .sort((a,b) => b.lastSeen - a.lastSeen);
-        let needed = 5 - selected.length;
-        let regCount = 0;
-        for(const item of regressionNumbers) {
-            if(regCount >= needed) break;
-            const zoneLimit = (selected.length <= 3) ? 2 : 1;
-            if(usedZones[item.zone] < zoneLimit) {
-                selected.push(item.num);
-                usedTails.add(item.tail);
-                usedZones[item.zone]++;
-                regCount++;
-            }
-        }
-        
-        // 策略D：補足
+
         while(selected.length < 5) {
-            const remaining = coverage.filter(item => !selected.includes(item.num))
-                .map(item => ({ ...item, balanceScore: ((2 - usedZones[item.zone]) * 10) + (usedTails.has(item.tail) ? 0 : 5) + Math.min(20, item.lastSeen) }))
-                .sort((a,b) => b.balanceScore - a.balanceScore);
-            if(remaining.length > 0) {
-                selected.push(remaining[0].num);
-                usedTails.add(remaining[0].tail);
-                usedZones[remaining[0].zone]++;
-            } else break;
+            const rem = Array.from({length:39}, (_,i)=>i+1).filter(n => !selected.includes(n))
+                .map(n => {
+                    const it = coverage[n-1];
+                    const sc = (maxZoneLimit - usedZones[it.zone]) * 20 + (usedTails.has(it.tail) ? 0 : 15) + (30 - Math.min(it.lastSeen, 30));
+                    return {num: n, score: sc};
+                }).sort((a,b) => b.score - a.score);
+            if(rem.length === 0) break;
+            selected.push(rem[0].num);
+            const idx = rem[0].num-1; usedTails.add(coverage[idx].tail); usedZones[coverage[idx].zone]++;
         }
-        return selected.slice(0, 5).sort((a,b) => a-b);
+        return selected.sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
@@ -135,22 +162,28 @@
     });
 
     function render() {
-        let btHtml = "", totalHits = 0, hit0Count = 0;
+        let btHtml = "", totalHits = 0, hit0 = 0, hit2Plus = 0;
         const btData = rawData.slice(-10).reverse();
         btData.forEach(row => {
             const idx = rawData.findIndex(r => r.date === row.date);
-            const pred = getMS10Logic(rawData.slice(0, idx));
+            const pred = getMS11EnhancedLogic(rawData.slice(0, idx));
             const hits = row.nums.filter(n => pred.includes(n));
             totalHits += hits.length;
-            if(hits.length === 0) hit0Count++;
+            if(hits.length === 0) hit0++;
+            if(hits.length >= 2) hit2Plus++;
             btHtml += `<div class="bt-row"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span>📅 ${row.date}</span><span style="background:var(--success);color:#000;padding:2px 6px;border-radius:4px;font-weight:900">${hits.length} ★</span></div>
                 <div class="num-group">${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'is-hit':''}">${pad(n)}</div>`).join('')}</div>
-                <div class="pred-list">方案：${pred.map(n => pad(n)).join(' ')}</div></div>`;
+                <div class="pred-list">MS11：${pred.map(n => pad(n)).join(' ')}</div></div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS10Logic(rawData);
+        const next = getMS11EnhancedLogic(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
-        log(`MS10 期望命中: ${(totalHits/10).toFixed(1)} | 掛0率: ${hit0Count*10}%`);
+        
+        // 分類統計
+        const pool = rawData.length;
+        log(`數據庫：${pool} 期 | 期望命中: ${(totalHits/10).toFixed(1)}`);
+        log(`命中≥2率: ${hit2Plus * 10}% | 掛0率: ${hit0 * 10}%`);
+        log(`動態閾值：熱(${Math.ceil((50/39)*1.5)}) 溫(${Math.floor(50/39)})`);
     }
 </script>
 </body>
