@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539/A.01-MS14 梯度自適應版</title>
+    <title>539/A.01-MS15 基石穩定版</title>
     <style>
         :root { --bg: #0b0b0c; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 8px; font-size: 12px; }
@@ -14,36 +14,35 @@
         .num-group { display: flex; gap: 4px; margin-top: 5px; }
         .n-box { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: bold; background: #2c2c2e; color: var(--sub); }
         .n-box.is-hit { background: var(--primary); color: #000; box-shadow: 0 0 8px var(--primary); }
-        .pred-list { font-size: 10px; color: var(--accent); margin-top: 4px; }
-        .ball-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 12px 0; background: rgba(10,132,255,0.08); border-radius: 8px; }
-        .ball { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: 900; border: 3px solid var(--accent); color: var(--accent); font-size: 20px; }
+        .ball-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 12px 0; background: rgba(50,215,75,0.1); border-radius: 8px; }
+        .ball { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: 900; border: 3px solid var(--success); color: var(--success); font-size: 20px; }
         .matrix-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         .m-table { border-collapse: collapse; white-space: nowrap; width: 100%; }
         .m-table td, .m-table th { border: 1px solid #333; width: 16px; height: 16px; text-align: center; font-size: 9px; }
-        .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; min-width: 38px; padding-left: 4px; z-index: 5; }
+        .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; min-width: 38px; z-index: 5; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 10px; height: 10px; display: inline-block; }
-        #logBox { background: #000; color: var(--success); padding: 8px; height: 75px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; }
+        #logBox { background: #000; color: var(--success); padding: 8px; height: 60px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 <span style="float:right; color:var(--accent); font-size:10px;">MS14-HEURISTIC</span></div>
+        <div class="panel-header">P1: 數據注入 <span style="float:right; color:var(--success); font-size:10px;">MS15-STABLE</span></div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
-        <div class="panel-header">P2: 梯度回測分析</div>
+        <div class="panel-header">P2: 穩定度回測</div>
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: MS14 啟發式預測</div>
+        <div class="panel-header" style="color:var(--success)">P3: MS15 穩定預測 (5碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div id="logBox">MS14 啟發式引擎就緒。動態計算特徵相關性...</div>
+    <div id="logBox">MS15 啟動。採用固定權重與區域防禦邏輯。</div>
 </div>
 
 <script>
@@ -51,44 +50,9 @@
     const log = (m) => { const lb = document.getElementById('logBox'); lb.innerHTML += `> ${m}<br>`; lb.scrollTop = lb.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    function calculateDynamicWeights(hist) {
-        if (hist.length < 15) return { heat: 1, neighbor: 1, gap: 1, tail: 1 };
+    function getMS15Logic(hist) {
+        if(hist.length < 10) return [1,2,3,4,5].map(n=>({n, s:0}));
         
-        let scores = { heat: 0, neighbor: 0, gap: 0, tail: 0 };
-        const sample = hist.slice(-10); // 分析過去 10 期
-        
-        sample.forEach((day, i) => {
-            const prevHist = hist.slice(0, hist.length - 10 + i);
-            const prevNums = prevHist[prevHist.length - 1].nums;
-            
-            day.nums.forEach(n => {
-                // 熱度相關性
-                const freq = prevHist.slice(-10).filter(d => d.nums.includes(n)).length;
-                if (freq >= 2) scores.heat++;
-                // 鄰號相關性
-                if (prevNums.some(pn => Math.abs(pn - n) === 1)) scores.neighbor++;
-                // 遺漏相關性 (中遺漏 5-12)
-                let gap = 0;
-                for(let k=prevHist.length-1; k>=0; k--) { if(!prevHist[k].nums.includes(n)) gap++; else break; }
-                if (gap >= 5 && gap <= 12) scores.gap++;
-                // 尾數相關性
-                const tail = n % 10;
-                const tFreq = prevHist.slice(-5).filter(d => d.nums.some(pn => pn % 10 === tail)).length;
-                if (tFreq >= 2) scores.tail++;
-            });
-        });
-
-        const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
-        return {
-            heat: (scores.heat / total) * 100,
-            neighbor: (scores.neighbor / total) * 100,
-            gap: (scores.gap / total) * 100,
-            tail: (scores.tail / total) * 100
-        };
-    }
-
-    function getMS14Logic(hist) {
-        const weights = calculateDynamicWeights(hist);
         const lastRow = hist[hist.length-1].nums;
         const stats = Array.from({length:39}, (_, i) => {
             const n = i + 1;
@@ -96,18 +60,14 @@
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(n)) gap++; else break; }
             const f10 = hist.slice(-10).filter(d => d.nums.includes(n)).length;
             const isN = lastRow.some(ln => Math.abs(ln - n) === 1);
-            const tail = n % 10;
-            const tFreq = hist.slice(-10).filter(d => d.nums.some(dn => dn%10 === tail)).length;
-
-            // 啟發式權重計算
-            let s = (f10 * weights.heat * 0.5) + 
-                    (isN ? weights.neighbor : 0) + 
-                    ((gap >= 5 && gap <= 12) ? weights.gap : (gap > 12 ? weights.gap*0.5 : 0)) + 
-                    (tFreq * weights.tail * 0.2);
             
-            // 交互加成：又是鄰號又是熱碼
-            if (isN && f10 >= 2) s *= 1.2;
-
+            // 固定權重系統
+            let s = 0;
+            if (f10 >= 2) s += 30; // 熱碼固定分
+            if (isN) s += 35;      // 鄰號固定分
+            if (gap >= 4 && gap <= 10) s += 25; // 黃金遺漏分
+            if (gap > 20) s -= 15; // 排除極冷碼
+            
             return { n, s, zone: Math.floor(i/13) };
         });
 
@@ -115,9 +75,15 @@
         const zCount = [0, 0, 0];
         const sorted = stats.sort((a, b) => b.s - a.s);
 
+        // 策略：優先保證每區至少1碼，再補強分最高者
+        [0, 1, 2].forEach(z => {
+            const bestInZone = sorted.find(c => c.zone === z);
+            if(bestInZone) { selected.push(bestInZone); zCount[z]++; }
+        });
+
         for (const cand of sorted) {
             if (selected.length >= 5) break;
-            if (zCount[cand.zone] < 3) {
+            if (!selected.some(s => s.n === cand.n) && zCount[cand.zone] < 2) {
                 selected.push(cand);
                 zCount[cand.zone]++;
             }
@@ -138,21 +104,19 @@
     });
 
     function render() {
-        let btHtml = "", totalH = 0, h2P = 0, h0 = 0;
+        let btHtml = "", totalH = 0, h0 = 0;
         const btData = rawData.slice(-10).reverse();
         btData.forEach(row => {
             const idx = rawData.findIndex(r => r.date === row.date);
-            const pred = getMS14Logic(rawData.slice(0, idx));
+            const pred = getMS15Logic(rawData.slice(0, idx));
             const pNums = pred.map(o=>o.n);
             const hits = row.nums.filter(n => pNums.includes(n));
-            totalH += hits.length; if(hits.length >= 2) h2P++; if(hits.length === 0) h0++;
-            btHtml += `<div class="bt-row"><div style="display:flex;justify-content:space-between"><span>📅 ${row.date}</span><span style="background:var(--success);color:#000;padding:2px 5px;border-radius:4px;font-weight:bold">${hits.length}★</span></div>
-                <div class="num-group">${row.nums.map(n => `<div class="n-box ${pNums.includes(n)?'is-hit':''}">${pad(n)}</div>`).join('')}</div>
-                <div class="pred-list">方案: ${pred.map(o=>`${pad(o.n)}(${Math.round(o.s)})`).join(' ')}</div></div>`;
+            totalH += hits.length; if(hits.length === 0) h0++;
+            btHtml += `<div class="bt-row"><span>📅 ${row.date}</span> [${hits.length}★]
+                <div class="num-group">${row.nums.map(n => `<div class="n-box ${pNums.includes(n)?'is-hit':''}">${pad(n)}</div>`).join('')}</div></div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS14Logic(rawData);
-        const w = calculateDynamicWeights(rawData);
+        const next = getMS15Logic(rawData);
         document.getElementById('nextPred').innerHTML = next.map(o=>`<div class="ball">${pad(o.n)}</div>`).join('');
         
         let mH = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
@@ -164,8 +128,7 @@
             mH += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mH + `</tbody></table>`;
-        log(`動態權重：熱${Math.round(w.heat)}% 鄰${Math.round(w.neighbor)}% 遺${Math.round(w.gap)}% 尾${Math.round(w.tail)}%`);
-        log(`MS14 期望: ${(totalH/10).toFixed(1)} | 命中≥2: ${h2P*10}%`);
+        log(`期望命中: ${(totalH/10).toFixed(1)} | 掛0次數: ${h0}`);
     }
 </script>
 </body>
