@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539/A.01-MS2 多維矩陣版</title>
+    <title>539/A.01-MS3 動態權衡版</title>
     <style>
         :root { --bg: #0b0b0c; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 8px; font-size: 13px; }
@@ -11,22 +11,21 @@
         .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px; font-size: 14px; }
         
-        /* P2 回測專用樣式 - 修正預測碼顯示 */
+        /* P2 顯示邏輯強化 */
         .bt-row { border-bottom: 1px solid var(--border); padding: 10px 0; }
         .num-group { display: flex; gap: 6px; margin-top: 6px; }
-        .n-box { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 13px; font-weight: bold; background: #2c2c2e; color: var(--sub); border: 1px solid transparent; }
-        .n-box.is-pred { border-color: var(--accent); color: var(--accent); } /* 預測號碼顯示藍色框 */
-        .n-box.hit { background: var(--primary); color: #000; border-color: var(--primary); } /* 命中顯示黃色 */
+        .n-box { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 13px; font-weight: bold; background: #2c2c2e; color: var(--sub); }
+        .n-box.is-hit { background: var(--primary); color: #000; box-shadow: 0 0 8px var(--primary); }
+        .pred-list { font-size: 10px; color: var(--accent); margin-top: 5px; opacity: 0.9; }
 
         /* P3 預測球 */
-        .ball-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 15px 0; background: rgba(10,132,255,0.05); border-radius: 8px; }
-        .ball { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: 900; border: 3px solid var(--accent); color: var(--accent); font-size: 22px; }
+        .ball-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 15px 0; background: rgba(10,132,255,0.08); border-radius: 8px; }
+        .ball { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: 900; border: 3px solid var(--accent); color: var(--accent); font-size: 22px; box-shadow: 0 0 15px rgba(10,132,255,0.4); }
 
         /* P4 矩陣 */
         .matrix-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         .m-table { border-collapse: collapse; white-space: nowrap; width: 100%; }
         .m-table td, .m-table th { border: 1px solid #333; width: 16px; height: 16px; text-align: center; font-size: 9px; }
-        .m-head { background: #2c2c2e; color: var(--primary); }
         .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; min-width: 38px; padding-left: 4px; z-index: 5; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 10px; height: 10px; display: inline-block; }
         
@@ -36,7 +35,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--success)">MS2-ENGINE</span></div>
+        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--accent)">MS3-DYNAMIC</span></div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
 
@@ -46,16 +45,16 @@
     </div>
 
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: MS2 多維精選預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: MS3 動態平衡預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
 
     <div class="panel">
-        <div class="panel-header">P4: 分布矩陣分析</div>
+        <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
 
-    <div id="logBox">MS2 多維矩陣系統就緒...</div>
+    <div id="logBox">MS3 系統就緒，優化邏輯已掛載...</div>
 </div>
 
 <script>
@@ -64,34 +63,33 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const fmtDate = (dStr) => { const p = dStr.split(/[-/]/); return p.length >= 3 ? `${parseInt(p[1])}/${parseInt(p[2])}` : dStr; };
 
-    function getMS2Logic(hist) {
+    function getMS3Logic(hist) {
         if(hist.length < 10) return [01,02,03,04,05];
         let scores = Array(40).fill(0);
         const lastRow = hist[hist.length-1].nums;
-        const last10 = hist.slice(-10);
+        
+        // 1. 動態權衡：計算近期冷熱趨勢
+        let hitRate = 0;
+        hist.slice(-5).forEach(d => { if(new Set([...d.nums, ...lastRow]).size < 10) hitRate++; });
 
-        // 1. 溫碼與遺漏加成
         for(let i=1; i<=39; i++) {
-            let g = 0;
-            for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) g++; else break; }
-            if(g >= 3 && g <= 10) scores[i] += 65;
-            if(lastRow.some(n => Math.abs(n - i) === 1)) scores[i] += 50; // 鄰號捕捉
-        }
+            let gap = 0;
+            for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
+            
+            // 基礎溫碼分 (針對 4-10 期強化)
+            if(gap >= 4 && gap <= 10) scores[i] += 70;
+            else if(gap >= 1 && gap <= 3) scores[i] += 40;
+            
+            // 鄰號權重
+            if(lastRow.some(n => Math.abs(n - i) === 1)) scores[i] += 55;
 
-        // 2. 矩陣區間補償 (分析 P4 邏輯)
-        for(let z=0; z<3; z++) {
-            let start = z*13+1, end = (z+1)*13;
-            let count = 0;
-            hist.slice(-3).forEach(d => d.nums.forEach(n => { if(n>=start && n<=end) count++; }));
-            if(count <= 2) { // 若該大區近期出號極少
-                for(let i=start; i<=end; i++) scores[i] += 30;
-            }
+            // 避開死亡遺漏區 (12-18期)
+            if(gap >= 12 && gap <= 18) scores[i] -= 40;
+            
+            // 尾數熱點
+            let tail = i % 10;
+            hist.slice(-8).forEach(d => d.nums.forEach(n => { if(n%10 === tail) scores[i] += 5; }));
         }
-
-        // 3. 尾數熱點維持
-        let tMap = Array(10).fill(0);
-        last10.forEach(d => d.nums.forEach(n => tMap[n%10]++));
-        for(let i=1; i<=39; i++) scores[i] += (tMap[i%10] * 5);
 
         return scores.map((s, i) => ({n: i, s})).slice(1)
                      .sort((a,b) => b.s - a.s || a.n - b.n)
@@ -113,33 +111,30 @@
 
     function render() {
         let btHtml = "", totalHits = 0;
-        const btData = rawData.slice(-10).reverse();
+        const btSize = 10;
+        const btData = rawData.slice(-btSize).reverse();
+
         btData.forEach(row => {
             const idx = rawData.findIndex(r => r.date === row.date);
-            const pred = getMS2Logic(rawData.slice(0, idx));
+            const pred = getMS3Logic(rawData.slice(0, idx));
             const hits = row.nums.filter(n => pred.includes(n));
             totalHits += hits.length;
             
-            // P2 顯示邏輯：列出當期 5 碼，並標註哪些是預測碼、哪些命中
             btHtml += `<div class="bt-row">
                 <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span>📅 ${row.date}</span><span style="background:var(--success);color:#000;padding:2px 6px;border-radius:4px;font-weight:900">${hits.length} ★</span></div>
                 <div class="num-group">
-                    ${row.nums.map(n => {
-                        let cls = "n-box";
-                        if(pred.includes(n)) cls += " is-pred hit";
-                        return `<div class="${cls}">${pad(n)}</div>`;
-                    }).join('')}
+                    ${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'is-hit':''}">${pad(n)}</div>`).join('')}
                 </div>
-                <div style="font-size:10px; color:var(--accent); margin-top:4px;">預測方案: ${pred.map(p => pad(p)).join(' ')}</div>
+                <div class="pred-list">方案預測：${pred.map(p => pad(p)).join(' ')}</div>
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
 
-        const next = getMS2Logic(rawData);
+        const next = getMS3Logic(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
 
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
-        for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
+        for(let i=1; i<=39; i++) mHtml += `<th>${pad(i)}</th>`;
         mHtml += `</tr></thead><tbody>`;
         rawData.slice(-15).reverse().forEach(row => {
             mHtml += `<tr><td class="m-date">${fmtDate(row.date)}</td>`;
@@ -147,7 +142,7 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`MS2 多維引擎運作中 | 期望值: ${(totalHits/10).toFixed(1)}`);
+        log(`MS3 引擎運算完畢 | 期望值: ${(totalHits/btSize).toFixed(1)}`);
     }
 </script>
 </body>
