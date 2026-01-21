@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 MS30</title>
+    <title>539 精準分析 MS30.1</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -29,7 +29,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (MS30 重心版)</div>
+        <div class="panel-header">P1: 數據注入 (MS30.1 修正版)</div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
@@ -44,7 +44,7 @@
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div class="panel"><div id="logBox">MS30 已就緒。重心引力與集群演算法載入中...</div></div>
+    <div class="panel"><div id="logBox">MS30.1 核心解析修復完成，請重新上傳 CSV。</div></div>
 </div>
 
 <script>
@@ -58,9 +58,82 @@
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
     function getMS30Prediction(hist, isSilent=true) {
-        if(hist.length < 20) return [1,2,3,4,5];
+        if(hist.length < 15) return [1,2,3,4,5];
         const lastRow = hist[hist.length-1].nums;
         let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0 }));
+        let density = Array(40).fill(0);
+        hist.slice(-3).forEach(d => d.nums.forEach(n => {
+            for(let i=Math.max(1,n-2); i<=Math.min(39,n+2); i++) density[i]++;
+        }));
+        for(let i=1; i<=39; i++) {
+            let gap = 0;
+            for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
+            stats[i].gap = gap;
+            stats[i].score += (density[i] * 20) + (gap >= 5 && gap <= 11 ? 40 : 20);
+            if (lastRow.some(ln => Math.abs(ln - i) === 1)) stats[i].score += 30;
+        }
+        let selected = [];
+        let sorted = stats.slice(1).sort((a,b) => b.score - a.score);
+        for(let s of sorted) {
+            if(selected.length >= 5) break;
+            if(!selected.some(sel => Math.abs(sel.n - s.n) <= 1) || density[s.n] > 1) selected.push(s);
+        }
+        while(selected.length < 5) {
+            let next = sorted.find(s => !selected.includes(s));
+            if(next) selected.push(next); else break;
+        }
+        return selected.slice(0, 5).map(x => x.n).sort((a,b)=>a-b);
+    }
 
-        // 1. 重心區域偵測 (近 3 期紅點密集度)
-        let density
+    document.getElementById('csvFile').addEventListener('change', e => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                // 修正：移除 BOM 並加強換行符解析
+                const content = reader.result.replace(/\ufeff/g, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+                rawData = content.split('\n').map(l => {
+                    const c = l.split(',');
+                    const date = c[0].trim();
+                    const nums = c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b);
+                    return { date, nums };
+                }).filter(r => r.nums.length === 5);
+                
+                if (rawData.length === 0) throw new Error("無有效數據");
+                document.getElementById('logBox').innerHTML = "";
+                log(`成功讀取 ${rawData.length} 期數據`, '#32d74b');
+                runAnalysis();
+            } catch (err) {
+                log(`CSV 解析錯誤: ${err.message}`, '#ff375f');
+            }
+        };
+        reader.readAsText(e.target.files[0]);
+    });
+
+    function runAnalysis() {
+        let btHtml = "", totalH = 0, h0 = 0, h2p = 0;
+        const displayData = rawData.slice(-10).reverse();
+        displayData.forEach(row => {
+            const idx = rawData.indexOf(row);
+            const pred = getMS30Prediction(rawData.slice(0, idx), true);
+            const hits = row.nums.filter(n => pred.includes(n));
+            if(hits.length === 0) h0++;
+            if(hits.length >= 2) h2p++;
+            totalH += hits.length;
+            btHtml += `<div class="bt-row"><div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="n-box ${hits.length>=2?'hit':''}" style="width:40px">${hits.length}★</span></div><div class="num-group">${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div></div>`;
+        });
+        document.getElementById('btBody').innerHTML = btHtml;
+        const next = getMS30Prediction(rawData, false);
+        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
+        
+        let mHtml = `<table class="m-table"><tbody>`;
+        rawData.slice(-15).reverse().forEach(row => {
+            mHtml += `<tr><td class="m-date">${formatDate(row.date)}</td>`;
+            for(let i=1; i<=39; i++) mHtml += `<td>${row.nums.includes(i) ? '<span class="m-ball"></span>' : ''}</td>`;
+            mHtml += `</tr>`;
+        });
+        document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
+        log(`平均命中: ${(totalH/10).toFixed(1)} | 雙星率: ${h2p*10}% | 掛零: ${h0}`, '#0a84ff');
+    }
+</script>
+</body>
+</html>
