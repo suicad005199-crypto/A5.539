@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>天天樂 Oracle V.16-SP</title>
+    <title>天天樂 Oracle V.16.2-DA</title>
     <style>
         :root { 
             --bg: #02040a; --panel: #0d1117; --primary: #58a6ff; 
@@ -31,14 +31,17 @@
         .m-ball { background: var(--hit); border-radius: 50%; width: 12px; height: 12px; display: inline-block; }
         
         #logBox { background: #010409; color: var(--primary); padding: 10px; height: 110px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 6px; line-height: 1.5; }
-        .ball-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 10px 0; }
+        
+        /* P3 特殊排版：分兩排，每排四碼，靠左 */
+        .ball-container { display: flex; flex-direction: column; gap: 10px; padding: 5px 0; }
+        .ball-row { display: flex; gap: 12px; justify-content: flex-start; }
         .ball { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #0d1117; border-radius: 50%; font-weight: bold; border: 2px solid var(--primary); color: var(--primary); font-size: 18px; box-shadow: 0 0 8px rgba(88,166,255,0.2); }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 脈衝數據注入 (V.16 Singularity)</div>
+        <div class="panel-header">P1: 數據注入 (V.16.2 Dual-Axe)</div>
         <input type="file" id="csvFile" accept=".csv">
     </div>
     
@@ -48,8 +51,8 @@
     </div>
 
     <div class="panel">
-        <div class="panel-header">P3: 奇點核心預測 (8 碼)</div>
-        <div id="nextPred" class="ball-row"></div>
+        <div class="panel-header">P3: 核心預測 (戰術分組)</div>
+        <div id="nextPred" class="ball-container"></div>
     </div>
 
     <div class="panel">
@@ -58,7 +61,7 @@
     </div>
 
     <div class="panel">
-        <div id="logBox">系統已就緒。等待 CSV 全數據模擬...<br>當前目標：鎖定鄰號對子，衝刺 80% 三星。</div>
+        <div id="logBox">系統已優化至 V.16.2。等待全數據模擬...<br>目標：將 40% 的二星命中轉化為三星。</div>
     </div>
 </div>
 
@@ -68,29 +71,27 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getSingularityPrediction(hist) {
-        if(hist.length < 20) return [1,2,8,9,18,19,28,29];
+    function getPrediction(hist) {
+        if(hist.length < 20) return [1,2,3,4,11,12,13,14];
         let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0 }));
         const lastRow = hist[hist.length-1].nums;
         
-        // V.16 邏輯：強化對沖遺漏 + 鄰號對子聚合
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) {
                 if(!hist[k].nums.includes(i)) gap++; else break;
             }
-            stats[i].score += (gap >= 12) ? (gap * 18.0) : (gap * 4.0); 
+            stats[i].score += (gap >= 10) ? (gap * 20.0) : (gap * 5.0); 
         }
         
         let tailMap = Array(10).fill(0);
         hist.slice(-15).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
-        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 9.0);
+        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 10.0);
         
-        // 強鄰號算法 (對子聚合)
         lastRow.forEach(ln => {
-            if(ln > 1) stats[ln-1].score += 85; 
-            if(ln < 39) stats[ln+1].score += 85;
-            stats[ln].score += 40; 
+            if(ln > 1) stats[ln-1].score += 90; 
+            if(ln < 39) stats[ln+1].score += 90;
+            stats[ln].score += 45; 
         });
 
         return stats.sort((a,b)=>b.score - a.score).slice(0, 8).map(x=>x.n).sort((a,b)=>a-b);
@@ -104,19 +105,19 @@
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
             document.getElementById('logBox').innerHTML = "";
-            runSingularity();
+            runSim();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function runSingularity() {
+    function runSim() {
         let btHtml = "";
         let star = { 0:0, 1:0, 2:0, 3:0, 4:0 };
         const displayData = rawData.slice(-10).reverse();
         
         displayData.forEach(row => {
             const histSlice = rawData.slice(0, rawData.indexOf(row));
-            const pred = getSingularityPrediction(histSlice);
+            const pred = getPrediction(histSlice);
             const hits = row.nums.filter(n => pred.includes(n));
             star[Math.min(hits.length, 4)]++;
             
@@ -133,14 +134,18 @@
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getSingularityPrediction(rawData);
-        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         
-        log(`命中率實時統計：`);
-        log(`[0★]: ${(star[0]/10*100).toFixed(0)}% | [1★]: ${(star[1]/10*100).toFixed(0)}%`);
-        log(`[2★]: ${(star[2]/10*100).toFixed(0)}% | [3★]: ${(star[3]/10*100).toFixed(0)}%`);
-        log(`[4★]: ${(star[4]/10*100).toFixed(0)}%`);
-        log(`分析：規律重心已鎖定鄰號區，請注意對子組合。`);
+        const next = getPrediction(rawData);
+        // UI 修改：分兩排一排四碼靠左
+        let predHtml = `<div class="ball-row">`;
+        next.slice(0, 4).forEach(n => predHtml += `<div class="ball">${pad(n)}</div>`);
+        predHtml += `</div><div class="ball-row">`;
+        next.slice(4, 8).forEach(n => predHtml += `<div class="ball">${pad(n)}</div>`);
+        predHtml += `</div>`;
+        document.getElementById('nextPred').innerHTML = predHtml;
+        
+        log(`命中統計：[0★]: ${(star[0]/10*100).toFixed(0)}% | [1★]: ${(star[1]/10*100).toFixed(0)}% | [2★]: ${(star[2]/10*100).toFixed(0)}% | [3★]: ${(star[3]/10*100).toFixed(0)}%`);
+        log(`分析：二星率穩定回升，系統正在壓榨第三顆共振碼...`);
         
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
         for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
