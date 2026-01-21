@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539/A.01-MS4 熱力回歸版</title>
+    <title>539/A.01-MS5 冷熱平衡版</title>
     <style>
         :root { --bg: #0b0b0c; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 8px; font-size: 13px; }
@@ -28,7 +28,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--success)">MS4-HEAT</span></div>
+        <div class="panel-header">P1: 數據注入 <span style="float:right; font-size:10px; color:var(--success)">MS5-BALANCED</span></div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
@@ -36,14 +36,14 @@
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: MS4 熱力精選預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: MS5 平衡精選預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div id="logBox">MS4 策略已就緒，強化連莊捕捉邏輯。</div>
+    <div id="logBox">MS5 已啟用。針對極冷號進行均值回歸補償。</div>
 </div>
 
 <script>
@@ -52,38 +52,62 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const fmtDate = (dStr) => { const p = dStr.split(/[-/]/); return p.length >= 3 ? `${parseInt(p[1])}/${parseInt(p[2])}` : dStr; };
 
-    function getMS4Logic(hist) {
-        if(hist.length < 10) return [1,2,3,4,5];
+    function getMS5Logic(hist) {
+        if(hist.length < 15) return [1,2,3,4,5];
         let scores = Array(40).fill(0);
         const lastRow = hist[hist.length-1].nums;
-        const last3Rows = hist.slice(-3);
+        
+        // 1. 計算全局平均遺漏期數
+        let totalGap = 0;
+        for(let i=1; i<=39; i++) {
+            for(let k=hist.length-1; k>=0; k--) { if(hist[k].nums.includes(i)) break; totalGap++; }
+        }
+        const avgGap = totalGap / 39;
 
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             
-            // 1. 熱力核心：強化連莊(gap 0)與隔期(gap 1)
-            if(gap === 0) scores[i] += 85; 
-            else if(gap === 1) scores[i] += 70;
-            else if(gap >= 2 && gap <= 7) scores[i] += 60; // 縮小溫碼定義
-
-            // 2. 鄰號捕捉 (加重權重)
-            if(lastRow.some(n => Math.abs(n - i) === 1)) scores[i] += 65;
-
-            // 3. P4 真空補償 (分析矩陣)
-            let zone = Math.floor((i-1)/13);
-            let zoneActivity = 0;
-            last3Rows.forEach(d => d.nums.forEach(n => { if(Math.floor((n-1)/13) === zone) zoneActivity++; }));
-            if(zoneActivity <= 1) scores[i] += 40; // 針對極冷區強制補位
+            // A. 熱熱碼與溫碼 (動態權重)
+            if(gap === 0) scores[i] += 75;
+            else if(gap === 1) scores[i] += 65;
+            else if(gap >= 2 && gap <= 8) scores[i] += 60;
             
-            // 4. 尾數加成 (近 10 期)
+            // B. 冷號補償機制 (對應風險 2)
+            if(gap > 20) scores[i] += (gap - 20) * 3; 
+
+            // C. 鄰號 (對應 1.0 碼穩定度)
+            if(lastRow.some(n => Math.abs(n - i) === 1)) scores[i] += 55;
+
+            // D. 尾數飽和度檢索 (近 12 期)
             let tail = i % 10;
-            hist.slice(-10).forEach(d => d.nums.forEach(n => { if(n%10 === tail) scores[i] += 4; }));
+            hist.slice(-12).forEach(d => d.nums.forEach(n => { if(n%10 === tail) scores[i] += 4; }));
         }
 
-        return scores.map((s, i) => ({n: i, s})).slice(1)
-                     .sort((a,b) => b.s - a.s || a.n - b.n)
-                     .slice(0, 5).map(x => x.n).sort((a,b) => a-b);
+        // 獲取前 10 名候選號，再從中進行分布過濾，避免過度擬合
+        let candidates = scores.map((s, i) => ({n: i, s})).slice(1)
+                        .sort((a,b) => b.s - a.s || a.n - b.n);
+
+        // 過濾邏輯：確保 5 碼不屬於同一個尾數、不超過 3 個號碼在同一個 13 碼區間
+        let final = [];
+        for(let cand of candidates) {
+            let tail = cand.n % 10;
+            let zone = Math.floor((cand.n-1)/13);
+            if(final.filter(f => f % 10 === tail).length >= 2) continue; 
+            if(final.filter(f => Math.floor((f-1)/13) === zone).length >= 2) continue;
+            final.push(cand.n);
+            if(final.length === 5) break;
+        }
+        
+        // 若過濾太嚴導致不足 5 碼，補足之
+        if(final.length < 5) {
+            for(let cand of candidates) {
+                if(!final.includes(cand.n)) final.push(cand.n);
+                if(final.length === 5) break;
+            }
+        }
+
+        return final.sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
@@ -103,7 +127,7 @@
         const btData = rawData.slice(-10).reverse();
         btData.forEach(row => {
             const idx = rawData.findIndex(r => r.date === row.date);
-            const pred = getMS4Logic(rawData.slice(0, idx));
+            const pred = getMS5Logic(rawData.slice(0, idx));
             const hits = row.nums.filter(n => pred.includes(n));
             totalHits += hits.length;
             btHtml += `<div class="bt-row"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub)"><span>📅 ${row.date}</span><span style="background:var(--success);color:#000;padding:2px 6px;border-radius:4px;font-weight:900">${hits.length} ★</span></div>
@@ -111,7 +135,7 @@
                 <div class="pred-list">方案預測：${pred.map(p => pad(p)).join(' ')}</div></div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS4Logic(rawData);
+        const next = getMS5Logic(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
         for(let i=1; i<=39; i++) mHtml += `<th>${pad(i)}</th>`;
@@ -122,8 +146,8 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`MS4 引擎已啟動 | 期望值: ${(totalHits/10).toFixed(1)}`);
-        log(`策略：激進連莊 + 鄰號覆蓋`);
+        log(`MS5 引擎已啟動 | 期望值: ${(totalHits/10).toFixed(1)}`);
+        log(`更新：冷號補償 + 分布飽和限制已掛載`);
     }
 </script>
 </body>
