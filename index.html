@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539 精準分析 MS24</title>
+    <title>539 精準分析 MS25</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -21,7 +21,7 @@
         .m-table td, .m-table th { border: 1px solid #333; width: 18px; height: 18px; text-align: center; font-size: 9px; }
         .m-date { background: #2c2c2e; color: var(--sub); position: sticky; left: 0; width: 50px; z-index: 5; }
         .m-ball { background: var(--hit); border-radius: 50%; width: 12px; height: 12px; display: inline-block; }
-        #logBox { background: #000; color: var(--success); padding: 10px; height: 130px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 10px; border: 1px solid var(--border); line-height: 1.5; }
+        #logBox { background: #000; color: var(--success); padding: 10px; height: 140px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 10px; border: 1px solid var(--border); line-height: 1.5; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
         .ball { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #2c2c2e; border-radius: 50%; font-weight: bold; border: 2px solid var(--accent); color: var(--accent); font-size: 20px; }
     </style>
@@ -29,7 +29,7 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 (MS24 共振過濾版)</div>
+        <div class="panel-header">P1: 數據注入 (MS25 連號矩陣版)</div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
@@ -37,14 +37,14 @@
         <div id="btBody"></div>
     </div>
     <div class="panel">
-        <div class="panel-header" style="color:var(--accent)">P3: 共振過濾預測 (5 碼)</div>
+        <div class="panel-header" style="color:var(--accent)">P3: 形態鎖定預測 (5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div class="panel"><div id="logBox">MS24 就緒。正在執行共振特徵掃描...</div></div>
+    <div class="panel"><div id="logBox">MS25 就緒。形態鎖定與連號矩陣已就位...</div></div>
 </div>
 
 <script>
@@ -57,50 +57,50 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getMS24Prediction(hist, isSilent=true) {
+    function getMS25Prediction(hist, isSilent=true) {
         if(hist.length < 20) return [1,2,3,4,5];
         const lastRow = hist[hist.length-1].nums;
-        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0, tags: [] }));
+        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0, gap: 0, tails: i%10 }));
 
+        // 1. 基礎評分 (遺漏與鄰號)
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             stats[i].gap = gap;
-            
-            // 標記鄰、熱、跳
-            if(lastRow.some(ln => Math.abs(ln - i) === 1)) { stats[i].score += 40; stats[i].tags.push('鄰'); }
-            let f10 = hist.slice(-10).filter(d => d.nums.includes(i)).length;
-            if(f10 >= 2 && gap < 4) { stats[i].score += 35; stats[i].tags.push('熱'); }
-            if(gap >= 5 && gap <= 12) { stats[i].score += 45; stats[i].tags.push('跳'); }
-            
-            // 共振加成 (具備多個標籤)
-            if(stats[i].tags.length > 1) stats[i].score += 20;
+            if (gap >= 4 && gap <= 10) stats[i].score += 45;
+            if (lastRow.some(ln => Math.abs(ln - i) === 1)) stats[i].score += 35;
+            let f15 = hist.slice(-15).filter(d => d.nums.includes(i)).length;
+            stats[i].score += f15 * 5;
         }
 
+        // 2. 形態策略：核心碼 + 鄰碼配對
+        let sorted = stats.slice(1).sort((a,b) => b.score - a.score);
         let selected = [];
-        // 強制優先選取具備「共振」特徵的號碼
-        let resonancePool = stats.slice(1).filter(s => s.tags.length > 1).sort((a,b) => b.score - a.score);
-        selected.push(...resonancePool.slice(0, 2));
+        
+        // 選取前 2 個核心碼，並各自強行配對一個鄰號
+        for(let core of sorted) {
+            if(selected.length >= 4) break;
+            if(!selected.some(s => s.n === core.n)) {
+                selected.push(core);
+                // 尋找該核心碼分數最高的鄰號 (強制連號形態)
+                let neighbors = stats.slice(Math.max(1, core.n-1), Math.min(40, core.n+2))
+                                     .filter(n => n.n !== core.n && !selected.some(s => s.n === n.n))
+                                     .sort((a,b) => b.score - a.score);
+                if(neighbors.length > 0) selected.push(neighbors[0]);
+            }
+        }
 
-        // 剩餘名額按配額補足
-        let types = ['鄰', '熱', '跳'];
-        types.forEach(t => {
-            if(selected.length >= 5) return;
-            let cand = stats.slice(1)
-                .filter(s => s.tags.includes(t) && !selected.some(sel => sel.n === s.n))
-                .sort((a,b) => b.score - a.score)[0];
-            if(cand) selected.push(cand);
-        });
-
-        // 最終保底補位
-        if(selected.length < 5) {
-            let remain = stats.slice(1).filter(s => !selected.some(sel => sel.n === s.n)).sort((a,b)=>b.score - a.score);
-            selected.push(...remain.slice(0, 5 - selected.length));
+        // 補足第 5 碼 (選取不同尾數的高分碼)
+        for(let s of sorted) {
+            if(selected.length >= 5) break;
+            if(!selected.some(sel => sel.n === s.n)) {
+                selected.push(s);
+            }
         }
 
         if(!isSilent) {
-            log(`共振策略：優先選取多重標籤號碼`, '#ffd60a');
-            selected.sort((a,b)=>a.n-b.n).forEach(s => log(`${pad(s.n)} [${s.tags.join('|') || '補'}] 分:${Math.round(s.score)}`));
+            log(`形態鎖定：${selected.filter((s,i)=>selected.some((s2,j)=>i!==j && Math.abs(s.n-s2.n)===1)).length}組連號配對`, '#ffd60a');
+            selected.sort((a,b)=>a.n-b.n).forEach(s => log(`${pad(s.n)} 分:${Math.round(s.score)} [G:${s.gap}]`));
         }
         return selected.map(x => x.n).sort((a,b)=>a-b);
     }
@@ -113,26 +113,25 @@
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
             document.getElementById('logBox').innerHTML = "";
-            runMS24();
+            runMS25();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function runMS24() {
-        let btHtml = "", totalH = 0, h0 = 0, h2p = 0, h3p = 0;
+    function runMS25() {
+        let btHtml = "", totalH = 0, h0 = 0, h2p = 0;
         const displayData = rawData.slice(-10).reverse();
         displayData.forEach(row => {
             const idx = rawData.indexOf(row);
-            const pred = getMS24Prediction(rawData.slice(0, idx), true);
+            const pred = getMS25Prediction(rawData.slice(0, idx), true);
             const hits = row.nums.filter(n => pred.includes(n));
             if(hits.length === 0) h0++;
             if(hits.length >= 2) h2p++;
-            if(hits.length >= 3) h3p++;
             totalH += hits.length;
             btHtml += `<div class="bt-row"><div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div><div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div><div class="num-group"><span class="num-label">預測</span>${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--primary)':'#888'}">${pad(n)}</div>`).join('')}</div></div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getMS24Prediction(rawData, false);
+        const next = getMS25Prediction(rawData, false);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
@@ -144,7 +143,7 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`命中分析: 平均 ${(totalH/10).toFixed(1)} | 三星率 ${h3p*10}% | 雙星率 ${h2p*10}% | 掛零 ${h0}期`, '#0a84ff');
+        log(`命中分析: 平均 ${(totalH/10).toFixed(1)} | 雙星率 ${h2p*10}% | 掛零 ${h0}期`, '#0a84ff');
     }
 </script>
 </body>
