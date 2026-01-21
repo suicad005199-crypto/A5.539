@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>539/A.01-Rev1 精準 5 碼</title>
+    <title>539/A.01-Rev2 空間平衡版</title>
     <style>
         :root { --bg: #000; --panel: #1c1c1e; --primary: #ffd60a; --border: #38383a; --text: #fff; --sub: #8e8e93; --hit: #ff375f; --accent: #0a84ff; --success: #32d74b; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
         .container { display: flex; flex-direction: column; gap: 12px; max-width: 500px; margin: 0 auto; }
         .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px; font-size: 14px; display: flex; justify-content: space-between; }
-        .ver-tag { font-size: 10px; background: #c41e3a; padding: 2px 6px; border-radius: 4px; color: #fff; }
+        .ver-tag { font-size: 10px; background: #007aff; padding: 2px 6px; border-radius: 4px; color: #fff; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 10px 0; }
         .ball { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: bold; border: 3px solid var(--accent); color: var(--accent); font-size: 20px; box-shadow: 0 0 15px rgba(10,132,255,0.4); }
         .bt-row { border-bottom: 1px solid var(--border); padding: 10px 0; }
@@ -32,22 +32,22 @@
 <body>
 <div class="container">
     <div class="panel">
-        <div class="panel-header">P1: 數據注入 <span class="ver-tag">A.01-Rev1</span></div>
+        <div class="panel-header">P1: 數據注入 <span class="ver-tag">A.01-Rev2</span></div>
         <input type="file" id="csvFile" accept=".csv" style="width: 100%;">
     </div>
     <div class="panel">
-        <div class="panel-header">P2: 下期預測 (Rev1 強化 5 碼)</div>
+        <div class="panel-header">P2: 下期預測 (Rev2 平衡 5 碼)</div>
         <div id="nextPred" class="ball-row"></div>
     </div>
     <div class="panel">
-        <div class="panel-header">P3: 深度回測看板</div>
+        <div class="panel-header">P3: 深度回測看板 (近 10 期)</div>
         <div id="btBody"></div>
     </div>
     <div class="panel">
         <div class="panel-header">P4: 分布矩陣</div>
         <div class="matrix-scroll" id="matrixCont"></div>
     </div>
-    <div class="panel"><div id="logBox">Rev1 已載入，請匯入 CSV...</div></div>
+    <div class="panel"><div id="logBox">Rev2 空間平衡版就緒...</div></div>
 </div>
 
 <script>
@@ -56,44 +56,41 @@
     const log = (m) => { logBox.innerHTML += `> ${m}<br>`; logBox.scrollTop = logBox.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    function getRev1Prediction(hist) {
-        if(hist.length < 20) return [10,11,12,13,14];
-        let stats = Array.from({length:40}, (_, i) => ({ n: i, score: 0, gap: 0 }));
-        const lastRow = hist[hist.length-1].nums;
-        const last2Row = hist[hist.length-2].nums;
-
-        // 1. 遺漏校準 (針對溫熱碼優化)
+    function getRev2Prediction(hist) {
+        if(hist.length < 20) return [05,15,25,35,08];
+        let stats = Array.from({length:40}, (_, i) => ({ n: i, score: 0 }));
+        
+        // 1. 溫碼核心加權 (遺漏 3-7 期為高勝率區)
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            stats[i].gap = gap;
-            if(gap === 0) stats[i].score += 25; // 重碼權重
-            else if(gap <= 5) stats[i].score += (15 - gap) * 5; // 極熱區
-            else if(gap > 15) stats[i].score -= 20; // 排除極冷
+            if(gap >= 3 && gap <= 7) stats[i].score += 50; 
+            else if(gap === 1 || gap === 2) stats[i].score += 30;
+            else if(gap > 12) stats[i].score -= 10;
         }
 
-        // 2. 叢集分析 (近期強勢號碼區段)
-        let zoneStats = [0, 0, 0, 0];
-        hist.slice(-5).forEach(d => d.nums.forEach(n => zoneStats[Math.floor((n-1)/10)]++));
-        for(let i=1; i<=39; i++) stats[i].score += zoneStats[Math.floor((i-1)/10)] * 4;
-
-        // 3. 鄰號邏輯強化
-        lastRow.forEach(ln => {
-            if(ln > 1) stats[ln-1].score += 35;
-            if(ln < 39) stats[ln+1].score += 35;
+        // 2. 尾數真空補償 (近 5 期未出尾數加分)
+        let tailCount = Array(10).fill(0);
+        hist.slice(-5).forEach(d => d.nums.forEach(n => tailCount[n%10]++));
+        tailCount.forEach((count, tail) => {
+            if(count === 0) { for(let i=1; i<=39; i++) if(i%10 === tail) stats[i].score += 40; }
         });
 
-        // 4. 尾數加成 (近 10 期)
-        let tailMap = Array(10).fill(0);
-        hist.slice(-10).forEach(d => d.nums.forEach(n => tailMap[n%10]++));
-        for(let i=1; i<=39; i++) stats[i].score += (tailMap[i%10] * 6);
+        // 3. 空間分佈選碼 (避免堆疊)
+        let finalFive = [];
+        let sortedStats = stats.slice(1).sort((a,b) => b.score - a.score);
+        let usedZones = new Set();
 
-        // 過濾選號
-        return stats.slice(1)
-            .sort((a,b) => b.score - a.score)
-            .slice(0, 5)
-            .map(x => x.n)
-            .sort((a,b) => a-b);
+        for(let item of sortedStats) {
+            let zone = Math.floor((item.n - 1) / 8); // 將 39 碼分成約 5 個區間
+            if(!usedZones.has(zone)) {
+                finalFive.push(item.n);
+                usedZones.add(zone);
+            }
+            if(finalFive.length >= 5) break;
+        }
+
+        return finalFive.sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
@@ -113,14 +110,14 @@
         let btHtml = "", totalHits = 0, btSize = 10;
         const displayData = rawData.slice(-btSize).reverse();
         displayData.forEach(row => {
-            const pred = getRev1Prediction(rawData.slice(0, rawData.indexOf(row)));
+            const pred = getRev2Prediction(rawData.slice(0, rawData.indexOf(row)));
             const hits = row.nums.filter(n => pred.includes(n));
             totalHits += hits.length;
             btHtml += `<div class="bt-row"><div class="bt-meta"><span>📅 ${row.date}</span> <span class="star-tag">${hits.length} ★</span></div>
                 <div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div></div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        const next = getRev1Prediction(rawData);
+        const next = getRev2Prediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日期</th>`;
@@ -133,8 +130,8 @@
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
         
-        log(`539/A.01-Rev1 優化版部署成功`);
-        log(`調整：強化鄰號權重 + 排除極冷碼`);
+        log(`539/A.01-Rev2 部署成功`);
+        log(`更新：空間平衡算法 + 溫碼偵測`);
         log(`系統期望值：${(totalHits / btSize).toFixed(1)} 碼/期`);
     }
 </script>
