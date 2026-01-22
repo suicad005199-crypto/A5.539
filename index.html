@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>天天樂 Oracle V.45-PQ</title>
+    <title>天天樂 Oracle V.46-DIF</title>
     <style>
-        :root { --bg: #010409; --panel: #0d1117; --primary: #58a6ff; --border: #30363d; --text: #c9d1d9; --sub: #8b949e; }
+        :root { --bg: #010409; --panel: #0d1117; --primary: #58a6ff; --border: #30363d; --text: #c9d1d9; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
         .container { display: flex; flex-direction: column; gap: 10px; max-width: 600px; margin: auto; }
         .panel { background: var(--panel); border-radius: 10px; padding: 12px; border: 1px solid var(--border); }
-        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 8px; border-left: 3px solid var(--primary); padding-left: 8px; font-size: 14px; }
+        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 8px; border-left: 3px solid var(--primary); padding-left: 8px; }
         .bt-row { border-bottom: 1px solid var(--border); padding: 8px 0; }
         .n-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #161b22; font-size: 11px; font-weight: bold; border: 1px solid #30363d; margin-right: 4px; }
         .n-box.hit { background: var(--primary); color: #fff; border: none; box-shadow: 0 0 8px var(--primary); }
@@ -19,10 +19,10 @@
 </head>
 <body>
 <div class="container">
-    <div class="panel"><div class="panel-header">P1: 四強原力融合 (V.45.0 PQ)</div><input type="file" id="csvFile" accept=".csv"></div>
-    <div class="panel"><div class="panel-header">P2: 優異版本融合回測</div><div id="btBody"></div></div>
-    <div class="panel"><div class="panel-header">P3: 核心預測 (最強基因疊加)</div><div id="nextPred" style="display:flex; flex-wrap:wrap; gap:10px;"></div></div>
-    <div class="panel"><div id="logBox">V.45 啟動：融合 V26, 27, 35, 39 原始基因...</div></div>
+    <div class="panel"><div class="panel-header">P1: 雙重打擊融合 (V.46.0 DIF)</div><input type="file" id="csvFile" accept=".csv"></div>
+    <div class="panel"><div class="panel-header">P2: 2 星占比衝刺回測</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 核心預測 (強制配對 4 組)</div><div id="nextPred" style="display:flex; flex-wrap:wrap; gap:10px;"></div></div>
+    <div class="panel"><div id="logBox">V.46 啟動：強行壓縮號碼間距，追求 80% 2 星占比...</div></div>
 </div>
 
 <script>
@@ -30,31 +30,40 @@
     const log = (m) => { const b = document.getElementById('logBox'); b.innerHTML += `> ${m}<br>`; b.scrollTop = b.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    function getPQPrediction(hist) {
+    function getDIFPrediction(hist) {
         if(hist.length < 35) return [1,2,11,12,21,22,31,32];
         const lastRow = hist[hist.length-1].nums;
         let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0 }));
 
+        // 基礎得分 (V26/35 基因)
         for(let i=1; i<=39; i++) {
-            // V.26 虛空基底
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            if(gap >= 18 && gap <= 30) stats[i].score += 550;
-            stats[i].score += (gap * 10);
-
-            // V.27/39 矩陣與同尾
-            lastRow.forEach(ln => {
-                if(Math.abs(ln - i) === 1) stats[i].score += 180; // 鄰號
-                if(ln % 10 === i % 10) stats[i].score += 120;   // 同尾
-            });
+            if(gap >= 18 && gap <= 30) stats[i].score += 500;
+            stats[i].score += gap;
         }
 
-        // V.35 熱點保底
-        let hotCounts = Array(40).fill(0);
-        hist.slice(-5).forEach(d => d.nums.forEach(n => hotCounts[n]++));
-        for(let i=1; i<=39; i++) if(hotCounts[i] >= 2) stats[i].score += 200;
+        // 找出 4 個最強 Seed (核心冷碼)
+        let seeds = stats.sort((a,b) => b.score - a.score).slice(0, 4).map(x => x.n);
+        let final = [];
 
-        return stats.sort((a,b) => b.score - a.score).slice(0, 8).map(x => x.n).sort((a,b) => a-b);
+        // 為每個 Seed 強制配對一個「共振伴侶」
+        seeds.forEach(s => {
+            final.push(s);
+            let pStats = Array(40).fill(0).map((_, i) => ({ n: i, pScore: 0 }));
+            for(let j=1; j<=39; j++) {
+                if(final.includes(j)) continue;
+                // 鄰號 + 同尾權重加倍 (V27/39 基因)
+                if(Math.abs(j - s) === 1) pStats[j].pScore += 400;
+                if(j % 10 === s % 10) pStats[j].pScore += 300;
+                // 上期共振
+                if(lastRow.includes(j-1) || lastRow.includes(j+1)) pStats[j].pScore += 150;
+            }
+            let bestP = pStats.sort((a,b) => b.pScore - a.pScore)[0].n;
+            final.push(bestP);
+        });
+
+        return [...new Set(final)].slice(0, 8).sort((a,b) => a-b);
     }
 
     document.getElementById('csvFile').addEventListener('change', e => {
@@ -77,22 +86,23 @@
 
         testData.forEach(row => {
             const hist = rawData.slice(0, rawData.indexOf(row));
-            const pred = getPQPrediction(hist);
+            const pred = getDIFPrediction(hist);
             const hits = row.nums.filter(n => pred.includes(n));
             star[Math.min(hits.length, 4)]++;
             totalHits += hits.length;
 
             document.getElementById('btBody').innerHTML += `
                 <div class="bt-row">
-                    <div style="display:flex; justify-content:space-between; color:#8b949e; font-size:11px;">📅 ${row.date} <span>${hits.length} ★</span></div>
+                    <div style="display:flex; justify-content:space-between; color:#8b949e; font-size:11px;">📅 ${row.date} <span style="color:${hits.length>=2?'#ff4d4d':''}">${hits.length} ★</span></div>
                     <div style="display:flex; margin-top:4px;">${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'#58a6ff':'#555'}">${pad(n)}</div>`).join('')}</div>
                 </div>`;
         });
 
-        const next = getPQPrediction(rawData);
+        const next = getDIFPrediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
-        log(`期望值：${(totalHits/10).toFixed(2)} | 回歸四強核心邏輯`);
-        log(`分布：0★:${star[0]*10}% | 1★:${star[1]*10}% | 2★:${star[2]*10}% | 3★+:${(star[3]+star[4])*10}%`);
+        const s2plus = ((star[2]+star[3]+star[4])/10*100).toFixed(0);
+        log(`2★ 以上占比：${s2plus}% (目標 80%)`);
+        log(`期望值：${(totalHits/10).toFixed(2)} | 分布：1★:${star[1]*10}% | 2★:${star[2]*10}%`);
     }
 </script>
 </body>
