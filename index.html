@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>天天樂 Oracle V.40-AC</title>
+    <title>天天樂 Oracle V.41-RS</title>
     <style>
         :root { --bg: #0d1117; --panel: #161b22; --primary: #58a6ff; --border: #30363d; --text: #c9d1d9; --sub: #8b949e; --hit: #f85149; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -22,10 +22,10 @@
 </head>
 <body>
 <div class="container">
-    <div class="panel"><div class="panel-header">P1: 巔峰聚縮注入 (V.40.0 AC)</div><input type="file" id="csvFile" accept=".csv"></div>
+    <div class="panel"><div class="panel-header">P1: 穩定共振注入 (V.41.0 RS)</div><input type="file" id="csvFile" accept=".csv"></div>
     <div class="panel"><div class="panel-header">P2: 實時預測與命中分布</div><div id="btBody"></div></div>
-    <div class="panel"><div class="panel-header">P3: 核心預測 (1-2-3星均衡)</div><div id="nextPred"></div></div>
-    <div class="panel"><div id="logBox">V.40 啟動：執行虛空聚縮與同尾共振強化...</div></div>
+    <div class="panel"><div class="panel-header">P3: 核心預測 (穩定優先)</div><div id="nextPred"></div></div>
+    <div class="panel"><div id="logBox">V.41 啟動：執行跳期補償邏輯，回撤虛空窗口限制...</div></div>
 </div>
 
 <script>
@@ -33,35 +33,30 @@
     const log = (m) => { const b = document.getElementById('logBox'); b.innerHTML += `> ${m}<br>`; b.scrollTop = b.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    function getACPrediction(hist) {
-        if(hist.length < 30) return [3,7,13,17,23,27,33,37];
+    function getRSPrediction(hist) {
+        if(hist.length < 30) return [1,2,11,12,21,22,31,32];
         const lastRow = hist[hist.length-1].nums;
+        const prevRow = hist[hist.length-2].nums;
         let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0 }));
 
-        // 1. 聚縮虛空 (V.26 進化) - 鎖定 22-28 期
+        // 1. 寬幅虛空 (V.26/39 基因)
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            if(gap >= 22 && gap <= 28) stats[i].score += 500;
-            else if(gap > 10) stats[i].score += (gap * 15);
+            if(gap >= 18 && gap <= 32) stats[i].score += 400;
+            stats[i].score += (gap * 10);
         }
 
-        // 2. 矩陣與強共振 (V.27 進化) - 強化同尾
+        // 2. 矩陣共振 (V.27)
         lastRow.forEach(ln => {
-            if(ln > 1) stats[ln-1].score += 120;
-            if(ln < 39) stats[ln+1].score += 120;
-            for(let i=1; i<=39; i++) {
-                if(i%10 === ln%10) stats[i].score += 180; // 大幅提升同尾加分
-            }
+            if(ln > 1) stats[ln-1].score += 150;
+            if(ln < 39) stats[ln+1].score += 150;
         });
 
-        // 3. 熱號錨點 (V.35) - 排除過熱 (連開3期以上排除)
-        let counts = Array(40).fill(0);
-        hist.slice(-5).forEach(d => d.nums.forEach(n => counts[n]++));
-        for(let i=1; i<=39; i++) {
-            if(counts[i] >= 3) stats[i].score -= 300; // 排除連開過熱
-            else if(counts[i] == 2) stats[i].score += 150;
-        }
+        // 3. 跳期補償 (新邏輯)
+        prevRow.forEach(pn => {
+            if(!lastRow.includes(pn)) stats[pn].score += 200; // 前天有開，昨天沒開 -> 今天權重增加
+        });
 
         return stats.sort((a,b) => b.score - a.score).slice(0, 8).map(x => x.n).sort((a,b) => a-b);
     }
@@ -86,7 +81,7 @@
 
         testData.forEach(row => {
             const hist = rawData.slice(0, rawData.indexOf(row));
-            const pred = getACPrediction(hist);
+            const pred = getRSPrediction(hist);
             const hits = row.nums.filter(n => pred.includes(n));
             star[Math.min(hits.length, 4)]++;
             totalHits += hits.length;
@@ -98,10 +93,10 @@
                 </div>`;
         });
 
-        const next = getACPrediction(rawData);
+        const next = getRSPrediction(rawData);
         document.getElementById('nextPred').innerHTML = `<div class="ball-row">${next.slice(0,4).map(n=>`<div class="ball">${pad(n)}</div>`).join('')}</div><div class="ball-row">${next.slice(4,8).map(n=>`<div class="ball">${pad(n)}</div>`).join('')}</div>`;
 
-        log(`當前期望值：${(totalHits/10).toFixed(2)} 碼 / 期`);
+        log(`期望值：${(totalHits/10).toFixed(2)} 碼 / 期`);
         log(`分布：0★:${star[0]*10}% | 1★:${star[1]*10}% | 2★:${star[2]*10}% | 3★+:${(star[3]+star[4])*10}%`);
     }
 </script>
