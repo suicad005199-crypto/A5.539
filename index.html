@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oracle V.53.9 Synergy</title>
+    <title>Oracle V.53.8 Cross-Entropy</title>
     <style>
         :root { --bg: #000; --panel: #141414; --primary: #ff3b30; --border: #2c2c2e; --text: #fff; --sub: #8e8e93; --hit: #ffd60a; }
-        body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
         .container { display: flex; flex-direction: column; gap: 12px; max-width: 600px; margin: auto; }
         .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
-        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px; font-size: 14px; display: flex; justify-content: space-between; }
+        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px; font-size: 14px; }
         .bt-row { border-bottom: 1px solid var(--border); padding: 10px 0; display: flex; flex-direction: column; gap: 6px; }
         .bt-meta { display: flex; justify-content: space-between; color: var(--sub); font-size: 11px; }
         .num-group { display: flex; gap: 4px; align-items: center; }
@@ -23,39 +23,18 @@
         .m-head { background: #1a1a1a; color: var(--primary); position: sticky; top: 0; }
         .m-date { background: #1a1a1a; color: var(--sub); position: sticky; left: 0; width: 50px; z-index: 5; }
         .m-ball { background: var(--primary); border-radius: 50%; width: 12px; height: 12px; display: inline-block; }
-        #logBox { background: #000; color: #32d74b; padding: 10px; height: 140px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; line-height: 1.6; }
-        .ball-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px; }
+        #logBox { background: #000; color: #32d74b; padding: 10px; height: 120px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; line-height: 1.6; }
+        .ball-row { display: flex; flex-wrap: wrap; gap: 8px; }
         .ball { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #1a1a1a; border-radius: 50%; font-weight: bold; border: 2px solid var(--primary); color: var(--primary); font-size: 18px; }
-        input[type="file"] { width: 100%; color: var(--sub); font-size: 12px; }
     </style>
 </head>
 <body>
-
 <div class="container">
-    <div class="panel">
-        <div class="panel-header">P1: CSV 全數據注入 (V.53.9)</div>
-        <input type="file" id="csvFile" accept=".csv">
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">P2: 深度回測看板 (近 10 期明細)</div>
-        <div id="btBody"></div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">P3: 下期預測 (8 碼共振)</div>
-        <div id="nextPred" class="ball-row"></div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">P4: 歷史分布矩陣 (近 15 期)</div>
-        <div class="matrix-scroll" id="matrixCont"></div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-header">CONSOLE: 策略統計分析</div>
-        <div id="logBox">等待 CSV 檔案匯入以進行全數據回測...</div>
-    </div>
+    <div class="panel"><div class="panel-header">P1: 數據注入</div><input type="file" id="csvFile" accept=".csv" style="color: #8e8e93;"></div>
+    <div class="panel"><div class="panel-header">P2: 深度回測 (近 10 期明細)</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 下期預測 (V.53.8 8碼)</div><div id="nextPred" class="ball-row"></div></div>
+    <div class="panel"><div class="panel-header">P4: 分布矩陣</div><div class="matrix-scroll" id="matrixCont"></div></div>
+    <div class="panel"><div class="panel-header">CONSOLE: 統計分析</div><div id="logBox">等待 CSV 匯入...</div></div>
 </div>
 
 <script>
@@ -64,55 +43,44 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    // V.53.9 核心演算：自適應數據策略
     function getPrediction(hist) {
         if(hist.length < 30) return [1,2,11,12,21,22,31,32];
         const lastRow = hist[hist.length-1].nums;
         let scores = Array(40).fill(0).map((_, i) => ({ n: i, s: 0, gap: 0 }));
 
         for(let i=1; i<=39; i++) {
-            let gap = 0; 
-            for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
+            let gap = 0; for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             scores[i].gap = gap;
-            
-            // 1. 遺漏權重：強化極冷與中溫碼 (5-9期)
-            if(gap >= 18 && gap <= 32) scores[i].s += 820; 
-            if(gap >= 5 && gap <= 9) scores[i].s += 150; 
-
-            // 2. 熱度掃描：近10期出現頻率
+            if(gap >= 18 && gap <= 32) scores[i].s += 800; // 虛空權重微調
             let hot = 0; hist.slice(-10).forEach(d => { if(d.nums.includes(i)) hot++; });
-            scores[i].s += hot * 220; 
-            
-            // 3. 共振聯結：鄰號(320)與同尾(350)
+            scores[i].s += hot * 210;
             lastRow.forEach(ln => { 
-                if(Math.abs(ln - i) === 1) scores[i].s += 320; 
-                if(ln % 10 === i % 10) scores[i].s += 350; 
+                if(Math.abs(ln - i) === 1) scores[i].s += 310; 
+                if(ln % 10 === i % 10) scores[i].s += 320; // 強化同尾
             });
         }
 
         let final = new Set();
-        
-        // A核心：4碼 (冷溫交替區)
-        let coldCands = [...scores].sort((a,b)=>b.gap - a.gap).slice(0, 10).sort((a,b)=>b.s - a.s);
-        final.add(coldCands[0].n);
-        [coldCands[0].n-1, coldCands[0].n+1, (coldCands[0].n+10)%40].filter(n=>n>0&&n<40).forEach(n=>{ if(final.size < 4) final.add(n); });
+        // A核心：4碼 (增加交叉熵過濾)
+        let coldCandidates = [...scores].sort((a,b)=>b.gap - a.gap).slice(0, 12).sort((a,b)=>b.s - a.s);
+        final.add(coldCandidates[0].n);
+        [coldCandidates[0].n-1, coldCandidates[0].n+1, (coldCandidates[0].n+10)%40].filter(n=>n>0&&n<40).forEach(n=>{ if(final.size < 4) final.add(n); });
 
-        // B核心：4碼 (熱能共振協作)
-        let hotCands = [...scores].sort((a,b)=>b.s - a.s);
-        for(let x of hotCands) {
+        // B核心：4碼 (跳島與熱度覆蓋)
+        let hotCandidates = [...scores].sort((a,b)=>b.s - a.s);
+        for(let x of hotCandidates) {
             if(!final.has(x.n) && ![...final].some(fn => Math.abs(fn-x.n) < 3)) {
                 final.add(x.n);
-                // Synergy: 優先拉攏強關聯伴侶碼
-                let partner = hotCands.find(h => !final.has(h.n) && (h.n%10 === x.n%10 || Math.abs(h.n-x.n) === 1));
-                if(partner) final.add(partner.n);
+                // 優先拉攏同尾伴侶
+                let tailMatch = hotCandidates.find(h => h.n !== x.n && h.n%10 === x.n%10 && !final.has(h.n));
+                if(tailMatch) final.add(tailMatch.n);
                 if(final.size >= 8) break;
             }
         }
 
-        // 填充至 8 碼
-        while(final.size < 8) {
-            let n = hotCands.find(h => !final.has(h.n));
-            if(n) final.add(nextBest.n); else break;
+        // 補位機制
+        if(final.size < 8) {
+            hotCandidates.forEach(h => { if(final.size < 8) final.add(h.n); });
         }
 
         return Array.from(final).slice(0, 8).sort((a,b) => a-b);
@@ -121,38 +89,25 @@
     document.getElementById('csvFile').addEventListener('change', e => {
         const reader = new FileReader();
         reader.onload = () => {
-            try {
-                const lines = reader.result.replace(/\r/g, "").trim().split('\n');
-                rawData = lines.map(l => {
-                    const c = l.split(',');
-                    return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
-                }).filter(r => r.nums.length === 5);
-                
-                if(rawData.length < 30) { alert("CSV 數據量不足(需大於30期)"); return; }
-                
-                document.getElementById('logBox').innerHTML = "";
-                runGlobalScan();
-            } catch(err) { log("CSV 格式解析錯誤"); }
+            rawData = reader.result.replace(/\r/g, "").trim().split('\n').map(l => {
+                const c = l.split(',');
+                return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
+            }).filter(r => r.nums.length === 5);
+            document.getElementById('logBox').innerHTML = "";
+            runGlobalScan();
         };
         reader.readAsText(e.target.files[0]);
     });
 
     function runGlobalScan() {
-        let btHtml = ""; 
-        let starCount = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}; 
-        let totalHits = 0;
+        let btHtml = ""; let starCount = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}; let totalHits = 0;
         const totalPeriods = rawData.length - 30;
-
-        // 全局回測 (Console 統計)
         for(let i = 30; i < rawData.length; i++) {
             const hist = rawData.slice(0, i);
             const pred = getPrediction(hist);
             const hits = rawData[i].nums.filter(n => pred.includes(n));
-            starCount[Math.min(hits.length, 5)]++; 
-            totalHits += hits.length;
+            starCount[Math.min(hits.length, 5)]++; totalHits += hits.length;
         }
-
-        // P2 面板展示 (僅最近 10 期)
         rawData.slice(-10).reverse().forEach(row => {
             const hist = rawData.slice(0, rawData.indexOf(row));
             const pred = getPrediction(hist);
@@ -164,13 +119,8 @@
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-
-        // P3 下期預測
-        const next = getPrediction(rawData);
-        document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
-
-        // P4 分布矩陣
-        let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日期</th>`;
+        document.getElementById('nextPred').innerHTML = getPrediction(rawData).map(n => `<div class="ball">${pad(n)}</div>`).join('');
+        let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
         for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
         mHtml += `</tr></thead><tbody>`;
         rawData.slice(-15).reverse().forEach(row => {
@@ -179,17 +129,13 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-
-        // Console 統計輸出
-        log(`[V.53.9 Synergy] 掃描完成`);
-        log(`數據總期數: ${rawData.length} | 效驗期數: ${totalPeriods}`);
+        log(`[V.53.8 交叉熵優化啟動]`);
+        log(`全量數據: ${rawData.length} 期 | 回測: ${totalPeriods} 期`);
         log(`期望值：${(totalHits / totalPeriods).toFixed(2)} 碼/期`);
         log(`--------------------------------`);
-        log(`2★以上總占比: <strong>${((starCount[2]+starCount[3]+starCount[4])/totalPeriods*100).toFixed(1)}%</strong>`);
-        log(`0★(${(starCount[0]/totalPeriods*100).toFixed(0)}%) | 1★(${(starCount[1]/totalPeriods*100).toFixed(0)}%)`);
-        log(`2★(${(starCount[2]/totalPeriods*100).toFixed(0)}%) | 3★+(${(starCount[3]/totalPeriods*100).toFixed(0)}%)`);
+        log(`2★以上總占比: ${((starCount[2]+starCount[3]+starCount[4])/totalPeriods*100).toFixed(1)}%`);
+        log(`明細: 0★(${(starCount[0]/totalPeriods*100).toFixed(0)}%) | 1★(${(starCount[1]/totalPeriods*100).toFixed(0)}%) | 2★(${(starCount[2]/totalPeriods*100).toFixed(0)}%) | 3★+(${(starCount[3]/totalPeriods*100).toFixed(0)}%)`);
     }
 </script>
-
 </body>
 </html>
