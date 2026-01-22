@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>天天樂 Oracle V.51-AB</title>
+    <title>天天樂 Oracle V.52-TLC</title>
     <style>
-        :root { --bg: #030303; --panel: #0d1117; --primary: #00ffcc; --border: #30363d; --text: #c9d1d9; }
+        :root { --bg: #050505; --panel: #111; --primary: #ff3e3e; --border: #333; --text: #eee; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
         .container { display: flex; flex-direction: column; gap: 10px; max-width: 600px; margin: auto; }
-        .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); box-shadow: 0 0 15px rgba(0,255,204,0.1); }
+        .panel { background: var(--panel); border-radius: 10px; padding: 12px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 8px; border-left: 4px solid var(--primary); padding-left: 8px; }
         .bt-row { border-bottom: 1px solid #222; padding: 8px 0; }
-        .n-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #161b22; font-size: 11px; font-weight: bold; border: 1px solid #333; margin-right: 4px; }
-        .n-box.hit { background: var(--primary); color: #000; border: none; box-shadow: 0 0 8px var(--primary); }
+        .n-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #1a1a1a; font-size: 11px; font-weight: bold; border: 1px solid #333; margin-right: 4px; }
+        .n-box.hit { background: var(--primary); color: #fff; border: none; box-shadow: 0 0 10px var(--primary); }
         .ball { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: bold; border: 2px solid var(--primary); color: var(--primary); font-size: 18px; margin-right: 8px; margin-bottom: 10px; }
-        #logBox { background: #000; color: var(--primary); padding: 10px; height: 110px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid #333; }
+        #logBox { background: #000; color: var(--primary); padding: 10px; height: 100px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid #333; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="panel"><div class="panel-header">P1: 雙極壓縮注入 (V.51.0 AB)</div><input type="file" id="csvFile" accept=".csv"></div>
-    <div class="panel"><div class="panel-header">P2: 2 星占比 80% 極限挑戰</div><div id="btBody"></div></div>
-    <div class="panel"><div class="panel-header">P3: 核心預測 (雙 4 碼集群)</div><div id="nextPred" style="display:flex; flex-wrap:wrap;"></div></div>
-    <div class="panel"><div id="logBox">V.51 啟動：執行集群爆破邏輯，強行壓縮 8 碼至 2 個密集區塊...</div></div>
+    <div class="panel"><div class="panel-header">P1: 尾數連動注入 (V.52.0 TLC)</div><input type="file" id="csvFile" accept=".csv"></div>
+    <div class="panel"><div class="panel-header">P2: 2 星占比轉化回測</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 核心預測 (雙尾全包 + 鄰位修補)</div><div id="nextPred" style="display:flex; flex-wrap:wrap;"></div></div>
+    <div class="panel"><div id="logBox">V.52 啟動：執行尾數連動邏輯，強攻 2 星占比...</div></div>
 </div>
 
 <script>
@@ -30,49 +30,39 @@
     const log = (m) => { const b = document.getElementById('logBox'); b.innerHTML += `> ${m}<br>`; b.scrollTop = b.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    function getABPrediction(hist) {
-        if(hist.length < 35) return [11,12,21,22,33,34,23,24];
+    function getTLCPrediction(hist) {
+        if(hist.length < 35) return [01,11,21,31,02,12,22,32];
         const lastRow = hist[hist.length-1].nums;
-        let stats = Array(40).fill(0).map((_, i) => ({ n: i, score: 0 }));
+        let tScores = Array(10).fill(0);
+        let nScores = Array(40).fill(0);
 
-        // 綜合評分 (V26, 27, 35, 39, 47, 48)
+        // 綜合評分評分 (V26, 27, 35, 39, 47, 48)
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            if(gap >= 18 && gap <= 32) stats[i].score += 500;
-            lastRow.forEach(ln => {
-                if(Math.abs(ln - i) === 1) stats[i].score += 200;
-                if(ln % 10 === i % 10) stats[i].score += 200;
-            });
+            let s = gap * 10;
+            if(gap >= 18 && gap <= 32) s += 500;
+            lastRow.forEach(ln => { if(Math.abs(ln - i) === 1) s += 200; });
+            nScores[i] = s;
+            tScores[i % 10] += s;
         }
 
-        let sorted = stats.sort((a,b) => b.score - a.score);
+        // 選出最強的 2 個尾數
+        let topTails = tScores.map((s, i) => ({ t: i, s: s })).sort((a,b) => b.s - a.s).slice(0, 2).map(x => x.t);
+
         let final = new Set();
-        let seeds = [];
-
-        // 挑選 2 個核心 Seed (確保距離 > 8)
-        for(let s of sorted) {
-            if(seeds.length >= 2) break;
-            if(seeds.length === 0 || Math.abs(seeds[0].n - s.n) > 8) seeds.push(s);
+        // 策略：優先填滿這兩個尾數中得分最高的號碼
+        for(let t of topTails) {
+            let tNums = [];
+            for(let i=1; i<=39; i++) { if(i % 10 === t) tNums.push({ n: i, s: nScores[i] }); }
+            tNums.sort((a,b) => b.s - a.s).forEach(tn => { if(final.size < 8) final.add(tn.n); });
         }
 
-        // 為每個 Seed 構建 4 碼集群
-        seeds.forEach(seed => {
-            let s = seed.n;
-            final.add(s);
-            let pStats = Array(40).fill(0).map((_, i) => ({ n: i, ps: 0 }));
-            for(let j=1; j<=39; j++) {
-                if(final.has(j)) continue;
-                if(Math.abs(j - s) === 1) pStats[j].ps += 400; // 鄰號
-                if(j % 10 === s % 10) pStats[j].ps += 300;   // 同尾
-                if(Math.abs(j - s) === 10) pStats[j].ps += 200; // 垂直跨度
-            }
-            let sortedP = pStats.sort((a,b) => b.ps - a.ps);
-            for(let i=0; i<3; i++) { if(final.size < 8) final.add(sortedP[i].n); }
+        // 鄰位修補：若仍有名額，補上 final 中最高分號碼的鄰居
+        let currentBest = Array.from(final).sort((a,b) => nScores[b] - nScores[a])[0];
+        [currentBest-1, currentBest+1].forEach(nb => {
+            if(nb > 0 && nb < 40 && final.size < 8) final.add(nb);
         });
-
-        // 補足 8 碼 (防禦性補位)
-        for(let s of sorted) { if(final.size < 8) final.add(s.n); }
 
         return Array.from(final).slice(0, 8).sort((a,b) => a-b);
     }
@@ -97,7 +87,7 @@
 
         testData.forEach(row => {
             const hist = rawData.slice(0, rawData.indexOf(row));
-            const pred = getABPrediction(hist);
+            const pred = getTLCPrediction(hist);
             const hits = row.nums.filter(n => pred.includes(n));
             star[Math.min(hits.length, 4)]++;
             totalHits += hits.length;
@@ -109,11 +99,11 @@
                 </div>`;
         });
 
-        const next = getABPrediction(rawData);
+        const next = getTLCPrediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         const s2plus = ((star[2]+star[3]+star[4])/10*100).toFixed(0);
         log(`2★ 以上占比：${s2plus}% (目標 80%)`);
-        log(`期望值：${(totalHits/10).toFixed(2)} | 雙極壓縮模式啟動`);
+        log(`期望值：${(totalHits/10).toFixed(2)} | 尾數共振鎖定`);
     }
 </script>
 </body>
