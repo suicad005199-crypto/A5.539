@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>天天樂 Oracle V.48-VC</title>
+    <title>天天樂 Oracle V.49-TCV</title>
     <style>
-        :root { --bg: #050505; --panel: #121212; --primary: #00ffaa; --border: #222; --text: #f0f0f0; }
+        :root { --bg: #050505; --panel: #121212; --primary: #ffdd00; --border: #333; --text: #f0f0f0; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
         .container { display: flex; flex-direction: column; gap: 10px; max-width: 600px; margin: auto; }
-        .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,255,170,0.1); }
-        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 10px; border-left: 4px solid var(--primary); padding-left: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(255,221,0,0.1); }
+        .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 10px; border-left: 4px solid var(--primary); padding-left: 10px; }
         .bt-row { border-bottom: 1px solid #222; padding: 10px 0; }
         .n-box { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: #1a1a1a; font-size: 11px; font-weight: bold; border: 1px solid #333; margin-right: 4px; }
         .n-box.hit { background: var(--primary); color: #000; border: none; box-shadow: 0 0 12px var(--primary); }
         .ball { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 50%; font-weight: bold; border: 2px solid var(--primary); color: var(--primary); font-size: 19px; margin-right: 12px; margin-bottom: 10px; }
-        #logBox { background: #000; color: var(--primary); padding: 10px; height: 110px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; border: 1px solid #333; border-radius: 8px; }
+        #logBox { background: #000; color: var(--primary); padding: 10px; height: 110px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid #333; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="panel"><div class="panel-header">P1: 渦流濃縮注入 (V.48.0 VC)</div><input type="file" id="csvFile" accept=".csv"></div>
-    <div class="panel"><div class="panel-header">P2: 80% 2 星占比衝刺</div><div id="btBody"></div></div>
-    <div class="panel"><div class="panel-header">P3: 核心預測 (雙渦流區塊)</div><div id="nextPred" style="display:flex; flex-wrap:wrap;"></div></div>
-    <div class="panel"><div id="logBox">V.48 啟動：執行渦流濃縮邏輯，強行製造「田字型」共振區塊...</div></div>
+    <div class="panel"><div class="panel-header">P1: 尾數渦流注入 (V.49.0 TCV)</div><input type="file" id="csvFile" accept=".csv"></div>
+    <div class="panel"><div class="panel-header">P2: 80% 2 星占比終極挑戰</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 核心預測 (雙尾全包 + 鄰號補強)</div><div id="nextPred" style="display:flex; flex-wrap:wrap;"></div></div>
+    <div class="panel"><div id="logBox">V.49 啟動：執行雙尾全包策略，鎖定最高熱度與最長遺漏尾數...</div></div>
 </div>
 
 <script>
@@ -30,50 +30,41 @@
     const log = (m) => { const b = document.getElementById('logBox'); b.innerHTML += `> ${m}<br>`; b.scrollTop = b.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
 
-    function getVCPrediction(hist) {
-        if(hist.length < 35) return [12,13,22,23,05,06,15,16];
+    function getTCVPrediction(hist) {
+        if(hist.length < 35) return [1,11,21,31,2,12,22,32];
         const lastRow = hist[hist.length-1].nums;
-        let scores = Array(40).fill(0);
-
-        // 1. 基底權重 (V26, 27, 39 融合)
+        
+        // 1. 計算尾數熱度與遺漏權重
+        let tailScores = Array(10).fill(0);
         for(let i=1; i<=39; i++) {
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
-            if(gap >= 18 && gap <= 32) scores[i] += 500;
-            lastRow.forEach(ln => {
-                if(Math.abs(ln - i) === 1) scores[i] += 150;
-                if(ln % 10 === i % 10) scores[i] += 200; // 加強同尾
-            });
+            tailScores[i % 10] += gap;
+            if(lastRow.includes(i-1) || lastRow.includes(i+1)) tailScores[i % 10] += 50;
         }
 
-        // 2. 渦流選號 (選出2個最強核心，帶動周邊)
-        let pool = [];
-        for(let i=1; i<=39; i++) pool.push({ n: i, s: scores[i] });
-        pool.sort((a,b) => b.s - a.s);
+        // 2. 選出前 2 強尾數
+        let topTails = tailScores.map((s, i) => ({ t: i, s: s }))
+                         .sort((a,b) => b.s - a.s).slice(0, 2).map(x => x.t);
 
         let final = new Set();
-        let seeds = [];
-        for(let p of pool) {
-            if(seeds.length >= 2) break;
-            // 確保兩個 Seed 距離足夠遠，避免區塊重疊
-            if(seeds.length === 0 || Math.abs(seeds[0] - p.n) > 5) seeds.push(p.n);
+        // 3. 包下這兩個尾數的所有號碼
+        for(let i=1; i<=39; i++) {
+            if(topTails.includes(i % 10)) final.add(i);
         }
 
-        seeds.forEach(s => {
-            final.add(s);
-            // 強制帶入：同尾號
-            let tail = (s + 10 > 39) ? s - 10 : s + 10;
-            if(tail > 0 && tail <= 39) final.add(tail);
-            // 強制帶入：鄰號
-            let neighbor = (s + 1 > 39) ? s - 1 : s + 1;
-            final.add(neighbor);
-            // 強制帶入：對位同尾鄰號 (製造田字格)
-            let cross = (tail + 1 > 39) ? tail - 1 : tail + 1;
-            if(cross > 0 && cross <= 39) final.add(cross);
-        });
-
-        // 補足 8 碼
-        for(let p of pool) { if(final.size < 8) final.add(p.n); }
+        // 4. 若不足 8 碼，補上上期最強鄰號
+        if(final.size < 8) {
+            let nScore = Array(40).fill(0);
+            for(let i=1; i<=39; i++) {
+                lastRow.forEach(ln => { if(Math.abs(ln - i) === 1) nScore[i] += 100; });
+            }
+            let sortedN = nScore.map((s, i) => ({ n: i, s: s })).sort((a,b) => b.s - a.s);
+            for(let sn of sortedN) {
+                if(final.size >= 8) break;
+                if(sn.n > 0) final.add(sn.n);
+            }
+        }
 
         return Array.from(final).slice(0, 8).sort((a,b) => a-b);
     }
@@ -98,7 +89,7 @@
 
         testData.forEach(row => {
             const hist = rawData.slice(0, rawData.indexOf(row));
-            const pred = getVCPrediction(hist);
+            const pred = getTCVPrediction(hist);
             const hits = row.nums.filter(n => pred.includes(n));
             star[Math.min(hits.length, 4)]++;
             totalHits += hits.length;
@@ -110,11 +101,11 @@
                 </div>`;
         });
 
-        const next = getVCPrediction(rawData);
+        const next = getTCVPrediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
         const s2plus = ((star[2]+star[3]+star[4])/10*100).toFixed(0);
-        log(`2★ 以上占比目標：80% | 目前：${s2plus}%`);
-        log(`期望值：${(totalHits/10).toFixed(2)} | 渦流區塊模式啟動`);
+        log(`2★ 以上占比：${s2plus}% (目標 80%)`);
+        log(`期望值：${(totalHits/10).toFixed(2)} | 雙尾全包模式`);
     }
 </script>
 </body>
