@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oracle V.53.3 Global-Scan</title>
+    <title>Oracle V.53.4 精煉版</title>
     <style>
         :root { --bg: #000; --panel: #141414; --primary: #ff3b30; --border: #2c2c2e; --text: #fff; --sub: #8e8e93; --hit: #ffd60a; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -31,10 +31,10 @@
 <body>
 <div class="container">
     <div class="panel"><div class="panel-header">P1: 數據注入</div><input type="file" id="csvFile" accept=".csv" style="color: #8e8e93;"></div>
-    <div class="panel"><div class="panel-header">P2: 深度回測看板 (近 10 期明細)</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P2: 深度回測 (近 10 期明細)</div><div id="btBody"></div></div>
     <div class="panel"><div class="panel-header">P3: 下期預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
     <div class="panel"><div class="panel-header">P4: 分布矩陣</div><div class="matrix-scroll" id="matrixCont"></div></div>
-    <div class="panel"><div class="panel-header">CONSOLE: CSV 全數據統計分析</div><div id="logBox">等待 CSV 匯入...</div></div>
+    <div class="panel"><div class="panel-header">CONSOLE: CSV 統計分析</div><div id="logBox">等待 CSV 匯入...</div></div>
 </div>
 
 <script>
@@ -47,25 +47,40 @@
         if(hist.length < 30) return [1,2,11,12,21,22,31,32];
         const lastRow = hist[hist.length-1].nums;
         let scores = Array(40).fill(0).map((_, i) => ({ n: i, s: 0, gap: 0 }));
+        
+        // V.53.4 強化評分
         for(let i=1; i<=39; i++) {
             let gap = 0; for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             scores[i].gap = gap;
-            if(gap >= 18 && gap <= 32) scores[i].s += 650;
-            let hot = 0; hist.slice(-7).forEach(d => { if(d.nums.includes(i)) hot++; });
-            scores[i].s += hot * 190;
-            lastRow.forEach(ln => { if(Math.abs(ln - i) === 1) scores[i].s += 230; if(ln % 10 === i % 10) scores[i].s += 200; });
+            if(gap >= 18 && gap <= 32) scores[i].s += 700; // 提高虛空權重
+            let hot = 0; hist.slice(-10).forEach(d => { if(d.nums.includes(i)) hot++; });
+            scores[i].s += hot * 150;
+            lastRow.forEach(ln => { 
+                if(Math.abs(ln - i) === 1) scores[i].s += 250; 
+                if(ln % 10 === i % 10) scores[i].s += 220; 
+            });
         }
+        
         let final = new Set();
-        let cold = [...scores].sort((a,b)=>b.gap - a.gap).slice(0, 10).sort((a,b)=>b.s - a.s)[0].n;
+        // A: 核心冷嵌套
+        let cold = [...scores].sort((a,b)=>b.gap - a.gap).slice(0, 8).sort((a,b)=>b.s - a.s)[0].n;
         final.add(cold);
         [cold-1, cold+1, (cold+10)%40, (cold-10+40)%40].filter(n=>n>0&&n<40).sort((a,b)=>scores[b].s - scores[a].s).slice(0,2).forEach(n=>final.add(n));
-        let hot = [...scores].sort((a,b)=>b.s - a.s).find(x => !final.has(x.n) && ![...final].some(fn => Math.abs(fn-x.n) < 5)).n;
+        
+        // B: 核心熱嵌套 (增加間距校驗)
+        let hot = [...scores].sort((a,b)=>b.s - a.s).find(x => !final.has(x.n) && ![...final].some(fn => Math.abs(fn-x.n) < 4)).n;
         final.add(hot);
         [hot-1, hot+1, (hot+10)%40].filter(n=>n>0&&n<40).forEach(n=>{ if(final.size < 6) final.add(n); });
-        let tails = [...final].map(n => n % 10);
+        
+        // C: 牽引補強 (強行靠近 A 或 B)
         let remain = [...scores].sort((a,b)=>b.s-a.s).filter(x => !final.has(x.n));
-        remain.sort((a,b) => (tails.includes(a.n%10)?1:0) < (tails.includes(b.n%10)?1:0) ? 1 : -1);
+        remain.sort((a,b) => {
+            let distA = Math.min(...[...final].map(f => Math.abs(f-a.n)));
+            let distB = Math.min(...[...final].map(f => Math.abs(f-b.n)));
+            return distA < distB ? -1 : 1;
+        });
         for(let x of remain) { if(final.size < 8) final.add(x.n); }
+        
         return Array.from(final).slice(0, 8).sort((a,b) => a-b);
     }
 
@@ -83,21 +98,14 @@
     });
 
     function runGlobalScan() {
-        let btHtml = ""; 
-        let starCount = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0};
-        let totalHits = 0;
-        
-        // 全局回測 (所有 CSV 資料)
-        const totalPeriods = rawData.length - 30; // 扣除基礎資料期數
+        let btHtml = ""; let starCount = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0}; let totalHits = 0;
+        const totalPeriods = rawData.length - 30;
         for(let i = 30; i < rawData.length; i++) {
             const hist = rawData.slice(0, i);
             const pred = getPrediction(hist);
             const hits = rawData[i].nums.filter(n => pred.includes(n));
-            starCount[Math.min(hits.length, 5)]++;
-            totalHits += hits.length;
+            starCount[Math.min(hits.length, 5)]++; totalHits += hits.length;
         }
-
-        // Panel 2 僅展示近 10 期
         rawData.slice(-10).reverse().forEach(row => {
             const hist = rawData.slice(0, rawData.indexOf(row));
             const pred = getPrediction(hist);
@@ -110,8 +118,6 @@
         });
         document.getElementById('btBody').innerHTML = btHtml;
         document.getElementById('nextPred').innerHTML = getPrediction(rawData).map(n => `<div class="ball">${pad(n)}</div>`).join('');
-        
-        // P4 矩陣
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
         for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
         mHtml += `</tr></thead><tbody>`;
@@ -121,15 +127,12 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-
-        // Console 全局統計
-        log(`[全局掃描] 總計數據: ${rawData.length} 期`);
-        log(`[有效回測] 範圍: ${totalPeriods} 期`);
+        log(`[精煉完成] 回測範圍: ${totalPeriods} 期`);
         log(`期望值：${(totalHits / totalPeriods).toFixed(2)} 碼/期`);
         log(`0星：${(starCount[0]/totalPeriods*100).toFixed(1)}% | 1星：${(starCount[1]/totalPeriods*100).toFixed(1)}%`);
         log(`2星：${(starCount[2]/totalPeriods*100).toFixed(1)}% | 3星：${(starCount[3]/totalPeriods*100).toFixed(1)}%`);
         log(`4星+：${(starCount[4]/totalPeriods*100).toFixed(1)}%`);
-        log(`2★以上累計占比：${((starCount[2]+starCount[3]+starCount[4])/totalPeriods*100).toFixed(1)}%`);
+        log(`2★以上累計：${((starCount[2]+starCount[3]+starCount[4])/totalPeriods*100).toFixed(1)}%`);
     }
 </script>
 </body>
