@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oracle V.53.8 Cross-Entropy</title>
+    <title>Oracle V.53.10 Cover-Max</title>
     <style>
         :root { --bg: #000; --panel: #141414; --primary: #ff3b30; --border: #2c2c2e; --text: #fff; --sub: #8e8e93; --hit: #ffd60a; }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
@@ -17,31 +17,23 @@
         .n-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #2c2c2e; font-size: 11px; font-weight: bold; }
         .n-box.hit { background: var(--hit); color: #000; box-shadow: 0 0 8px var(--hit); }
         .star-tag { background: var(--primary); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 900; }
-        .matrix-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: #000; }
-        .m-table { border-collapse: collapse; white-space: nowrap; width: 100%; }
-        .m-table td, .m-table th { border: 1px solid #222; width: 20px; height: 20px; text-align: center; font-size: 10px; }
-        .m-head { background: #1a1a1a; color: var(--primary); position: sticky; top: 0; }
-        .m-date { background: #1a1a1a; color: var(--sub); position: sticky; left: 0; width: 50px; z-index: 5; }
-        .m-ball { background: var(--primary); border-radius: 50%; width: 12px; height: 12px; display: inline-block; }
-        #logBox { background: #000; color: #32d74b; padding: 10px; height: 120px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; line-height: 1.6; }
+        #logBox { background: #000; color: #32d74b; padding: 10px; height: 140px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; line-height: 1.6; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; }
         .ball { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #1a1a1a; border-radius: 50%; font-weight: bold; border: 2px solid var(--primary); color: var(--primary); font-size: 18px; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="panel"><div class="panel-header">P1: 數據注入</div><input type="file" id="csvFile" accept=".csv" style="color: #8e8e93;"></div>
-    <div class="panel"><div class="panel-header">P2: 深度回測 (近 10 期明細)</div><div id="btBody"></div></div>
-    <div class="panel"><div class="panel-header">P3: 下期預測 (V.53.8 8碼)</div><div id="nextPred" class="ball-row"></div></div>
-    <div class="panel"><div class="panel-header">P4: 分布矩陣</div><div class="matrix-scroll" id="matrixCont"></div></div>
-    <div class="panel"><div class="panel-header">CONSOLE: 統計分析</div><div id="logBox">等待 CSV 匯入...</div></div>
+    <div class="panel"><div class="panel-header">P1: 數據注入 (V.53.10)</div><input type="file" id="csvFile" accept=".csv"></div>
+    <div class="panel"><div class="panel-header">P2: 深度回測看板 (近 10 期)</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 下期預測 (8 碼最大覆蓋)</div><div id="nextPred" class="ball-row"></div></div>
+    <div class="panel"><div class="panel-header">CONSOLE: 統計分析</div><div id="logBox">等待 CSV 檔案...</div></div>
 </div>
 
 <script>
     let rawData = [];
     const log = (m) => { const b = document.getElementById('logBox'); b.innerHTML += `> ${m}<br>`; b.scrollTop = b.scrollHeight; };
     const pad = (n) => n.toString().padStart(2, '0');
-    const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
     function getPrediction(hist) {
         if(hist.length < 30) return [1,2,11,12,21,22,31,32];
@@ -51,36 +43,35 @@
         for(let i=1; i<=39; i++) {
             let gap = 0; for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             scores[i].gap = gap;
-            if(gap >= 18 && gap <= 32) scores[i].s += 800; // 虛空權重微調
+            if(gap >= 15 && gap <= 30) scores[i].s += 780;
+            if(gap >= 4 && gap <= 8) scores[i].s += 180; // 溫碼梯度
             let hot = 0; hist.slice(-10).forEach(d => { if(d.nums.includes(i)) hot++; });
-            scores[i].s += hot * 210;
+            scores[i].s += hot * 230; 
             lastRow.forEach(ln => { 
                 if(Math.abs(ln - i) === 1) scores[i].s += 310; 
-                if(ln % 10 === i % 10) scores[i].s += 320; // 強化同尾
+                if(ln % 10 === i % 10) scores[i].s += 330; 
             });
         }
 
         let final = new Set();
-        // A核心：4碼 (增加交叉熵過濾)
-        let coldCandidates = [...scores].sort((a,b)=>b.gap - a.gap).slice(0, 12).sort((a,b)=>b.s - a.s);
-        final.add(coldCandidates[0].n);
-        [coldCandidates[0].n-1, coldCandidates[0].n+1, (coldCandidates[0].n+10)%40].filter(n=>n>0&&n<40).forEach(n=>{ if(final.size < 4) final.add(n); });
+        let sorted = [...scores].sort((a,b)=>b.s - a.s);
 
-        // B核心：4碼 (跳島與熱度覆蓋)
-        let hotCandidates = [...scores].sort((a,b)=>b.s - a.s);
-        for(let x of hotCandidates) {
-            if(!final.has(x.n) && ![...final].some(fn => Math.abs(fn-x.n) < 3)) {
+        // 核心選碼邏輯：強化空間分散
+        for(let x of sorted) {
+            if(x.n === 0) continue;
+            // 空間間距檢查：與已選碼至少距離 4
+            if(![...final].some(fn => Math.abs(fn - x.n) < 4)) {
                 final.add(x.n);
-                // 優先拉攏同尾伴侶
-                let tailMatch = hotCandidates.find(h => h.n !== x.n && h.n%10 === x.n%10 && !final.has(h.n));
-                if(tailMatch) final.add(tailMatch.n);
-                if(final.size >= 8) break;
+                // 嘗試加入一個同尾伴侶
+                let tail = sorted.find(h => h.n !== x.n && h.n%10 === x.n%10 && !final.has(h.n));
+                if(tail && final.size < 8) final.add(tail.n);
             }
+            if(final.size >= 8) break;
         }
 
-        // 補位機制
-        if(final.size < 8) {
-            hotCandidates.forEach(h => { if(final.size < 8) final.add(h.n); });
+        // 補位
+        for(let x of sorted) {
+            if(final.size < 8 && x.n !== 0 && !final.has(x.n)) final.add(x.n);
         }
 
         return Array.from(final).slice(0, 8).sort((a,b) => a-b);
@@ -113,28 +104,16 @@
             const pred = getPrediction(hist);
             const hits = row.nums.filter(n => pred.includes(n));
             btHtml += `<div class="bt-row">
-                <div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div>
+                <div class="bt-meta"><span>📅 ${row.date}</span> <span class="star-tag">${hits.length} ★</span></div>
                 <div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div>
                 <div class="num-group"><span class="num-label">預測</span>${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--hit)':'#666'}">${pad(n)}</div>`).join('')}</div>
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
         document.getElementById('nextPred').innerHTML = getPrediction(rawData).map(n => `<div class="ball">${pad(n)}</div>`).join('');
-        let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
-        for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
-        mHtml += `</tr></thead><tbody>`;
-        rawData.slice(-15).reverse().forEach(row => {
-            mHtml += `<tr><td class="m-date">${formatDate(row.date)}</td>`;
-            for(let i=1; i<=39; i++) mHtml += `<td>${row.nums.includes(i) ? '<span class="m-ball"></span>' : ''}</td>`;
-            mHtml += `</tr>`;
-        });
-        document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`[V.53.8 交叉熵優化啟動]`);
-        log(`全量數據: ${rawData.length} 期 | 回測: ${totalPeriods} 期`);
-        log(`期望值：${(totalHits / totalPeriods).toFixed(2)} 碼/期`);
-        log(`--------------------------------`);
-        log(`2★以上總占比: ${((starCount[2]+starCount[3]+starCount[4])/totalPeriods*100).toFixed(1)}%`);
-        log(`明細: 0★(${(starCount[0]/totalPeriods*100).toFixed(0)}%) | 1★(${(starCount[1]/totalPeriods*100).toFixed(0)}%) | 2★(${(starCount[2]/totalPeriods*100).toFixed(0)}%) | 3★+(${(starCount[3]/totalPeriods*100).toFixed(0)}%)`);
+        log(`[V.53.10 Cover-Max] 掃描完成`);
+        log(`2★以上占比: ${((starCount[2]+starCount[3]+starCount[4])/totalPeriods*100).toFixed(1)}%`);
+        log(`分佈: 1★(${(starCount[1]/totalPeriods*100).toFixed(0)}%) | 2★(${(starCount[2]/totalPeriods*100).toFixed(0)}%) | 3★+(${(starCount[3]/totalPeriods*100).toFixed(0)}%)`);
     }
 </script>
 </body>
