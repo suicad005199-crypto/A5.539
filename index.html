@@ -3,24 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oracle V.53.1 Crimson Matrix</title>
+    <title>Oracle V.53.2 Apex-Dynamic</title>
     <style>
         :root { 
-            --bg: #000; 
-            --panel: #141414; 
-            --primary: #ff3b30; /* 紅色核心 */
-            --border: #2c2c2e; 
-            --text: #ffffff; 
-            --sub: #8e8e93; 
-            --hit: #ffd60a; /* 金色命中 */
-            --accent: #ff453a; 
-            --success: #ff2d55; 
+            --bg: #000; --panel: #141414; --primary: #ff3b30; --border: #2c2c2e; 
+            --text: #ffffff; --sub: #8e8e93; --hit: #ffd60a; --accent: #ff453a; 
         }
         body { font-family: 'PingFang TC', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; font-size: 13px; }
         .container { display: flex; flex-direction: column; gap: 12px; max-width: 600px; margin: auto; }
         .panel { background: var(--panel); border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
         .panel-header { color: var(--primary); font-weight: bold; margin-bottom: 10px; border-left: 3px solid var(--primary); padding-left: 8px; font-size: 14px; text-transform: uppercase; }
-        
         .bt-row { border-bottom: 1px solid var(--border); padding: 10px 0; display: flex; flex-direction: column; gap: 6px; }
         .bt-meta { display: flex; justify-content: space-between; color: var(--sub); font-size: 11px; }
         .num-group { display: flex; gap: 4px; align-items: center; }
@@ -28,14 +20,12 @@
         .n-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #2c2c2e; font-size: 11px; font-weight: bold; color: #fff; }
         .n-box.hit { background: var(--hit); color: #000; box-shadow: 0 0 8px var(--hit); }
         .star-tag { background: var(--primary); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 900; font-size: 12px; }
-
         .matrix-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: #000; }
         .m-table { border-collapse: collapse; white-space: nowrap; width: 100%; }
         .m-table td, .m-table th { border: 1px solid #222; width: 20px; height: 20px; text-align: center; font-size: 10px; }
         .m-head { background: #1a1a1a; color: var(--primary); position: sticky; top: 0; }
         .m-date { background: #1a1a1a; color: var(--sub); position: sticky; left: 0; width: 50px; z-index: 5; font-size: 9px; }
         .m-ball { background: var(--primary); border-radius: 50%; width: 12px; height: 12px; display: inline-block; box-shadow: 0 0 5px var(--primary); }
-        
         #logBox { background: #000; color: var(--primary); padding: 10px; height: 70px; overflow-y: auto; font-family: monospace; font-size: 11px; border: 1px solid var(--border); border-radius: 8px; }
         .ball-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
         .ball { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: #1a1a1a; border-radius: 50%; font-weight: bold; border: 2px solid var(--primary); color: var(--primary); font-size: 18px; box-shadow: inset 0 0 10px rgba(255,59,48,0.2); }
@@ -43,22 +33,10 @@
 </head>
 <body>
 <div class="container">
-    <div class="panel">
-        <div class="panel-header">P1: 數據注入 (V.53.1 Crimson)</div>
-        <input type="file" id="csvFile" accept=".csv" style="color: #8e8e93;">
-    </div>
-    <div class="panel">
-        <div class="panel-header">P2: 深度回測 (三元嵌套邏輯)</div>
-        <div id="btBody"></div>
-    </div>
-    <div class="panel">
-        <div class="panel-header">P3: 下期預測 (8 碼集群)</div>
-        <div id="nextPred" class="ball-row"></div>
-    </div>
-    <div class="panel">
-        <div class="panel-header">P4: 歷史分布矩陣</div>
-        <div class="matrix-scroll" id="matrixCont"></div>
-    </div>
+    <div class="panel"><div class="panel-header">P1: 數據注入 (V.53.2 Dynamic)</div><input type="file" id="csvFile" accept=".csv" style="color: #8e8e93;"></div>
+    <div class="panel"><div class="panel-header">P2: 深度回測 (動態優化版)</div><div id="btBody"></div></div>
+    <div class="panel"><div class="panel-header">P3: 下期預測 (8 碼)</div><div id="nextPred" class="ball-row"></div></div>
+    <div class="panel"><div class="panel-header">P4: 歷史分布矩陣</div><div class="matrix-scroll" id="matrixCont"></div></div>
     <div class="panel"><div id="logBox">等待大數據匯入...</div></div>
 </div>
 
@@ -68,8 +46,8 @@
     const pad = (n) => n.toString().padStart(2, '0');
     const formatDate = (s) => { const p = s.split(/[-/]/); return p.length >= 3 ? `${p[1]}/${p[2]}` : s; };
 
-    function getV531Prediction(hist) {
-        if(hist.length < 30) return [1,2,3,11,12,13,21,22];
+    function getV532Prediction(hist) {
+        if(hist.length < 30) return [1,2,3,4,5,6,7,8];
         const lastRow = hist[hist.length-1].nums;
         let scores = Array(40).fill(0).map((_, i) => ({ n: i, s: 0, gap: 0 }));
 
@@ -77,29 +55,32 @@
             let gap = 0;
             for(let k=hist.length-1; k>=0; k--) { if(!hist[k].nums.includes(i)) gap++; else break; }
             scores[i].gap = gap;
-            if(gap >= 18 && gap <= 32) scores[i].s += 600;
-            let hotCount = 0;
-            hist.slice(-5).forEach(d => { if(d.nums.includes(i)) hotCount++; });
-            scores[i].s += hotCount * 180;
+            // V.26/35 權重
+            if(gap >= 18 && gap <= 32) scores[i].s += 650;
+            let hot = 0; hist.slice(-7).forEach(d => { if(d.nums.includes(i)) hot++; });
+            scores[i].s += hot * 190;
+            // V.27/39 鄰號同尾
             lastRow.forEach(ln => {
-                if(Math.abs(ln - i) === 1) scores[i].s += 220;
-                if(ln % 10 === i % 10) scores[i].s += 180;
+                if(Math.abs(ln - i) === 1) scores[i].s += 230;
+                if(ln % 10 === i % 10) scores[i].s += 200;
             });
         }
 
         let final = new Set();
-        // 區塊 A: 冷碼嵌套 (3碼)
-        let coldSeed = [...scores].sort((a,b) => b.gap - a.gap).slice(0, 12).sort((a,b) => b.s - a.s)[0].n;
-        final.add(coldSeed);
-        [coldSeed-1, coldSeed+1, (coldSeed+10)%40].forEach(n => { if(n>0 && n<40 && final.size < 3) final.add(n); });
+        // A: 冷嵌套 (3碼) - 選取高分冷碼及其最強伴侶
+        let cold = [...scores].sort((a,b)=>b.gap - a.gap).slice(0, 10).sort((a,b)=>b.s - a.s)[0].n;
+        final.add(cold);
+        [cold-1, cold+1, (cold+10)%40, (cold-10+40)%40].filter(n=>n>0&&n<40).sort((a,b)=>scores[b].s - scores[a].s).slice(0,2).forEach(n=>final.add(n));
 
-        // 區塊 B: 熱碼嵌套 (3碼)
-        let hotSeed = [...scores].sort((a,b) => b.s - a.s).find(x => !final.has(x.n)).n;
-        final.add(hotSeed);
-        [hotSeed-1, hotSeed+1, (hotSeed+10)%40].forEach(n => { if(n>0 && n<40 && final.size < 6) final.add(n); });
+        // B: 熱嵌套 (3碼) - 尋找與 A 距離 > 5 的熱碼
+        let hot = [...scores].sort((a,b)=>b.s - a.s).find(x => !final.has(x.n) && ![...final].some(fn => Math.abs(fn-x.n) < 5)).n;
+        final.add(hot);
+        [hot-1, hot+1, (hot+10)%40].filter(n=>n>0&&n<40).forEach(n=>{ if(final.size < 6) final.add(n); });
 
-        // 區塊 C: 共振補強 (2碼)
-        let remain = [...scores].sort((a,b) => b.s - a.s).filter(x => !final.has(x.n));
+        // C: 同尾加強 (2碼) - 優先補齊與 A, B 同尾的號碼
+        let tails = [...final].map(n => n % 10);
+        let remain = [...scores].sort((a,b)=>b.s-a.s).filter(x => !final.has(x.n));
+        remain.sort((a,b) => (tails.includes(a.n%10)?1:0) < (tails.includes(b.n%10)?1:0) ? 1 : -1);
         for(let x of remain) { if(final.size < 8) final.add(x.n); }
 
         return Array.from(final).slice(0, 8).sort((a,b) => a-b);
@@ -112,39 +93,28 @@
                 const c = l.split(',');
                 return { date: c[0].trim(), nums: c.slice(1, 6).map(x => parseInt(x.trim())).filter(x => !isNaN(x)).sort((a,b)=>a-b) };
             }).filter(r => r.nums.length === 5);
-            runV531();
+            runV532();
         };
         reader.readAsText(e.target.files[0]);
     });
 
-    function runV531() {
-        let btHtml = "";
-        let starCount = {0:0, 1:0, 2:0, 3:0, 4:0};
+    function runV532() {
+        let btHtml = ""; let starCount = {0:0,1:0,2:0,3:0,4:0};
         const displayData = rawData.slice(-10).reverse();
-        
         displayData.forEach(row => {
-            const histSlice = rawData.slice(0, rawData.indexOf(row));
-            const pred = getV531Prediction(histSlice);
+            const hist = rawData.slice(0, rawData.indexOf(row));
+            const pred = getV532Prediction(hist);
             const hits = row.nums.filter(n => pred.includes(n));
             starCount[Math.min(hits.length, 4)]++;
-            
             btHtml += `<div class="bt-row">
                 <div class="bt-meta"><span>📅 ${formatDate(row.date)}</span> <span class="star-tag">${hits.length} ★</span></div>
-                <div class="num-group">
-                    <span class="num-label">開獎</span>
-                    ${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}
-                </div>
-                <div class="num-group">
-                    <span class="num-label">預測</span>
-                    ${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--hit)':'#666'}">${pad(n)}</div>`).join('')}
-                </div>
+                <div class="num-group"><span class="num-label">開獎</span>${row.nums.map(n => `<div class="n-box ${pred.includes(n)?'hit':''}">${pad(n)}</div>`).join('')}</div>
+                <div class="num-group"><span class="num-label">預測</span>${pred.map(n => `<div class="n-box" style="color:${row.nums.includes(n)?'var(--hit)':'#666'}">${pad(n)}</div>`).join('')}</div>
             </div>`;
         });
         document.getElementById('btBody').innerHTML = btHtml;
-        
-        const next = getV531Prediction(rawData);
+        const next = getV532Prediction(rawData);
         document.getElementById('nextPred').innerHTML = next.map(n => `<div class="ball">${pad(n)}</div>`).join('');
-        
         let mHtml = `<table class="m-table"><thead><tr><th class="m-date">日</th>`;
         for(let i=1; i<=39; i++) mHtml += `<th class="m-head">${pad(i)}</th>`;
         mHtml += `</tr></thead><tbody>`;
@@ -154,7 +124,7 @@
             mHtml += `</tr>`;
         });
         document.getElementById('matrixCont').innerHTML = mHtml + `</tbody></table>`;
-        log(`V.53.1 啟動成功 | 2★+ 占比: ${((starCount[2]+starCount[3]+starCount[4])/10*100).toFixed(0)}%`);
+        log(`V.53.2 強化成功 | 2★+ 占比: ${((starCount[2]+starCount[3]+starCount[4])/10*100).toFixed(0)}%`);
     }
 </script>
 </body>
